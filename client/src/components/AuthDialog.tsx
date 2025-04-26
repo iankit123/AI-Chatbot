@@ -21,6 +21,21 @@ interface AuthDialogProps {
 }
 
 export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogProps) {
+  // When dialog is closed without authentication, ensure we reset the message count to 2
+  // This ensures the user can always see the input field
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      // If closing the dialog, ensure message count is reset to 2 in localStorage
+      try {
+        const savedCompanion = localStorage.getItem('selectedCompanion');
+        const companionId = savedCompanion ? JSON.parse(savedCompanion).id : 'priya';
+        localStorage.setItem(`messageCount_${companionId}`, '2');
+      } catch (error) {
+        console.error('Error resetting message count:', error);
+      }
+    }
+    onOpenChange(newOpen);
+  };
   const [activeTab, setActiveTab] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -189,7 +204,7 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   };
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>

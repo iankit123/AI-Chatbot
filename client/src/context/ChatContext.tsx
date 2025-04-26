@@ -154,7 +154,14 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   useEffect(() => {
     const companionId = stableGetCompanionId();
     const savedCount = localStorage.getItem(`messageCount_${companionId}`);
-    if (savedCount) {
+    const authUser = localStorage.getItem('authUser');
+    
+    // If user is not logged in and count is 3 or more, reset to 2
+    // This ensures the chat input stays visible but auth dialog appears on next attempt
+    if (!authUser && savedCount && parseInt(savedCount, 10) >= 3) {
+      setMessageCount(2);
+      localStorage.setItem(`messageCount_${companionId}`, '2');
+    } else if (savedCount) {
       setMessageCount(parseInt(savedCount, 10) || 0);
     }
     
