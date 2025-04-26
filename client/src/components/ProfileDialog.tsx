@@ -17,6 +17,9 @@ interface ProfileDialogProps {
 export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profile, setProfile] = useState<{name?: string; age?: number} | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAge, setEditAge] = useState<number | string>('');
   
   // Check if user is authenticated from localStorage directly
   // This avoids the dependency on AuthContext completely
@@ -44,17 +47,24 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         const guestProfile = localStorage.getItem('guestProfile');
         if (guestProfile) {
           try {
-            setProfile(JSON.parse(guestProfile));
+            const parsedProfile = JSON.parse(guestProfile);
+            setProfile(parsedProfile);
+            // Initialize edit fields with current values
+            setEditName(parsedProfile.name || '');
+            setEditAge(parsedProfile.age || '');
           } catch (e) {
             console.error('Error parsing profile data:', e);
             setProfile(null);
           }
         } else {
           // Create a basic profile if nothing found
-          setProfile({
+          const defaultProfile = {
             name: "User",
             age: 0
-          });
+          };
+          setProfile(defaultProfile);
+          setEditName(defaultProfile.name);
+          setEditAge(defaultProfile.age);
         }
       } else {
         setProfile(null);
@@ -65,6 +75,61 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       setProfile(null);
     }
   }, [open]); // Re-check when dialog opens
+  
+  // Function to handle signing out
+  const handleSignOut = () => {
+    // Clear auth data from localStorage
+    localStorage.removeItem('authUser');
+    localStorage.removeItem('guestProfile');
+    
+    // Clear any Firebase auth keys if they exist
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('firebase:authUser:')) {
+        localStorage.removeItem(key);
+      }
+    }
+    
+    // Update state
+    setIsAuthenticated(false);
+    setProfile(null);
+    
+    // Close dialog
+    onOpenChange(false);
+    
+    // Reload page to reflect signed out state across the app
+    window.location.href = '/';
+  };
+  
+  // Function to handle editing profile
+  const startEditing = () => {
+    setIsEditing(true);
+  };
+  
+  // Function to save edited profile
+  const saveProfile = () => {
+    const updatedProfile = {
+      name: editName,
+      age: typeof editAge === 'string' ? parseInt(editAge, 10) || 0 : editAge
+    };
+    
+    // Save to localStorage
+    localStorage.setItem('guestProfile', JSON.stringify(updatedProfile));
+    
+    // Update state
+    setProfile(updatedProfile);
+    setIsEditing(false);
+  };
+  
+  // Function to cancel editing
+  const cancelEditing = () => {
+    // Reset edit fields to current values
+    if (profile) {
+      setEditName(profile.name || '');
+      setEditAge(profile.age || '');
+    }
+    setIsEditing(false);
+  };
   
   const handleSignup = () => {
     // Close this dialog
@@ -153,20 +218,75 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                   </div>
                 </div>
                 
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Name</p>
-                  <p className="font-medium">{profile.name || 'Not provided'}</p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Age</p>
-                  <p className="font-medium">{profile.age || 'Not provided'}</p>
-                </div>
-                
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-green-700 font-medium">Unlimited Access</p>
-                  <p className="text-sm text-green-600">You have unlimited messaging with all companions</p>
-                </div>
+                {isEditing ? (
+                  // Edit mode
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Name</label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Age</label>
+                      <input
+                        type="number"
+                        value={editAge}
+                        onChange={(e) => setEditAge(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    
+                    <div className="flex space-x-2 pt-2">
+                      <Button onClick={saveProfile} className="flex-1">
+                        Save Changes
+                      </Button>
+                      <Button onClick={cancelEditing} variant="outline" className="flex-1">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // View mode
+                  <>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">Name</p>
+                      <p className="font-medium">{profile.name || 'Not provided'}</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">Age</p>
+                      <p className="font-medium">{profile.age || 'Not provided'}</p>
+                    </div>
+                    
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-sm text-green-700 font-medium">Unlimited Access</p>
+                      <p className="text-sm text-green-600">You have unlimited messaging with all companions</p>
+                    </div>
+                    
+                    <div className="flex space-x-2 pt-4">
+                      <Button onClick={startEditing} variant="outline" className="flex-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        Edit Profile
+                      </Button>
+                      <Button onClick={handleSignOut} variant="destructive" className="flex-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                          <polyline points="16 17 21 12 16 7"></polyline>
+                          <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Sign Out
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">

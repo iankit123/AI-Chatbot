@@ -13,8 +13,11 @@ interface ChatContextType {
   messageCount: number;
   showProfileDialog: boolean;
   showAuthDialog: boolean;
+  showPhotoDialog: boolean;
+  currentPhoto: string | null;
   setShowProfileDialog: (show: boolean) => void;
   setShowAuthDialog: (show: boolean) => void;
+  setShowPhotoDialog: (show: boolean) => void;
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   toggleLanguage: () => void;
@@ -41,6 +44,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [messageCount, setMessageCount] = useState(0);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showPhotoDialog, setShowPhotoDialog] = useState(false);
+  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const { toast } = useToast();
   
   // Initialize from localStorage directly instead of using ChatSettingsContext
@@ -290,8 +295,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         messageCount,
         showProfileDialog,
         showAuthDialog,
+        showPhotoDialog,
+        currentPhoto,
         setShowProfileDialog,
         setShowAuthDialog,
+        setShowPhotoDialog,
         sendMessage, 
         clearChat, 
         toggleLanguage
