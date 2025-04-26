@@ -20,9 +20,11 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
           />
         </div>
         <div className="relative max-w-[80%] bg-partner rounded-2xl rounded-tl-none px-4 py-2 chat-bubble-left shadow-sm">
-          <p className="text-neutral-900">{message.content}</p>
+          <div className="first-person-message">
+            <p className="text-neutral-900">{message.content}</p>
+          </div>
           <span className="text-[10px] text-neutral-700 block text-right mt-1">
-            {formatTime(message.timestamp)}
+            {formatTime(message.timestamp.toString())}
           </span>
         </div>
       </div>
