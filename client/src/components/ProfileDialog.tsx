@@ -19,27 +19,46 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profile, setProfile] = useState<{name?: string; age?: number} | null>(null);
   
-  // Use effect to check authentication status
+  // Check if user is authenticated from localStorage directly
+  // This avoids the dependency on AuthContext being available
   useEffect(() => {
-    try {
-      // Try to use auth if available
-      const authContext = useAuth();
-      setIsAuthenticated(authContext.isAuthenticated);
-      setProfile(authContext.userProfile);
-    } catch (error) {
-      console.error("AuthProvider not available:", error);
-      
-      // Use localStorage as fallback
-      const userId = localStorage.getItem('authUser');
-      setIsAuthenticated(!!userId);
-      
-      const guestProfile = localStorage.getItem('guestProfile');
-      if (guestProfile) {
-        try {
-          setProfile(JSON.parse(guestProfile));
-        } catch (e) {
-          console.error('Error parsing profile:', e);
+    // Check Firebase auth in localStorage (using a more generic approach)
+    let userId = localStorage.getItem('authUser');
+    
+    // If not found, scan localStorage for Firebase auth keys
+    if (!userId) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('firebase:authUser:')) {
+          userId = localStorage.getItem(key);
+          break;
         }
+      }
+    }
+    const isAuth = !!userId;
+    setIsAuthenticated(isAuth);
+    
+    // Get profile data if available
+    if (isAuth) {
+      try {
+        // First try to get from localStorage
+        const guestProfile = localStorage.getItem('guestProfile');
+        if (guestProfile) {
+          setProfile(JSON.parse(guestProfile));
+        } else {
+          // If not in localStorage, try to use auth context
+          try {
+            const authContext = useAuth();
+            if (authContext.userProfile) {
+              setProfile(authContext.userProfile);
+            }
+          } catch (e) {
+            // Auth context not available, but we already set isAuthenticated from localStorage
+            console.log("Using localStorage auth only, no profile data available");
+          }
+        }
+      } catch (e) {
+        console.error('Error loading profile data:', e);
       }
     }
   }, [open]); // Re-check when dialog opens
