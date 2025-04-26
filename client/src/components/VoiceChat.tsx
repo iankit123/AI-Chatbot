@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useChat } from "@/context/ChatContext";
 import { Lock } from "lucide-react";
+import { database } from "@/lib/firebase"; 
+import { ref, push, set } from "firebase/database";
 
 export function VoiceChat() {
   const [requesting, setRequesting] = useState(false);
@@ -12,15 +14,33 @@ export function VoiceChat() {
   const handleRequestActivation = () => {
     setRequesting(true);
     
+    // Payment request data
+    const requestData = {
+      type: 'voice_chat',
+      timestamp: new Date().toISOString(),
+      amount: 99,
+      companionId: botName.toLowerCase()
+    };
+    
     // Record the request in localStorage
     try {
       const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
-      paymentRequests.push({
-        type: 'voice_chat',
-        timestamp: new Date().toISOString(),
-        amount: 99
-      });
+      paymentRequests.push(requestData);
       localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
+      
+      // Also save to Firebase if user is authenticated
+      const authUser = localStorage.getItem('authUser');
+      if (authUser) {
+        try {
+          const user = JSON.parse(authUser);
+          const paymentsRef = ref(database, `payments/${user.uid}`);
+          const newPaymentRef = push(paymentsRef);
+          set(newPaymentRef, requestData);
+        } catch (firebaseError) {
+          console.error('Error saving to Firebase:', firebaseError);
+          // Continue with local storage only
+        }
+      }
     } catch (error) {
       console.error('Error saving voice chat request:', error);
     }
@@ -40,8 +60,8 @@ export function VoiceChat() {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center p-6 text-center h-full">
-      <div className="bg-gray-100 p-8 rounded-xl max-w-md w-full text-center">
+    <div className="flex flex-col items-center justify-center p-6 text-center h-full overflow-auto">
+      <div className="bg-gray-100 p-8 rounded-xl max-w-md mx-auto w-full text-center mt-16">
         <div className="mb-6">
           <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
             <Lock className="w-8 h-8 text-gray-500" />

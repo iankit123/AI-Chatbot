@@ -51,7 +51,7 @@ export default function Chat() {
         </TabsList>
         
         <TabsContent value="text" className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto mb-[60px]">
             <ChatArea />
           </div>
           <div className="shrink-0">

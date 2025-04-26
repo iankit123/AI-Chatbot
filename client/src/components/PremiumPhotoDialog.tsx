@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { database, ref, push, set } from '@/lib/firebase';
+import { database } from '@/lib/firebase';
+import { ref, push, set } from 'firebase/database';
 
 interface PremiumPhotoDialogProps {
   open: boolean;
@@ -30,21 +31,39 @@ export function PremiumPhotoDialog({
   const handlePayment = async () => {
     setProcessing(true);
     
+    // Payment request data
+    const requestData = {
+      type: 'premium_photo',
+      companionId: companionName.toLowerCase(),
+      timestamp: new Date().toISOString(),
+      amount: 20,
+      imageUrl: blurredImageUrl
+    };
+    
     // Simulate payment processing
     setTimeout(() => {
       setProcessing(false);
       
-      // Record the payment attempt in localStorage
+      // Record the payment attempt
       try {
         // Store the request in localStorage
         const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
-        paymentRequests.push({
-          type: 'premium_photo',
-          companionId: companionName.toLowerCase(),
-          timestamp: new Date().toISOString(),
-          amount: 20
-        });
+        paymentRequests.push(requestData);
         localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
+        
+        // Also save to Firebase if user is authenticated
+        const authUser = localStorage.getItem('authUser');
+        if (authUser) {
+          try {
+            const user = JSON.parse(authUser);
+            const paymentsRef = ref(database, `payments/${user.uid}`);
+            const newPaymentRef = push(paymentsRef);
+            set(newPaymentRef, requestData);
+          } catch (firebaseError) {
+            console.error('Error saving to Firebase:', firebaseError);
+            // Continue with local storage only
+          }
+        }
       } catch (error) {
         console.error('Error saving payment request:', error);
       }

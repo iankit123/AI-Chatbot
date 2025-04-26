@@ -48,7 +48,7 @@ export function ChatInput() {
         </button>
       </div>
       
-      <div className="mt-2 px-3 mb-2">
+      <div className="mt-2 px-3 mb-10">
         <div className="flex justify-between text-xs text-neutral-700">
           <span>• {currentLanguage === 'hindi' ? 'Hindi aur English dono supported hain' : 'Hindi and English both supported'}</span>
           <button 
