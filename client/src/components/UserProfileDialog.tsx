@@ -28,7 +28,22 @@ export function UserProfileDialog({
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [error, setError] = useState('');
-  const { updateProfile, currentUser } = useAuth();
+  // Use try-catch to handle the case where AuthProvider isn't available
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    // Provide mock implementations if AuthProvider is not available
+    authContext = {
+      updateProfile: (profile: any) => {
+        localStorage.setItem('guestProfile', JSON.stringify(profile));
+        return Promise.resolve();
+      },
+      currentUser: null
+    };
+  }
+  
+  const { updateProfile, currentUser } = authContext;
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

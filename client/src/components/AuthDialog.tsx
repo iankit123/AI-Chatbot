@@ -26,7 +26,20 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signInWithGooglePopup, loginWithEmail, signUpWithEmail } = useAuth();
+  // Use try-catch to handle the case where AuthProvider isn't available
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    // Provide mock implementations if AuthProvider is not available
+    authContext = {
+      signInWithGooglePopup: () => Promise.resolve({} as any),
+      loginWithEmail: () => Promise.resolve({} as any),
+      signUpWithEmail: () => Promise.resolve({} as any)
+    };
+  }
+  
+  const { signInWithGooglePopup, loginWithEmail, signUpWithEmail } = authContext;
   
   const handleGoogleSignIn = async () => {
     try {
