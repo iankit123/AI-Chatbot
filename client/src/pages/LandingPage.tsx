@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 interface CompanionProfile {
@@ -39,14 +39,48 @@ const companions: CompanionProfile[] = [
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
+  const [selectedId, setSelectedId] = useState("");
+  const [selectedName, setSelectedName] = useState("Priya");
+
+  // Initialize from localStorage or set default
+  useEffect(() => {
+    try {
+      const savedCompanion = localStorage.getItem('selectedCompanion');
+      if (savedCompanion) {
+        const companion = JSON.parse(savedCompanion);
+        setSelectedId(companion.id);
+        setSelectedName(companion.name);
+      } else {
+        // Default to the first companion
+        setSelectedId(companions[0].id);
+        setSelectedName(companions[0].name);
+        
+        // Save to localStorage
+        localStorage.setItem('selectedCompanion', JSON.stringify({
+          id: companions[0].id,
+          name: companions[0].name,
+          avatar: companions[0].imageUrl
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading companion from localStorage:', error);
+      
+      // Fallback to default
+      setSelectedId(companions[0].id);
+      setSelectedName(companions[0].name);
+    }
+  }, []);
 
   const handleSelectCompanion = (companion: CompanionProfile) => {
-    // For now just navigate to chat - we'll implement selection later
+    // Save to localStorage directly
     localStorage.setItem('selectedCompanion', JSON.stringify({
       id: companion.id,
       name: companion.name,
       avatar: companion.imageUrl
     }));
+    
+    setSelectedId(companion.id);
+    setSelectedName(companion.name);
     setLocation("/chat");
   };
 
@@ -206,9 +240,9 @@ export default function LandingPage() {
 
           <button
             onClick={() => setLocation("/chat")}
-            className="mt-6 bg-white text-primary font-medium py-3 px-8 rounded-md text-base cursor-pointer shadow-lg"
+            className="mt-6 w-full max-w-md bg-gradient-to-r from-primary to-secondary text-white font-medium py-3 px-8 rounded-full text-base cursor-pointer shadow-lg flex items-center justify-center gap-2 mx-auto"
           >
-            Start Free Chat
+            <span className="text-white text-xl">💬</span> Free Chat with {selectedName}
           </button>
 
           <p className="mt-4 text-xs text-white/80">
