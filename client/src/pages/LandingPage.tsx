@@ -17,7 +17,7 @@ const companions: CompanionProfile[] = [
     age: 24,
     description: "Friendly and caring, loves deep conversations",
     descriptionHindi: "दोस्ताना और देखभाल करने वाली, गहरी बातचीत पसंद है",
-    imageUrl: "https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20long%20dark%20hair%2C%20warm%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modest%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=1&orientation=portrait"
+    imageUrl: "/images/priya.png"
   },
   {
     id: "ananya",
@@ -25,7 +25,7 @@ const companions: CompanionProfile[] = [
     age: 26,
     description: "Playful and flirty, always ready to listen",
     descriptionHindi: "मस्तीभरी और थोड़ी फ्लर्टी, हमेशा सुनने के लिए तैयार",
-    imageUrl: "https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20medium%20length%20hair%2C%20confident%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modern%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=2&orientation=portrait"
+    imageUrl: "/images/ananya.png"
   },
   {
     id: "meera",
@@ -33,7 +33,7 @@ const companions: CompanionProfile[] = [
     age: 23,
     description: "Sweet and understanding, loves to talk about life",
     descriptionHindi: "मीठी और समझदार, जीवन के बारे में बात करना पसंद है",
-    imageUrl: "https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20traditional%20hairstyle%2C%20gentle%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20elegant%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=3&orientation=portrait"
+    imageUrl: "/images/meera.png"
   }
 ];
 
@@ -124,7 +124,7 @@ export default function LandingPage() {
                   <img
                     src={companion.imageUrl}
                     alt={companion.name}
-                    className="w-full h-full object-cover object-top"
+                    className="w-full h-full object-cover object-center"
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
                     <div className="flex items-center">
