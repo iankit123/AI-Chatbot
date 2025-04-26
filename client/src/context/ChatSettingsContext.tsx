@@ -39,7 +39,25 @@ interface ChatSettingsProviderProps {
 
 // Create the provider component
 export const ChatSettingsProvider = ({ children }: ChatSettingsProviderProps) => {
-  const [companion, setCompanion] = useState<Companion>(defaultCompanion);
+  // Initialize state from localStorage if available
+  const [companion, setCompanionState] = useState<Companion>(() => {
+    const savedCompanion = localStorage.getItem('selectedCompanion');
+    if (savedCompanion) {
+      try {
+        return JSON.parse(savedCompanion) as Companion;
+      } catch (e) {
+        console.error('Error parsing saved companion:', e);
+        return defaultCompanion;
+      }
+    }
+    return defaultCompanion;
+  });
+
+  // Wrapper function to update state and localStorage
+  const setCompanion = (newCompanion: Companion) => {
+    setCompanionState(newCompanion);
+    localStorage.setItem('selectedCompanion', JSON.stringify(newCompanion));
+  };
 
   return (
     <ChatSettingsContext.Provider value={{ companion, setCompanion }}>

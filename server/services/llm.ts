@@ -2,9 +2,10 @@ import fetch from "node-fetch";
 import { BOT_SYSTEM_PROMPT } from "@/lib/constants";
 
 // Groq API configuration
-const GROQ_API_KEY =
-  process.env.GROQ_API_KEY ||
-  "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";
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+if (!GROQ_API_KEY) {
+  console.error("GROQ_API_KEY not found in environment variables");
+}
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 interface ChatMessage {
