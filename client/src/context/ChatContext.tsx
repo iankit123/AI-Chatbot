@@ -164,21 +164,23 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const sendMessage = async (content: string) => {
     if (!content.trim()) return;
 
-    // Track message count for limits
-    const newCount = messageCount + 1;
-    setMessageCount(newCount);
+    // Calculate potential new count (don't update state yet)
+    const potentialNewCount = messageCount + 1;
     
     // Check if user needs to provide profile (first message)
-    if (newCount === 1 && !localStorage.getItem('guestProfile')) {
+    if (potentialNewCount === 1 && !localStorage.getItem('guestProfile')) {
       setShowProfileDialog(true);
       return;
     }
     
     // Check if free message limit reached (exactly on 3rd message if not logged in)
-    if (newCount === 3 && !localStorage.getItem('authUser')) {
+    if (potentialNewCount === 3 && !localStorage.getItem('authUser')) {
       setShowAuthDialog(true);
       return;
     }
+    
+    // Only increment the message count if we're actually sending the message
+    setMessageCount(potentialNewCount);
 
     // Create user message
     const userMessage: Omit<Message, 'id' | 'timestamp'> = {
@@ -214,7 +216,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       const companionId = stableGetCompanionId();
       
       // If we have a photo prompt at this message count
-      const photoPrompt = getRandomPhotoPrompt(companionId, newCount);
+      const photoPrompt = getRandomPhotoPrompt(companionId, potentialNewCount);
       
       // If we have a photo prompt, inject it into the bot response
       if (photoPrompt && !data.error) {
@@ -298,7 +300,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         localStorage.setItem(localStorageKey, JSON.stringify(messages));
         
         // Store message count as well
-        localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+        localStorage.setItem(`messageCount_${companionId}`, potentialNewCount.toString());
         
         // Save to Firebase if user is authenticated
         const authUser = localStorage.getItem('authUser');
