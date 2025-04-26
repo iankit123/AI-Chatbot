@@ -60,8 +60,8 @@ export function VoiceChat() {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center p-6 text-center h-full overflow-auto">
-      <div className="bg-gray-100 p-8 rounded-xl max-w-md mx-auto w-full text-center mt-16">
+    <div className="flex flex-col items-center p-4 text-center h-full overflow-auto">
+      <div className="bg-gray-100 p-6 rounded-xl max-w-md mx-auto w-full text-center">
         <div className="mb-6">
           <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
             <Lock className="w-8 h-8 text-gray-500" />
