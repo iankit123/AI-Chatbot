@@ -79,20 +79,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     }
   });
   
-  // Get current selected companion ID
-  const getCompanionId = () => {
-    try {
-      const savedCompanion = localStorage.getItem('selectedCompanion');
-      if (savedCompanion) {
-        const companion = JSON.parse(savedCompanion);
-        return companion.id;
-      }
-      return 'priya';
-    } catch (error) {
-      console.error('Error getting companion ID:', error);
-      return 'priya';
-    }
-  };
+  // We now use stableGetCompanionId instead of this function
   
   // Listen for localStorage changes
   useEffect(() => {
@@ -115,10 +102,25 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Use a stable function reference for getCompanionId
+  const stableGetCompanionId = useCallback(() => {
+    try {
+      const savedCompanion = localStorage.getItem('selectedCompanion');
+      if (savedCompanion) {
+        const companion = JSON.parse(savedCompanion);
+        return companion.id;
+      }
+      return 'priya';
+    } catch (error) {
+      console.error('Error getting companion ID:', error);
+      return 'priya';
+    }
+  }, []);
+
   const fetchMessages = useCallback(async () => {
     try {
       // Get messages specific to the current companion
-      const companionId = getCompanionId();
+      const companionId = stableGetCompanionId();
       const res = await fetch(`/api/messages?companionId=${companionId}`);
       if (!res.ok) throw new Error('Failed to fetch messages');
       const data = await res.json();
@@ -152,7 +154,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         variant: "destructive",
       });
     }
-  }, [toast, getCompanionId]);
+  }, [toast, stableGetCompanionId]);
 
   useEffect(() => {
     fetchMessages();
@@ -181,7 +183,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     const userMessage: Omit<Message, 'id' | 'timestamp'> = {
       content,
       role: 'user',
-      companionId: getCompanionId(),
+      companionId: stableGetCompanionId(),
     };
 
     try {
@@ -201,7 +203,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       const res = await apiRequest('POST', '/api/messages', {
         content,
         language: currentLanguage,
-        companionId: getCompanionId() // Pass companion ID to server
+        companionId: stableGetCompanionId() // Pass companion ID to server
       });
 
       // Get response data
@@ -212,7 +214,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       if (userId) {
         try {
           // Save user message
-          await saveMessage(userId, getCompanionId(), {
+          await saveMessage(userId, stableGetCompanionId(), {
             content,
             role: 'user',
             timestamp: new Date().toISOString()
@@ -220,7 +222,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           
           // Save bot response
           if (data.botMessage) {
-            await saveMessage(userId, getCompanionId(), {
+            await saveMessage(userId, stableGetCompanionId(), {
               content: data.botMessage.content,
               role: 'assistant',
               timestamp: new Date().toISOString()
@@ -228,7 +230,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           }
           
           // Update message count
-          await updateMessageCount(userId, getCompanionId());
+          await updateMessageCount(userId, stableGetCompanionId());
         } catch (firebaseError) {
           console.error('Firebase error:', firebaseError);
         }
