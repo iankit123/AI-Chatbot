@@ -11,7 +11,7 @@ interface Companion {
 const defaultCompanion: Companion = {
   id: 'priya',
   name: 'Priya',
-  avatar: 'https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20long%20dark%20hair%2C%20warm%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modest%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=1&orientation=portrait'
+  avatar: '/images/priya.png'
 };
 
 // Define the context type
