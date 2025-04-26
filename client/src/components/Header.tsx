@@ -6,8 +6,7 @@ export function Header() {
   const [, setLocation] = useLocation();
 
   const handleBackToHome = () => {
-    // Clear the chat when going back to landing page
-    clearChat();
+    // Just navigate back without clearing chat
     setLocation('/');
   };
 

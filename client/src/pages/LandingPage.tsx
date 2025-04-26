@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useChatSettings } from "@/context/ChatSettingsContext";
 
 interface CompanionProfile {
   id: string;
@@ -42,7 +41,6 @@ export default function LandingPage() {
   const [, setLocation] = useLocation();
   const [selectedId, setSelectedId] = useState("");
   const [selectedName, setSelectedName] = useState("Priya");
-  const { setCompanion } = useChatSettings();
 
   // Initialize from localStorage or set default
   useEffect(() => {

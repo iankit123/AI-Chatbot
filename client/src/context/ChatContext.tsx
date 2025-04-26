@@ -3,7 +3,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useChatSettings } from './ChatSettingsContext';
 
 interface ChatContextType {
   messages: Message[];
@@ -36,18 +35,53 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [currentLanguage, setCurrentLanguage] = useState<'hindi' | 'english'>('hindi');
   const { toast } = useToast();
   
-  // Get companion data from ChatSettingsContext
-  const { companion } = useChatSettings();
+  // Initialize from localStorage directly instead of using ChatSettingsContext
+  const [botName, setBotName] = useState(() => {
+    try {
+      const savedCompanion = localStorage.getItem('selectedCompanion');
+      if (savedCompanion) {
+        const companion = JSON.parse(savedCompanion);
+        return companion.name;
+      }
+      return 'Priya';
+    } catch (error) {
+      console.error('Error loading companion name:', error);
+      return 'Priya';
+    }
+  });
   
-  // Use the companion from context
-  const [botName, setBotName] = useState(companion.name);
-  const [botAvatar, setBotAvatar] = useState(companion.avatar);
+  const [botAvatar, setBotAvatar] = useState(() => {
+    try {
+      const savedCompanion = localStorage.getItem('selectedCompanion');
+      if (savedCompanion) {
+        const companion = JSON.parse(savedCompanion);
+        return companion.avatar;
+      }
+      return '/images/priya.png';
+    } catch (error) {
+      console.error('Error loading companion avatar:', error);
+      return '/images/priya.png';
+    }
+  });
   
-  // Update bot name and avatar when companion changes
+  // Listen for localStorage changes
   useEffect(() => {
-    setBotName(companion.name);
-    setBotAvatar(companion.avatar);
-  }, [companion]);
+    const handleStorageChange = () => {
+      try {
+        const savedCompanion = localStorage.getItem('selectedCompanion');
+        if (savedCompanion) {
+          const companion = JSON.parse(savedCompanion);
+          setBotName(companion.name);
+          setBotAvatar(companion.avatar);
+        }
+      } catch (error) {
+        console.error('Error handling storage change:', error);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -130,9 +164,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     try {
       await apiRequest('DELETE', '/api/messages');
       setMessages([]);
+      // Only show toast when manually clearing (not during navigation)
       toast({
         title: "Success",
         description: "Chat history cleared",
+        duration: 2000 // Reduce the display time to 2 seconds
       });
     } catch (error) {
       console.error('Error clearing chat:', error);
