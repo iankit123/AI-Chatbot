@@ -79,12 +79,15 @@ export default function LandingPage() {
       avatar: companion.imageUrl
     };
     
-    // Update the context (this will also save to localStorage)
-    setCompanion(companionData);
+    // Save directly to localStorage
+    localStorage.setItem('selectedCompanion', JSON.stringify(companionData));
     
     // Update local state
     setSelectedId(companion.id);
     setSelectedName(companion.name);
+    
+    // Dispatch a storage event for other components to react to
+    window.dispatchEvent(new Event('storage'));
     
     // Navigate to chat
     setLocation("/chat");
