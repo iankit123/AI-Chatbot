@@ -15,11 +15,19 @@ export default function Chat() {
   } = useChat();
 
   const handleProfileComplete = () => {
+    // Close the profile dialog
     setShowProfileDialog(false);
+    
+    // Reload to ensure the latest profile data is used
+    window.location.reload();
   };
 
   const handleAuthComplete = () => {
+    // Update authentication status and close dialog
     setShowAuthDialog(false);
+    
+    // Force a message reload to ensure we have the latest data
+    window.location.reload();
   };
 
   return (
