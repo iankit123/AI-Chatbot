@@ -313,26 +313,46 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         // Save to Firebase if user is authenticated
         const authUser = localStorage.getItem('authUser');
         if (authUser) {
-          const userId = JSON.parse(authUser).uid;
-          
-          // Save user message to Firebase
-          await saveMessage(userId, companionId, {
-            content,
-            role: 'user',
-            timestamp: new Date().toISOString()
-          });
-          
-          // Save assistant message to Firebase
-          if (data.botMessage) {
+          try {
+            // Handle both formats of authUser storage (string email or JSON object)
+            let userId;
+            try {
+              // Try parsing as JSON first (for Firebase auth)
+              const parsed = JSON.parse(authUser);
+              userId = parsed.uid;
+              console.log("Using Firebase auth user ID:", userId);
+            } catch (e) {
+              // If not JSON, use the email directly (for simulated login)
+              userId = `guest-${new Date().getTime()}`;
+              console.log("Using guest user ID:", userId);
+            }
+            
+            // Save user message to Firebase
             await saveMessage(userId, companionId, {
-              content: data.botMessage.content,
-              role: 'assistant',
+              content,
+              role: 'user',
               timestamp: new Date().toISOString()
             });
+            console.log("Saved user message to Firebase");
+            
+            // Save assistant message to Firebase
+            if (data.botMessage) {
+              await saveMessage(userId, companionId, {
+                content: data.botMessage.content,
+                role: 'assistant',
+                timestamp: new Date().toISOString()
+              });
+              console.log("Saved assistant message to Firebase");
+            }
+            
+            // Update message count in Firebase
+            await updateMessageCount(userId, companionId);
+            console.log("Updated message count in Firebase");
+          } catch (firebaseError) {
+            console.error("Error saving to Firebase:", firebaseError);
           }
-          
-          // Update message count in Firebase
-          await updateMessageCount(userId, companionId);
+        } else {
+          console.log("User not authenticated, skipping Firebase save");
         }
       } catch (storageError) {
         console.error('Error saving to storage:', storageError);

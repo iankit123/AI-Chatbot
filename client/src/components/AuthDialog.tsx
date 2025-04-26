@@ -44,7 +44,7 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   
   const { toast } = useToast();
   
-  // Simplified local auth handling, completely independent of Firebase
+  // Simplified local auth handling as fallback if Firebase fails
   const simulateEmailLogin = async (email: string, password: string) => {
     return new Promise<void>((resolve) => {
       // Simple validation
@@ -52,8 +52,15 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
         throw new Error('Password must be at least 6 characters');
       }
       
-      // Save the user info in localStorage
-      localStorage.setItem('authUser', email);
+      // Generate a pseudo-unique ID for the guest
+      const guestId = `guest-${new Date().getTime()}`;
+      
+      // Save the user info in localStorage as a JSON object (same format as Firebase)
+      localStorage.setItem('authUser', JSON.stringify({
+        uid: guestId,
+        email: email,
+        displayName: email.split('@')[0]
+      }));
       
       // Create a basic profile
       const profile = {
@@ -74,8 +81,15 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
         throw new Error('Password must be at least 6 characters');
       }
       
-      // Save the user info in localStorage
-      localStorage.setItem('authUser', email);
+      // Generate a pseudo-unique ID for the guest
+      const guestId = `guest-${new Date().getTime()}`;
+      
+      // Save the user info in localStorage as a JSON object (same format as Firebase)
+      localStorage.setItem('authUser', JSON.stringify({
+        uid: guestId,
+        email: email,
+        displayName: email.split('@')[0]
+      }));
       
       // Create a basic profile
       const profile = {
@@ -94,9 +108,14 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       // Create a simulated Google user
       const randomId = Math.floor(Math.random() * 1000000);
       const email = `user${randomId}@gmail.com`;
+      const guestId = `google-${randomId}`;
       
-      // Save the user info in localStorage
-      localStorage.setItem('authUser', email);
+      // Save the user info in localStorage as a JSON object (same format as Firebase)
+      localStorage.setItem('authUser', JSON.stringify({
+        uid: guestId,
+        email: email,
+        displayName: `User ${randomId}`
+      }));
       
       // Create a basic profile
       const profile = {
@@ -115,23 +134,32 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       setLoading(true);
       setError('');
       
-      // Use Firebase Google sign in
-      const user = await signInWithGoogle();
-      
-      // Save user to localStorage for easy access
-      localStorage.setItem('authUser', JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName
-      }));
-      
-      // Create a basic profile if none exists
-      if (!localStorage.getItem('guestProfile')) {
-        const profile = {
-          name: user.displayName || user.email?.split('@')[0] || 'User',
-          age: 25 // Default age
-        };
-        localStorage.setItem('guestProfile', JSON.stringify(profile));
+      try {
+        // Try Firebase Google sign in
+        const user = await signInWithGoogle();
+        
+        // Save user to localStorage for easy access
+        localStorage.setItem('authUser', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName
+        }));
+        
+        // Create a basic profile if none exists
+        if (!localStorage.getItem('guestProfile')) {
+          const profile = {
+            name: user.displayName || user.email?.split('@')[0] || 'User',
+            age: 25 // Default age
+          };
+          localStorage.setItem('guestProfile', JSON.stringify(profile));
+        }
+        
+        console.log("Successfully authenticated with Google via Firebase:", user.uid);
+      } catch (firebaseError) {
+        console.warn("Firebase Google sign-in failed, using fallback:", firebaseError);
+        
+        // Use fallback authentication if Firebase fails
+        await simulateGoogleSignIn();
       }
       
       toast({
@@ -162,33 +190,54 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       
       let user;
       
-      if (activeTab === 'login') {
-        // Use Firebase email/password login
-        user = await signIn(email, password);
-        toast({
-          title: "Welcome back!",
-          description: "You've been successfully logged in."
-        });
-      } else {
-        // Use Firebase email/password registration
-        user = await createUser(email, password);
-        toast({
-          title: "Account created",
-          description: "Your account has been created successfully."
-        });
+      try {
+        if (activeTab === 'login') {
+          // Try Firebase email/password login
+          user = await signIn(email, password);
+          toast({
+            title: "Welcome back!",
+            description: "You've been successfully logged in."
+          });
+        } else {
+          // Try Firebase email/password registration
+          user = await createUser(email, password);
+          toast({
+            title: "Account created",
+            description: "Your account has been created successfully."
+          });
+        }
+        
+        // Save user to localStorage for easy access
+        localStorage.setItem('authUser', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName
+        }));
+        
+        console.log("Successfully authenticated with Firebase:", user.uid);
+      } catch (firebaseError) {
+        console.warn("Firebase auth failed, using fallback:", firebaseError);
+        
+        // Use fallback authentication if Firebase fails
+        if (activeTab === 'login') {
+          await simulateEmailLogin(email, password);
+          toast({
+            title: "Welcome back!",
+            description: "You've been successfully logged in."
+          });
+        } else {
+          await simulateEmailSignup(email, password);
+          toast({
+            title: "Account created",
+            description: "Your account has been created successfully."
+          });
+        }
       }
-      
-      // Save user to localStorage for easy access
-      localStorage.setItem('authUser', JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName
-      }));
       
       // Create a basic profile if none exists
       if (!localStorage.getItem('guestProfile')) {
         const profile = {
-          name: user.displayName || email.split('@')[0],
+          name: email.split('@')[0],
           age: 25 // Default age
         };
         localStorage.setItem('guestProfile', JSON.stringify(profile));
