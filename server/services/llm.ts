@@ -1,12 +1,14 @@
-import fetch from 'node-fetch';
-import { BOT_SYSTEM_PROMPT } from '@/lib/constants';
+import fetch from "node-fetch";
+import { BOT_SYSTEM_PROMPT } from "@/lib/constants";
 
 // Groq API configuration
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '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';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_KEY =
+  process.env.GROQ_API_KEY ||
+  "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";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -38,60 +40,63 @@ interface ChatCompletionResponse {
 }
 
 export async function generateResponse(
-  userMessage: string, 
+  userMessage: string,
   conversationHistory: ChatMessage[],
-  language: 'hindi' | 'english' = 'hindi'
+  language: "hindi" | "english" = "hindi",
 ): Promise<string> {
   try {
-    // Create system message with natural Hinglish instruction
-    const languageInstruction = language === 'hindi' 
-      ? "Respond in natural Hinglish - primarily Hindi written in English text (Roman script), not Devanagari. Use the way Indians naturally text each other. For example, say 'Kya kar rahe ho' instead of 'आप क्या कर रहे हैं'. Don't use pure Hindi for common words that Indians typically speak in a mixed way. Make it sound casual and authentic like real Indian text conversations."
-      : "Respond primarily in English with frequent Hindi expressions and words mixed in naturally using Roman script (not Devanagari) to create authentic Hinglish conversation style.";
-    
+    // Create system message with stronger Hinglish instruction
+    const languageInstruction =
+      language === "hindi"
+        ? "IMPORTANT: Respond with AT LEAST 80% Hindi content written in Roman script (English letters). LIMIT English to only 20% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
+        : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?'";
+
     const systemMessage: ChatMessage = {
-      role: 'system',
-      content: `${BOT_SYSTEM_PROMPT}\n${languageInstruction}`
+      role: "system",
+      content: `${BOT_SYSTEM_PROMPT}\n${languageInstruction}`,
     };
-    
+
     // Prepare the conversation history with system message
     const messages: ChatMessage[] = [
       systemMessage,
       ...conversationHistory,
-      { role: 'user', content: userMessage }
+      { role: "user", content: userMessage },
     ];
-    
+
     // Prepare the request body
     const requestBody: ChatCompletionRequest = {
-      model: "llama3-70b-8192",  // Using Llama 3 70B model
+      model: "llama3-70b-8192", // Using Llama 3 70B model
       messages,
-      temperature: 0.8,  // Slightly creative
-      max_tokens: 800    // Reasonable response length
+      temperature: 0.8, // Slightly creative
+      max_tokens: 800, // Reasonable response length
     };
-    
+
     // Make request to Groq API
     const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GROQ_API_KEY}`,
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
     });
-    
+
     // Check if response is successful
     if (!response.ok) {
       const errorData = await response.text();
       throw new Error(`Groq API Error: ${response.status} - ${errorData}`);
     }
-    
+
     // Parse the response
-    const data = await response.json() as ChatCompletionResponse;
-    
+    const data = (await response.json()) as ChatCompletionResponse;
+
     // Extract and return the generated text
     return data.choices[0].message.content;
   } catch (error) {
-    console.error('Error generating response:', error);
+    console.error("Error generating response:", error);
     // Instead of providing fallback responses, throw the error to be handled by the API route
-    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to generate response: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
