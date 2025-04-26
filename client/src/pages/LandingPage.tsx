@@ -54,10 +54,10 @@ export default function LandingPage() {
     <div className="bg-gray-50 min-h-screen">
       {/* Nav Bar */}
       <nav className="fixed w-full top-0 bg-white shadow-sm z-50 px-4 py-3 flex justify-between items-center">
-        <div className="text-2xl font-['Pacifico'] text-primary">Saathi</div>
+        <div className="text-2xl font-['Pacifico'] gradient-text">Saathi</div>
         <button 
           onClick={() => setLocation("/chat")}
-          className="bg-primary text-white px-4 py-2 rounded-md font-medium text-sm cursor-pointer">
+          className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-2 rounded-md font-medium text-sm cursor-pointer">
           Try for Free
         </button>
       </nav>
@@ -66,13 +66,13 @@ export default function LandingPage() {
       <main className="pt-16 pb-20 px-4">
         {/* Hero Section */}
         <section className="mt-6 text-center">
-          <h1 className="text-2xl font-semibold text-gray-800">
+          <h1 className="text-3xl font-bold gradient-text">
             Your Perfect Virtual Companion
           </h1>
           <p className="text-gray-600 mt-2 text-sm">आपका आदर्श वर्चुअल साथी</p>
 
           <div className="mt-6">
-            <p className="text-gray-700 text-sm">
+            <p className="text-gray-700 text-sm font-medium">
               Select a companion to start chatting
             </p>
           </div>

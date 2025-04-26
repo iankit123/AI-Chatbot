@@ -4,7 +4,7 @@ import { ChatInput } from '@/components/ChatInput';
 
 export default function Chat() {
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen chat-page">
       <Header />
       <ChatArea />
       <ChatInput />
