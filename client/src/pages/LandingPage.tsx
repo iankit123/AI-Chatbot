@@ -120,7 +120,7 @@ export default function LandingPage() {
                 key={companion.id}
                 className="companion-card bg-white rounded-xl shadow-md overflow-hidden"
               >
-                <div className="relative h-64 overflow-hidden">
+                <div className="relative h-80 overflow-hidden">
                   <img
                     src={companion.imageUrl}
                     alt={companion.name}

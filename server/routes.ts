@@ -3,8 +3,12 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from 'zod';
 import { generateResponse } from './services/llm';
+import express from "express";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Serve static files from the client/public directory
+  app.use(express.static(path.join(process.cwd(), 'client/public')));
   // Get all messages
   app.get('/api/messages', async (req, res) => {
     try {
