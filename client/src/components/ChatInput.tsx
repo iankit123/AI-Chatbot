@@ -35,7 +35,7 @@ export function ChatInput() {
             onChange={(e) => setMessage(e.target.value)}
             onKeyUp={handleKeyPress}
             className="w-full px-4 py-2.5 bg-transparent text-neutral-900 outline-none" 
-            placeholder={currentLanguage === 'hindi' ? "अपना संदेश यहां लिखें..." : "Type your message here..."}
+            placeholder={currentLanguage === 'hindi' ? "Apna message yahan likho..." : "Type your message here..."}
           />
         </div>
         
@@ -50,12 +50,12 @@ export function ChatInput() {
       
       <div className="mt-2 px-3">
         <div className="flex justify-between text-xs text-neutral-700">
-          <span>• {currentLanguage === 'hindi' ? 'हिंदी और अंग्रेजी दोनों समर्थित हैं' : 'Hindi and English both supported'}</span>
+          <span>• {currentLanguage === 'hindi' ? 'Hindi aur English dono supported hain' : 'Hindi and English both supported'}</span>
           <button 
             className="underline"
             onClick={clearChat}
           >
-            {currentLanguage === 'hindi' ? 'चैट साफ करें' : 'Clear chat'}
+            {currentLanguage === 'hindi' ? 'Chat saaf karo' : 'Clear chat'}
           </button>
         </div>
       </div>

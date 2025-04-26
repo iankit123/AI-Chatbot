@@ -22,7 +22,7 @@ export function ChatArea() {
     >
       {/* Date display */}
       <div className="text-center text-neutral-700 text-sm my-4">
-        <p>आज का दिन - <span>{formatDate(new Date(), 'hi-IN')}</span></p>
+        <p>Aaj ka din - <span>{formatDate(new Date(), 'en-IN')}</span></p>
       </div>
       
       {/* Chat messages */}

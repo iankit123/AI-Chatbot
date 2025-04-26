@@ -43,10 +43,10 @@ export async function generateResponse(
   language: 'hindi' | 'english' = 'hindi'
 ): Promise<string> {
   try {
-    // Create system message with Hinglish instruction
+    // Create system message with natural Hinglish instruction
     const languageInstruction = language === 'hindi' 
-      ? "Respond in Hinglish - a mix of Hindi and English. Use Devanagari script for Hindi words but freely mix English words and phrases as Indians typically do in conversation. This should be a natural flowing mix, not formal Hindi with a few English words."
-      : "Respond primarily in English with frequent Hindi expressions and words mixed in naturally to create authentic Hinglish conversation style.";
+      ? "Respond in natural Hinglish - primarily Hindi written in English text (Roman script), not Devanagari. Use the way Indians naturally text each other. For example, say 'Kya kar rahe ho' instead of 'आप क्या कर रहे हैं'. Don't use pure Hindi for common words that Indians typically speak in a mixed way. Make it sound casual and authentic like real Indian text conversations."
+      : "Respond primarily in English with frequent Hindi expressions and words mixed in naturally using Roman script (not Devanagari) to create authentic Hinglish conversation style.";
     
     const systemMessage: ChatMessage = {
       role: 'system',

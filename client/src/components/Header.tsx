@@ -17,7 +17,7 @@ export function Header() {
           <h1 className="font-semibold text-lg">{botName}</h1>
           <div className="flex items-center text-xs opacity-80">
             <span className="h-2 w-2 rounded-full bg-success inline-block mr-1"></span>
-            <span>{currentLanguage === 'hindi' ? 'ऑनलाइन' : 'Online'}</span>
+            <span>{currentLanguage === 'hindi' ? 'Online' : 'Online'}</span>
           </div>
         </div>
         <div className="flex space-x-3 items-center">
