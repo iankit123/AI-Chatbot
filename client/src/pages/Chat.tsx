@@ -59,7 +59,7 @@ export default function Chat() {
           </div>
         </TabsContent>
         
-        <TabsContent value="voice" className="flex-1 overflow-auto relative">
+        <TabsContent value="voice" className="flex-1 overflow-hidden relative">
           <VoiceChat />
         </TabsContent>
       </Tabs>

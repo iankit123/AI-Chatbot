@@ -59,39 +59,41 @@ export function VoiceChat() {
     }, 2000);
   };
   
-  // Fixed content that displays at the top of the screen
   return (
-    <div className="absolute inset-0 flex flex-col items-center">
-      <div className="bg-gray-100 p-6 rounded-xl max-w-md mx-auto w-full mt-4 shadow-md">
-        <div className="mb-4">
-          <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-            <Lock className="w-8 h-8 text-gray-500" />
+    <div className="flex flex-col min-h-[80vh]">
+      <div className="w-full max-w-md mx-auto mt-4">
+        <div className="bg-gray-100 p-6 rounded-xl shadow-md">
+          <div className="mb-4">
+            <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+              <Lock className="w-8 h-8 text-gray-500" />
+            </div>
+          </div>
+          
+          <h3 className="text-xl font-semibold mb-2 text-center">Voice Chat: Premium Feature</h3>
+          <p className="text-gray-600 mb-6 text-center">
+            Only for selected members at ₹99. Talk to {botName} and hear her sweet voice.
+          </p>
+          
+          <div className="space-y-3">
+            <Button 
+              onClick={handleRequestActivation}
+              disabled={requesting}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            >
+              {requesting ? 'Processing...' : 'Request Activation • ₹99'}
+            </Button>
+            
+            <Button 
+              variant="outline"
+              className="w-full"
+              onClick={() => window.location.href = '/'}
+            >
+              Go back to Chat
+            </Button>
           </div>
         </div>
-        
-        <h3 className="text-xl font-semibold mb-2">Voice Chat: Premium Feature</h3>
-        <p className="text-gray-600 mb-4">
-          Only for selected members at ₹99. Talk to {botName} and hear her sweet voice.
-        </p>
-        
-        <div className="space-y-3">
-          <Button 
-            onClick={handleRequestActivation}
-            disabled={requesting}
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-          >
-            {requesting ? 'Processing...' : 'Request Activation • ₹99'}
-          </Button>
-          
-          <Button 
-            variant="outline"
-            className="w-full"
-            onClick={() => window.location.href = '/'} // Simple redirect to home page
-          >
-            Go back to Chat
-          </Button>
-        </div>
       </div>
+      <div className="flex-grow"></div>
     </div>
   );
 }
