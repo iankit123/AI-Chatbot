@@ -117,10 +117,33 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch('/api/messages');
+      // Get messages specific to the current companion
+      const companionId = getCompanionId();
+      const res = await fetch(`/api/messages?companionId=${companionId}`);
       if (!res.ok) throw new Error('Failed to fetch messages');
       const data = await res.json();
       setMessages(data);
+      
+      // Also check if there are any stored messages in Firebase
+      const userId = localStorage.getItem('authUser');
+      if (userId) {
+        try {
+          const firebaseMessages = await getFirebaseMessages(userId, companionId);
+          if (firebaseMessages && firebaseMessages.length > 0 && data.length === 0) {
+            // Only use Firebase messages if no local messages exist
+            const formattedMessages = firebaseMessages.map((msg: any, index: number) => ({
+              id: index + 1,
+              content: msg.content,
+              role: msg.role,
+              timestamp: new Date(msg.timestamp),
+              companionId
+            }));
+            setMessages(formattedMessages);
+          }
+        } catch (firebaseError) {
+          console.error('Firebase error fetching messages:', firebaseError);
+        }
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
       toast({
@@ -129,7 +152,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, getCompanionId]);
 
   useEffect(() => {
     fetchMessages();
@@ -158,6 +181,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     const userMessage: Omit<Message, 'id' | 'timestamp'> = {
       content,
       role: 'user',
+      companionId: getCompanionId(),
     };
 
     try {

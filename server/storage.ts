@@ -52,8 +52,13 @@ export class MemStorage implements IStorage {
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
     const id = this.currentId++;
     const now = new Date();
+    
+    // Ensure companionId is always at least null, not undefined
+    const companionId = insertMessage.companionId || null;
+    
     const message: Message = { 
       ...insertMessage, 
+      companionId,
       id, 
       timestamp: now 
     };
