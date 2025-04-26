@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { ProfileDialog } from "@/components/ProfileDialog";
 
 interface CompanionProfile {
   id: string;
@@ -41,6 +42,7 @@ export default function LandingPage() {
   const [, setLocation] = useLocation();
   const [selectedId, setSelectedId] = useState("");
   const [selectedName, setSelectedName] = useState("Priya");
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
 
   // Initialize from localStorage or set default
   useEffect(() => {
@@ -262,7 +264,7 @@ export default function LandingPage() {
 
       {/* Tab Bar */}
       <div className="fixed bottom-0 w-full bg-white shadow-lg border-t border-gray-200 px-2 py-2">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-2 gap-1">
           <a
             href="#"
             className="flex flex-col items-center justify-center py-1 cursor-pointer"
@@ -277,35 +279,7 @@ export default function LandingPage() {
           </a>
 
           <a
-            href="#"
-            className="flex flex-col items-center justify-center py-1 cursor-pointer"
-          >
-            <div className="w-6 h-6 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.3-4.3"></path>
-              </svg>
-            </div>
-            <span className="text-xs mt-1 text-gray-500">Discover</span>
-          </a>
-
-          <a
-            href="/chat"
-            className="flex flex-col items-center justify-center py-1 cursor-pointer"
-          >
-            <div className="w-6 h-6 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
-                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
-                <line x1="13" x2="13" y1="11" y2="16"></line>
-                <circle cx="9" cy="13" r=".5"></circle>
-              </svg>
-            </div>
-            <span className="text-xs mt-1 text-gray-500">Chats</span>
-          </a>
-
-          <a
-            href="#"
+            onClick={() => setShowProfileDialog(true)}
             className="flex flex-col items-center justify-center py-1 cursor-pointer"
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -318,6 +292,12 @@ export default function LandingPage() {
           </a>
         </div>
       </div>
+      
+      {/* Profile Dialog */}
+      <ProfileDialog 
+        open={showProfileDialog} 
+        onOpenChange={setShowProfileDialog}
+      />
     </div>
   );
 }
