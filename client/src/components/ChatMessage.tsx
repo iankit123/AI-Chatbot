@@ -1,5 +1,6 @@
 import { Message } from '@shared/schema';
 import { formatTime } from '@/lib/dates';
+import { useMemo } from 'react';
 
 interface ChatMessageProps {
   message: Message;
@@ -8,6 +9,29 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   const isBot = message.role === 'assistant';
+  
+  // Process the message content to highlight first-person words/phrases
+  const processedContent = useMemo(() => {
+    if (!isBot) return message.content;
+    
+    // Hindi first-person pronouns to highlight (in Roman script)
+    const firstPersonWords = [
+      'main', 'mujhe', 'mera', 'meri', 'mere', 'hum', 'humein', 
+      'hamara', 'hamari', 'hamare', 'maine', 'humne'
+    ];
+    
+    // Simple word-by-word highlighting
+    let content = message.content;
+    
+    // Replace first-person words with highlighted versions
+    firstPersonWords.forEach(word => {
+      // Match whole words only, case-insensitive
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      content = content.replace(regex, `<strong>${word}</strong>`);
+    });
+    
+    return content;
+  }, [message.content, isBot]);
   
   if (isBot) {
     return (
@@ -21,10 +45,13 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
         </div>
         <div className="relative max-w-[80%] bg-partner rounded-2xl rounded-tl-none px-4 py-2 chat-bubble-left shadow-sm">
           <div className="first-person-message">
-            <p className="text-neutral-900">{message.content}</p>
+            <p 
+              className="text-neutral-900" 
+              dangerouslySetInnerHTML={{ __html: processedContent }}
+            />
           </div>
           <span className="text-[10px] text-neutral-700 block text-right mt-1">
-            {formatTime(message.timestamp.toString())}
+            {formatTime(message.timestamp)}
           </span>
         </div>
       </div>

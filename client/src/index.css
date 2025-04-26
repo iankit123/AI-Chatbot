@@ -104,5 +104,41 @@
     transform: translateY(-4px);
     box-shadow: 0 12px 24px rgba(233, 64, 87, 0.2);
   }
+  
+  /* Chat area styling */
+  .chat-area {
+    @apply min-h-0 flex-1;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+  }
+  
+  .chat-area::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .chat-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .chat-area::-webkit-scrollbar-thumb {
+    background-color: rgba(155, 155, 155, 0.5);
+    border-radius: 20px;
+    border: transparent;
+  }
+  
+  /* First-person message styling */
+  .first-person-message {
+    @apply relative;
+  }
+  
+  .first-person-message p {
+    @apply leading-relaxed;
+  }
+  
+  /* Highlight first-person pronouns and make them stand out subtly */
+  .first-person-message p strong,
+  .first-person-message p em {
+    @apply font-medium text-primary not-italic;
+  }
 }
 

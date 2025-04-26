@@ -1,5 +1,5 @@
-export function formatTime(isoString: string): string {
-  const date = new Date(isoString);
+export function formatTime(timestamp: string | Date): string {
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
