@@ -109,16 +109,13 @@ export default function LandingPage() {
       <main className="pt-16 pb-20 px-4">
         {/* Hero Section */}
         <section className="mt-6 text-center">
-          <h1 className="text-3xl font-bold gradient-text">
-            Your Perfect Virtual Companion
+          <h1 className="text-2xl font-bold gradient-text">
+            Make New Friends and 
           </h1>
-          <p className="text-gray-600 mt-2 text-sm">आपका आदर्श वर्चुअल साथी</p>
-
-          <div className="mt-6">
-            <p className="text-gray-700 text-sm font-medium">
-              Select a companion to start chatting
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold gradient-text">
+            Start Chatting
+          </h1>
+          <p className="text-gray-600 mt-2 text-sm">अपने खास दोस्त की तलाश करें</p>
         </section>
 
         {/* Companion Selection */}

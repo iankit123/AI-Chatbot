@@ -3,6 +3,13 @@ import { apiRequest } from '@/lib/queryClient';
 import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from './AuthContext';
+import { 
+  saveMessage, 
+  getMessages as getFirebaseMessages, 
+  updateMessageCount,
+  getMessageCount
+} from '@/lib/firebase';
 
 interface ChatContextType {
   messages: Message[];
@@ -10,6 +17,11 @@ interface ChatContextType {
   currentLanguage: 'hindi' | 'english';
   botName: string;
   botAvatar: string;
+  messageCount: number;
+  showProfileDialog: boolean;
+  showAuthDialog: boolean;
+  setShowProfileDialog: (show: boolean) => void;
+  setShowAuthDialog: (show: boolean) => void;
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   toggleLanguage: () => void;

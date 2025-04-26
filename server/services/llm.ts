@@ -49,8 +49,10 @@ export async function generateResponse(
     // Create system message with natural Hinglish instruction and first-person emphasis
     const languageInstruction =
       language === "hindi"
-        ? "IMPORTANT: Respond with AT LEAST 95% Hindi content written in Roman script (English letters). LIMIT English to only 5% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi. ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself."
-        : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?' ALWAYS write from a first-person perspective, using words like 'I', 'me', 'my' and Hindi equivalents like 'main', 'mujhe', 'mera/meri' frequently when referring to yourself.";
+        ? "IMPORTANT: Respond with AT LEAST 95% Hindi content written in Roman script (English letters). LIMIT English to only 5% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
+        : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?";
+
+    // ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself.
 
     const systemMessage: ChatMessage = {
       role: "system",
