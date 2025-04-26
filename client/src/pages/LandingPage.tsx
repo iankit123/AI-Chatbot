@@ -91,7 +91,7 @@ export default function LandingPage() {
         <div className="text-2xl font-['Pacifico'] gradient-text">Saathi</div>
         <button 
           onClick={() => setLocation("/chat")}
-          className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-2 rounded-md font-medium text-sm cursor-pointer">
+          className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-2 rounded-full font-medium text-sm cursor-pointer shadow-md hover:shadow-lg transition-all duration-300">
           Try for Free
         </button>
       </nav>
@@ -155,7 +155,7 @@ export default function LandingPage() {
                   </div>
                   <button
                     onClick={() => handleSelectCompanion(companion)}
-                    className="w-full mt-4 bg-white border border-primary text-primary py-2 rounded-md font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                    className="w-full mt-4 bg-white border border-primary text-primary py-2 rounded-full font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-all duration-300 shadow-sm hover:shadow-md"
                   >
                     Chat Now
                   </button>
@@ -240,7 +240,7 @@ export default function LandingPage() {
 
           <button
             onClick={() => setLocation("/chat")}
-            className="mt-6 w-full max-w-md bg-gradient-to-r from-primary to-secondary text-white font-medium py-3 px-8 rounded-full text-base cursor-pointer shadow-lg flex items-center justify-center gap-2 mx-auto"
+            className="cta-button mt-6 text-base cursor-pointer"
           >
             <span className="text-white text-xl">💬</span> Free Chat with {selectedName}
           </button>
