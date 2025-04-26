@@ -50,12 +50,12 @@ export default function Chat() {
           <TabsTrigger value="voice">Voice Chat</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="text" className="flex-1 flex flex-col">
+        <TabsContent value="text" className="flex-1 flex flex-col h-[calc(100vh-132px)] pb-16">
           <ChatArea />
           <ChatInput />
         </TabsContent>
         
-        <TabsContent value="voice" className="flex-1">
+        <TabsContent value="voice" className="flex-1 h-[calc(100vh-132px)]">
           <VoiceChat />
         </TabsContent>
       </Tabs>
