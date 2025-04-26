@@ -70,11 +70,60 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
     // Close this dialog
     onOpenChange(false);
     
-    // We'll trigger the auth dialog via ChatContext
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('showAuthDialog', 'true');
-      window.location.href = '/chat';
-    }
+    // Create a simple email/password form instead of using AuthContext
+    const showSimpleAuthForm = () => {
+      // Create and mount a simple auth form
+      const authForm = document.createElement('div');
+      authForm.id = 'simple-auth-form';
+      authForm.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+      authForm.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-[90%] max-w-md">
+          <h2 class="text-xl font-semibold mb-4">Sign up for free</h2>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" id="auth-email" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="your@email.com" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input type="password" id="auth-password" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Create a password" />
+            </div>
+            <div class="pt-2">
+              <button id="auth-submit" class="w-full bg-gradient-to-r from-primary to-secondary text-white font-medium py-2 rounded-md">Create Account</button>
+            </div>
+            <div class="pt-2">
+              <button id="auth-cancel" class="w-full border border-gray-300 text-gray-700 font-medium py-2 rounded-md">Cancel</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(authForm);
+      
+      // Add event listeners
+      document.getElementById('auth-cancel')?.addEventListener('click', () => {
+        document.body.removeChild(authForm);
+      });
+      
+      document.getElementById('auth-submit')?.addEventListener('click', () => {
+        const email = (document.getElementById('auth-email') as HTMLInputElement)?.value;
+        const password = (document.getElementById('auth-password') as HTMLInputElement)?.value;
+        
+        if (email && password) {
+          // Store basic auth info in localStorage for demo purposes
+          localStorage.setItem('authUser', email);
+          localStorage.setItem('guestProfile', JSON.stringify({
+            name: email.split('@')[0],
+            age: 25
+          }));
+          
+          // Redirect to chat
+          window.location.href = '/chat';
+        }
+      });
+    };
+    
+    // Call the function to show the form
+    showSimpleAuthForm();
   };
   
   return (
