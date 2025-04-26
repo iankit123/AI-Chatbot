@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { TypingIndicator } from './TypingIndicator';
 import { formatDate } from '@/lib/dates';
-import { useChat } from '@/hooks/useChat';
+import { useChat } from '@/context/ChatContext';
 
 export function ChatArea() {
   const { messages, isTyping, botAvatar } = useChat();

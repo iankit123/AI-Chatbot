@@ -11,13 +11,29 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   const isBot = message.role === "assistant";
+  const { botName } = useChat();
+
+  // Check if message contains an image URL
+  const hasImage = useMemo(() => {
+    // Detect if message contains an image URL pattern
+    const imageUrlRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
+    return imageUrlRegex.test(message.content);
+  }, [message.content]);
+
+  // Extract image URL from message
+  const imageUrl = useMemo(() => {
+    if (!hasImage) return null;
+    const imageUrlRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
+    const match = message.content.match(imageUrlRegex);
+    return match ? match[0] : null;
+  }, [message.content, hasImage]);
 
   // Process the message content to highlight first-person words/phrases
   const processedContent = useMemo(() => {
     if (!isBot) return message.content;
 
     // Hindi first-person pronouns to highlight (in Roman script)
-    const firstPersonWords = [
+    const firstPersonWords: string[] = [
       // 'main', 'mujhe', 'mera', 'meri', 'mere', 'hum', 'humein',
       // 'hamara', 'hamari', 'hamare', 'maine', 'humne'
     ];
@@ -46,6 +62,17 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
           />
         </div>
         <div className="relative max-w-[80%] bg-partner rounded-2xl rounded-tl-none px-4 py-2 chat-bubble-left shadow-sm">
+          {/* If message contains an image, show it with the ChatMessageImage component */}
+          {hasImage && imageUrl && (
+            <div className="mb-2">
+              <ChatMessageImage 
+                imageUrl={imageUrl} 
+                companionName={botName} 
+                isBlurred={true}
+              />
+            </div>
+          )}
+          
           <div className="first-person-message">
             <p
               className="text-neutral-900"
@@ -63,6 +90,17 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   return (
     <div className="flex items-start mb-4 justify-end">
       <div className="relative max-w-[80%] bg-user rounded-2xl rounded-tr-none px-4 py-2 chat-bubble-right shadow-sm">
+        {/* User can also share images potentially */}
+        {hasImage && imageUrl && (
+          <div className="mb-2">
+            <img 
+              src={imageUrl} 
+              alt="User shared image" 
+              className="w-full h-auto rounded-lg" 
+            />
+          </div>
+        )}
+        
         <p className="text-neutral-900">{message.content}</p>
         <span className="text-[10px] text-neutral-700 block text-right mt-1">
           {formatTime(message.timestamp)}

@@ -379,6 +379,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         setShowProfileDialog,
         setShowAuthDialog,
         setShowPhotoDialog,
+        setCurrentPhoto,
         sendMessage, 
         clearChat, 
         toggleLanguage

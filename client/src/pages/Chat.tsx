@@ -6,7 +6,9 @@ import { UserProfileDialog } from '@/components/UserProfileDialog';
 import { AuthDialog } from '@/components/AuthDialog';
 import { ProfileDialog } from '@/components/ProfileDialog';
 import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
+import { VoiceChat } from '@/components/VoiceChat';
 import { useChat } from '@/context/ChatContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Chat() {
   const { 
@@ -41,11 +43,25 @@ export default function Chat() {
   return (
     <div className="flex flex-col h-screen chat-page">
       <Header />
-      <ChatArea />
-      <ChatInput />
+      
+      <Tabs defaultValue="text" className="flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-2 bg-white border-b">
+          <TabsTrigger value="text">Text Chat</TabsTrigger>
+          <TabsTrigger value="voice">Voice Chat</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="text" className="flex-1 flex flex-col">
+          <ChatArea />
+          <ChatInput />
+        </TabsContent>
+        
+        <TabsContent value="voice" className="flex-1">
+          <VoiceChat />
+        </TabsContent>
+      </Tabs>
       
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 w-full bg-white shadow-lg border-t border-gray-200 px-2 py-2 z-10">
+      <div className="bg-white shadow-lg border-t border-gray-200 px-2 py-2 z-10">
         <div className="grid grid-cols-2 gap-1">
           <a
             href="/"
