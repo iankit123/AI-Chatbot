@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Saathi Chat - Your Virtual Companion</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Poppins', sans-serif;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .chat-area::-webkit-scrollbar {
+        width: 6px;
+      }
+      .chat-area::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+      .chat-area::-webkit-scrollbar-thumb {
+        background: #d1d1d1;
+        border-radius: 10px;
+      }
+      .chat-bubble-left::before {
+        content: "";
+        position: absolute;
+        left: -8px;
+        top: 10px;
+        border-width: 8px 8px 8px 0;
+        border-style: solid;
+        border-color: transparent #FFE0E0 transparent transparent;
+      }
+      .chat-bubble-right::before {
+        content: "";
+        position: absolute;
+        right: -8px;
+        top: 10px;
+        border-width: 8px 0 8px 8px;
+        border-style: solid;
+        border-color: transparent transparent transparent #E0FFF8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
+    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+  </body>
+</html>
