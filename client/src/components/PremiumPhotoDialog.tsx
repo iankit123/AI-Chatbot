@@ -33,15 +33,28 @@ export function PremiumPhotoDialog({
     setTimeout(() => {
       setProcessing(false);
       
-      // Show success message
+      // Record the payment attempt in localStorage
+      try {
+        // Store the request in localStorage
+        const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+        paymentRequests.push({
+          type: 'premium_photo',
+          companionId: companionName.toLowerCase(),
+          timestamp: new Date().toISOString(),
+          amount: 20
+        });
+        localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
+      } catch (error) {
+        console.error('Error saving payment request:', error);
+      }
+      
+      // Show technical issue message
       toast({
-        title: "Premium membership activated!",
-        description: `You now have access to ${companionName}'s private photos.`,
+        title: "Technical Issue",
+        description: "Our payment system is currently down. Please check back after 30 minutes.",
+        variant: "destructive",
         duration: 5000
       });
-      
-      // Store premium status in localStorage
-      localStorage.setItem('premiumMember', 'true');
       
       // Close dialog
       onOpenChange(false);
@@ -68,7 +81,7 @@ export function PremiumPhotoDialog({
             {companionName} sent you a photo!
           </DialogTitle>
           <DialogDescription>
-            Upgrade to Saathi Premium to view clear photos sent by {companionName}.
+            To see clear pictures take Saathi membership for ₹20.
           </DialogDescription>
         </DialogHeader>
         
@@ -117,10 +130,10 @@ export function PremiumPhotoDialog({
           
           <div className="flex flex-col space-y-2">
             <Button onClick={handlePayment} disabled={processing} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
-              {processing ? 'Processing...' : 'Pay ₹20 and See Photo'}
+              {processing ? 'Processing...' : 'Pay now and see ' + companionName + '\'s picture'}
             </Button>
             <Button onClick={handleDecline} variant="outline" className="w-full">
-              Maybe Later
+              Do not want to see picture sent by {companionName}
             </Button>
           </div>
         </div>

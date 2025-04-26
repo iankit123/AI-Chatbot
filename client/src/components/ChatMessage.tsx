@@ -1,6 +1,8 @@
 import { Message } from "@shared/schema";
 import { formatTime } from "@/lib/dates";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChatMessageImage } from "@/components/ChatMessageImage";
+import { useChat } from "@/context/ChatContext";
 
 interface ChatMessageProps {
   message: Message;

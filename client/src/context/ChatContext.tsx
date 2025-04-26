@@ -19,6 +19,7 @@ interface ChatContextType {
   setShowProfileDialog: (show: boolean) => void;
   setShowAuthDialog: (show: boolean) => void;
   setShowPhotoDialog: (show: boolean) => void;
+  setCurrentPhoto: (url: string | null) => void;
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   toggleLanguage: () => void;
@@ -172,8 +173,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       return;
     }
     
-    // Check if free message limit reached (after 3 messages)
-    if (newCount > 3 && !localStorage.getItem('authUser')) {
+    // Check if free message limit reached (exactly on 3rd message)
+    if (newCount === 3 && !localStorage.getItem('authUser')) {
       setShowAuthDialog(true);
       return;
     }
