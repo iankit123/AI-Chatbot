@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthDialogProps {
   open: boolean;
@@ -26,42 +26,85 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Use try-catch to handle the case where AuthProvider isn't available
-  let authContext;
-  try {
-    authContext = useAuth();
-  } catch (error) {
-    console.error("AuthProvider not available:", error);
-    // Provide more robust fallback implementations
-    authContext = {
-      signInWithGooglePopup: () => {
-        console.log("Mock Google sign in");
-        // Store a temporary auth flag in localStorage
-        localStorage.setItem('authUser', 'guest-' + Date.now());
-        return Promise.resolve({ uid: 'guest-user', email: 'guest@example.com' } as any);
-      },
-      loginWithEmail: (email: string, password: string) => {
-        console.log("Mock email login:", email);
-        // Store a temporary auth flag in localStorage
-        localStorage.setItem('authUser', 'guest-' + Date.now());
-        return Promise.resolve({ uid: 'guest-user', email } as any);
-      },
-      signUpWithEmail: (email: string, password: string) => {
-        console.log("Mock email signup:", email);
-        // Store a temporary auth flag in localStorage
-        localStorage.setItem('authUser', 'guest-' + Date.now());
-        return Promise.resolve({ uid: 'guest-user', email } as any);
-      }
-    };
-  }
+  const { toast } = useToast();
   
-  const { signInWithGooglePopup, loginWithEmail, signUpWithEmail } = authContext;
+  // Simplified local auth handling, completely independent of Firebase
+  const simulateEmailLogin = async (email: string, password: string) => {
+    return new Promise<void>((resolve) => {
+      // Simple validation
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+      
+      // Save the user info in localStorage
+      localStorage.setItem('authUser', email);
+      
+      // Create a basic profile
+      const profile = {
+        name: email.split('@')[0],
+        age: 25 // Default age
+      };
+      localStorage.setItem('guestProfile', JSON.stringify(profile));
+      
+      // Simulate network delay
+      setTimeout(resolve, 500);
+    });
+  };
+  
+  const simulateEmailSignup = async (email: string, password: string) => {
+    return new Promise<void>((resolve) => {
+      // Simple validation
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+      
+      // Save the user info in localStorage
+      localStorage.setItem('authUser', email);
+      
+      // Create a basic profile
+      const profile = {
+        name: email.split('@')[0],
+        age: 25 // Default age
+      };
+      localStorage.setItem('guestProfile', JSON.stringify(profile));
+      
+      // Simulate network delay
+      setTimeout(resolve, 500);
+    });
+  };
+  
+  const simulateGoogleSignIn = async () => {
+    return new Promise<void>((resolve) => {
+      // Create a simulated Google user
+      const randomId = Math.floor(Math.random() * 1000000);
+      const email = `user${randomId}@gmail.com`;
+      
+      // Save the user info in localStorage
+      localStorage.setItem('authUser', email);
+      
+      // Create a basic profile
+      const profile = {
+        name: `User ${randomId}`,
+        age: 25 // Default age
+      };
+      localStorage.setItem('guestProfile', JSON.stringify(profile));
+      
+      // Simulate network delay
+      setTimeout(resolve, 800);
+    });
+  };
   
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
       setError('');
-      await signInWithGooglePopup();
+      await simulateGoogleSignIn();
+      
+      toast({
+        title: "Successfully signed in",
+        description: "Welcome! You now have unlimited access."
+      });
+      
       onAuthComplete();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Sign in failed';
@@ -84,9 +127,17 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       setError('');
       
       if (activeTab === 'login') {
-        await loginWithEmail(email, password);
+        await simulateEmailLogin(email, password);
+        toast({
+          title: "Welcome back!",
+          description: "You've been successfully logged in."
+        });
       } else {
-        await signUpWithEmail(email, password);
+        await simulateEmailSignup(email, password);
+        toast({
+          title: "Account created",
+          description: "Your account has been created successfully."
+        });
       }
       
       onAuthComplete();

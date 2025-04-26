@@ -3,13 +3,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from './AuthContext';
-import { 
-  saveMessage, 
-  getMessages as getFirebaseMessages, 
-  updateMessageCount,
-  getMessageCount
-} from '@/lib/firebase';
 
 interface ChatContextType {
   messages: Message[];
@@ -126,25 +119,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       const data = await res.json();
       setMessages(data);
       
-      // Also check if there are any stored messages in Firebase
-      const userId = localStorage.getItem('authUser');
-      if (userId) {
-        try {
-          const firebaseMessages = await getFirebaseMessages(userId, companionId);
-          if (firebaseMessages && firebaseMessages.length > 0 && data.length === 0) {
-            // Only use Firebase messages if no local messages exist
-            const formattedMessages = firebaseMessages.map((msg: any, index: number) => ({
-              id: index + 1,
-              content: msg.content,
-              role: msg.role,
-              timestamp: new Date(msg.timestamp),
-              companionId
-            }));
-            setMessages(formattedMessages);
+      // Try to get any messages from localStorage as a fallback
+      try {
+        const localStorageKey = `messages_${companionId}`;
+        const savedMessages = localStorage.getItem(localStorageKey);
+        if (savedMessages && data.length === 0) {
+          const parsedMessages = JSON.parse(savedMessages);
+          if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+            setMessages(parsedMessages);
           }
-        } catch (firebaseError) {
-          console.error('Firebase error fetching messages:', firebaseError);
         }
+      } catch (localStorageError) {
+        console.error('Error retrieving messages from localStorage:', localStorageError);
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -156,9 +142,16 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     }
   }, [toast, stableGetCompanionId]);
 
+  // Initialize message count from localStorage
   useEffect(() => {
+    const companionId = stableGetCompanionId();
+    const savedCount = localStorage.getItem(`messageCount_${companionId}`);
+    if (savedCount) {
+      setMessageCount(parseInt(savedCount, 10) || 0);
+    }
+    
     fetchMessages();
-  }, [fetchMessages]);
+  }, [fetchMessages, stableGetCompanionId]);
 
   const sendMessage = async (content: string) => {
     if (!content.trim()) return;
@@ -209,31 +202,20 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Get response data
       const data = await res.json();
       
-      // Save to Firebase if user is logged in
-      const userId = localStorage.getItem('authUser');
-      if (userId) {
-        try {
-          // Save user message
-          await saveMessage(userId, stableGetCompanionId(), {
-            content,
-            role: 'user',
-            timestamp: new Date().toISOString()
-          });
-          
-          // Save bot response
-          if (data.botMessage) {
-            await saveMessage(userId, stableGetCompanionId(), {
-              content: data.botMessage.content,
-              role: 'assistant',
-              timestamp: new Date().toISOString()
-            });
-          }
-          
-          // Update message count
-          await updateMessageCount(userId, stableGetCompanionId());
-        } catch (firebaseError) {
-          console.error('Firebase error:', firebaseError);
-        }
+      // Save to localStorage instead of Firebase
+      try {
+        // Save the full messages array to localStorage
+        const updatedMessages = await fetchMessages(); // Get the latest messages
+        const companionId = stableGetCompanionId();
+        const localStorageKey = `messages_${companionId}`;
+        
+        // Store in localStorage
+        localStorage.setItem(localStorageKey, JSON.stringify(messages));
+        
+        // Store message count as well
+        localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+      } catch (storageError) {
+        console.error('Error saving to localStorage:', storageError);
       }
       
       // Hide typing indicator
@@ -263,8 +245,20 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
   const clearChat = async () => {
     try {
+      // Clear from server
       await apiRequest('DELETE', '/api/messages');
       setMessages([]);
+      
+      // Also clear from localStorage
+      try {
+        const companionId = stableGetCompanionId();
+        localStorage.removeItem(`messages_${companionId}`);
+        localStorage.setItem(`messageCount_${companionId}`, '0');
+        setMessageCount(0);
+      } catch (localError) {
+        console.error('Error clearing localStorage:', localError);
+      }
+      
       // Only show toast when manually clearing (not during navigation)
       toast({
         title: "Success",
