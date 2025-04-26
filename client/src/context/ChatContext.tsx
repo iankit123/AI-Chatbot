@@ -3,6 +3,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useChatSettings } from './ChatSettingsContext';
 
 interface ChatContextType {
   messages: Message[];
@@ -34,9 +35,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [isTyping, setIsTyping] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<'hindi' | 'english'>('hindi');
   const { toast } = useToast();
+  const { companion } = useChatSettings();
 
-  const botName = 'Priya';
-  const botAvatar = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=100&h=100&q=80';
+  // Use the companion information from context
+  const botName = companion.name;
+  const botAvatar = companion.avatar;
 
   const fetchMessages = useCallback(async () => {
     try {

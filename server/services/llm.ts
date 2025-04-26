@@ -45,10 +45,10 @@ export async function generateResponse(
   language: "hindi" | "english" = "hindi",
 ): Promise<string> {
   try {
-    // Create system message with stronger Hinglish instruction
+    // Create system message with natural Hinglish instruction
     const languageInstruction =
       language === "hindi"
-        ? "IMPORTANT: Respond with AT LEAST 80% Hindi content written in Roman script (English letters). LIMIT English to only 20% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
+        ? "IMPORTANT: Respond with AT LEAST 95% Hindi content written in Roman script (English letters). LIMIT English to only 5% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
         : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?'";
 
     const systemMessage: ChatMessage = {

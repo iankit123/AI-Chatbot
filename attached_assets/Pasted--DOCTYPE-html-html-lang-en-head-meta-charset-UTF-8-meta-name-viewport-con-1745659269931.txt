@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Virtual Companion</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: { primary: "#E94057", secondary: "#8A2BE2" },
+            borderRadius: {
+              none: "0px",
+              sm: "4px",
+              DEFAULT: "8px",
+              md: "12px",
+              lg: "16px",
+              xl: "20px",
+              "2xl": "24px",
+              "3xl": "32px",
+              full: "9999px",
+              button: "8px",
+            },
+          },
+        },
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :where([class^="ri-"])::before { content: "\f3c2"; }
+      body {
+          font-family: 'Poppins', sans-serif;
+      }
+      .companion-card {
+          transition: all 0.3s ease;
+      }
+      .companion-card.selected {
+          transform: translateY(-8px);
+          box-shadow: 0 12px 24px rgba(233, 64, 87, 0.2);
+      }
+      .gradient-bg {
+          background: linear-gradient(135deg, #E94057 0%, #8A2BE2 100%);
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50">
+    <!-- Nav Bar -->
+    <nav
+      class="fixed w-full top-0 bg-white shadow-sm z-50 px-4 py-3 flex justify-between items-center"
+    >
+      <div class="text-2xl font-['Pacifico'] text-primary">logo</div>
+      <button
+        class="bg-primary text-white px-4 py-2 !rounded-button font-medium text-sm cursor-pointer"
+      >
+        Try for Free
+      </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-16 pb-20 px-4">
+      <!-- Hero Section -->
+      <section class="mt-6 text-center">
+        <h1 class="text-2xl font-semibold text-gray-800">
+          Your Perfect Virtual Companion
+        </h1>
+        <p class="text-gray-600 mt-2 text-sm">आपका आदर्श वर्चुअल साथी</p>
+
+        <div class="mt-6">
+          <p class="text-gray-700 text-sm">
+            Select a companion to start chatting
+          </p>
+        </div>
+      </section>
+
+      <!-- Companion Selection -->
+      <section class="mt-6">
+        <div class="grid grid-cols-1 gap-6">
+          <!-- Companion 1 -->
+          <div
+            class="companion-card bg-white rounded-xl shadow-md overflow-hidden"
+            data-id="1"
+          >
+            <div class="relative h-64 overflow-hidden">
+              <img
+                src="https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20long%20dark%20hair%2C%20warm%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modest%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=1&orientation=portrait"
+                alt="Priya"
+                class="w-full h-full object-cover object-top"
+              />
+              <div
+                class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4"
+              >
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                  <span class="text-white text-xs">Online Now</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">Priya, 24</h3>
+                <div
+                  class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center companion-selector"
+                >
+                  <div class="w-3 h-3 rounded-full bg-primary hidden"></div>
+                </div>
+              </div>
+              <p class="text-gray-600 text-sm mt-1">
+                Friendly and caring, loves deep conversations
+              </p>
+              <p class="text-gray-500 text-xs mt-1">
+                दोस्ताना और देखभाल करने वाली, गहरी बातचीत पसंद है
+              </p>
+              <div class="flex gap-2 mt-3">
+                <span
+                  class="bg-pink-100 text-primary text-xs px-2 py-1 rounded-full"
+                  >Hindi</span
+                >
+                <span
+                  class="bg-purple-100 text-secondary text-xs px-2 py-1 rounded-full"
+                  >English</span
+                >
+              </div>
+              <button
+                class="w-full mt-4 bg-white border border-primary text-primary py-2 !rounded-button font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-colors"
+              >
+                Chat Now
+              </button>
+            </div>
+          </div>
+
+          <!-- Companion 2 -->
+          <div
+            class="companion-card bg-white rounded-xl shadow-md overflow-hidden"
+            data-id="2"
+          >
+            <div class="relative h-64 overflow-hidden">
+              <img
+                src="https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20medium%20length%20hair%2C%20confident%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modern%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=2&orientation=portrait"
+                alt="Ananya"
+                class="w-full h-full object-cover object-top"
+              />
+              <div
+                class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4"
+              >
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                  <span class="text-white text-xs">Online Now</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">Ananya, 26</h3>
+                <div
+                  class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center companion-selector"
+                >
+                  <div class="w-3 h-3 rounded-full bg-primary hidden"></div>
+                </div>
+              </div>
+              <p class="text-gray-600 text-sm mt-1">
+                Playful and flirty, always ready to listen
+              </p>
+              <p class="text-gray-500 text-xs mt-1">
+                मस्तीभरी और थोड़ी फ्लर्टी, हमेशा सुनने के लिए तैयार
+              </p>
+              <div class="flex gap-2 mt-3">
+                <span
+                  class="bg-pink-100 text-primary text-xs px-2 py-1 rounded-full"
+                  >Hindi</span
+                >
+                <span
+                  class="bg-purple-100 text-secondary text-xs px-2 py-1 rounded-full"
+                  >English</span
+                >
+              </div>
+              <button
+                class="w-full mt-4 bg-white border border-primary text-primary py-2 !rounded-button font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-colors"
+              >
+                Chat Now
+              </button>
+            </div>
+          </div>
+
+          <!-- Companion 3 -->
+          <div
+            class="companion-card bg-white rounded-xl shadow-md overflow-hidden"
+            data-id="3"
+          >
+            <div class="relative h-64 overflow-hidden">
+              <img
+                src="https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20traditional%20hairstyle%2C%20gentle%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20elegant%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=3&orientation=portrait"
+                alt="Meera"
+                class="w-full h-full object-cover object-top"
+              />
+              <div
+                class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4"
+              >
+                <div class="flex items-center">
+                  <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                  <span class="text-white text-xs">Online Now</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">Meera, 23</h3>
+                <div
+                  class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center companion-selector"
+                >
+                  <div class="w-3 h-3 rounded-full bg-primary hidden"></div>
+                </div>
+              </div>
+              <p class="text-gray-600 text-sm mt-1">
+                Sweet and understanding, loves to talk about life
+              </p>
+              <p class="text-gray-500 text-xs mt-1">
+                मीठी और समझदार, जीवन के बारे में बात करना पसंद है
+              </p>
+              <div class="flex gap-2 mt-3">
+                <span
+                  class="bg-pink-100 text-primary text-xs px-2 py-1 rounded-full"
+                  >Hindi</span
+                >
+                <span
+                  class="bg-purple-100 text-secondary text-xs px-2 py-1 rounded-full"
+                  >English</span
+                >
+              </div>
+              <button
+                class="w-full mt-4 bg-white border border-primary text-primary py-2 !rounded-button font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-colors"
+              >
+                Chat Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section class="mt-10 bg-white rounded-xl p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-center text-gray-800">
+          Why Choose Our Companions
+        </h2>
+
+        <div class="mt-6 grid grid-cols-1 gap-5">
+          <div class="flex items-start">
+            <div
+              class="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center"
+            >
+              <i class="ri-message-3-line text-primary ri-lg"></i>
+            </div>
+            <div class="ml-4">
+              <h3 class="font-medium text-gray-800">Chat in Hindi & English</h3>
+              <p class="text-sm text-gray-600 mt-1">
+                Communicate comfortably in your preferred language
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-start">
+            <div
+              class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center"
+            >
+              <i class="ri-time-line text-secondary ri-lg"></i>
+            </div>
+            <div class="ml-4">
+              <h3 class="font-medium text-gray-800">Available 24/7</h3>
+              <p class="text-sm text-gray-600 mt-1">
+                Always there for you whenever you need someone to talk to
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-start">
+            <div
+              class="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center"
+            >
+              <i class="ri-heart-line text-primary ri-lg"></i>
+            </div>
+            <div class="ml-4">
+              <h3 class="font-medium text-gray-800">Understanding & Caring</h3>
+              <p class="text-sm text-gray-600 mt-1">
+                Companions who listen and respond with empathy
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- User Testimonials -->
+      <section class="mt-10">
+        <h2 class="text-lg font-semibold text-center text-gray-800">
+          What Our Users Say
+        </h2>
+
+        <div class="mt-4 bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center mb-3">
+            <div
+              class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden"
+            >
+              <img
+                src="https://readdy.ai/api/search-image?query=Indian%20man%2C%20professional%20headshot%2C%20friendly%20smile%2C%20casual%20attire%2C%20high%20quality%20portrait%2C%20soft%20lighting%2C%20clear%20face%20shot%2C%20isolated%20on%20neutral%20background%2C%20centered%20composition&width=40&height=40&seq=4&orientation=squarish"
+                alt="Rahul"
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div class="ml-3">
+              <h3 class="font-medium text-gray-800">Rahul Sharma</h3>
+              <div class="flex">
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+              </div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600">
+            "After a long day at work, talking to Priya feels like talking to a
+            real friend. She understands me and always makes me feel better."
+          </p>
+        </div>
+
+        <div class="mt-4 bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center mb-3">
+            <div
+              class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden"
+            >
+              <img
+                src="https://readdy.ai/api/search-image?query=Indian%20man%2C%20professional%20headshot%2C%20confident%20expression%2C%20business%20casual%20attire%2C%20high%20quality%20portrait%2C%20soft%20lighting%2C%20clear%20face%20shot%2C%20isolated%20on%20neutral%20background%2C%20centered%20composition&width=40&height=40&seq=5&orientation=squarish"
+                alt="Vikram"
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div class="ml-3">
+              <h3 class="font-medium text-gray-800">Vikram Patel</h3>
+              <div class="flex">
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-fill text-yellow-400"></i>
+                <i class="ri-star-half-fill text-yellow-400"></i>
+              </div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600">
+            "I love that I can chat in Hindi with Ananya. It feels more natural
+            and she understands all my cultural references."
+          </p>
+        </div>
+      </section>
+
+      <!-- CTA Section -->
+      <section class="mt-10 gradient-bg rounded-xl p-6 text-center text-white">
+        <h2 class="text-xl font-semibold">Start Your Free Chat Today</h2>
+        <p class="mt-2 text-white/90 text-sm">
+          No credit card required. Begin chatting instantly.
+        </p>
+
+        <div class="mt-4 flex justify-center">
+          <div
+            class="bg-white/20 rounded-full px-4 py-2 text-sm flex items-center"
+          >
+            <i class="ri-user-line mr-2"></i>
+            <span>25,000+ active users</span>
+          </div>
+        </div>
+
+        <button
+          class="mt-6 bg-white text-primary font-medium py-3 px-8 !rounded-button text-base cursor-pointer shadow-lg"
+        >
+          Start Free Chat
+        </button>
+
+        <p class="mt-4 text-xs text-white/80">
+          By continuing, you agree to our Terms of Service and Privacy Policy
+        </p>
+      </section>
+    </main>
+
+    <!-- Tab Bar -->
+    <div
+      class="fixed bottom-0 w-full bg-white shadow-lg border-t border-gray-200 px-2 py-2"
+    >
+      <div class="grid grid-cols-4 gap-1">
+        <a
+          href="#"
+          class="flex flex-col items-center justify-center py-1 cursor-pointer"
+        >
+          <div class="w-6 h-6 flex items-center justify-center">
+            <i class="ri-home-5-line ri-lg text-primary"></i>
+          </div>
+          <span class="text-xs mt-1 text-primary font-medium">Home</span>
+        </a>
+
+        <a
+          href="#"
+          class="flex flex-col items-center justify-center py-1 cursor-pointer"
+        >
+          <div class="w-6 h-6 flex items-center justify-center">
+            <i class="ri-search-line ri-lg text-gray-500"></i>
+          </div>
+          <span class="text-xs mt-1 text-gray-500">Discover</span>
+        </a>
+
+        <a
+          href="#"
+          class="flex flex-col items-center justify-center py-1 cursor-pointer"
+        >
+          <div class="w-6 h-6 flex items-center justify-center">
+            <i class="ri-message-3-line ri-lg text-gray-500"></i>
+          </div>
+          <span class="text-xs mt-1 text-gray-500">Chats</span>
+        </a>
+
+        <a
+          href="#"
+          class="flex flex-col items-center justify-center py-1 cursor-pointer"
+        >
+          <div class="w-6 h-6 flex items-center justify-center">
+            <i class="ri-user-line ri-lg text-gray-500"></i>
+          </div>
+          <span class="text-xs mt-1 text-gray-500">Profile</span>
+        </a>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Handle companion selection
+        const companionCards = document.querySelectorAll(".companion-card");
+        const selectors = document.querySelectorAll(".companion-selector");
+
+        companionCards.forEach((card) => {
+          card.addEventListener("click", function () {
+            // Remove selected class from all cards
+            companionCards.forEach((c) => c.classList.remove("selected"));
+
+            // Hide all selector indicators
+            selectors.forEach((s) => {
+              s.querySelector("div").classList.add("hidden");
+            });
+
+            // Add selected class to clicked card
+            this.classList.add("selected");
+
+            // Show selector indicator for clicked card
+            this.querySelector(".companion-selector div").classList.remove("hidden");
+          });
+        });
+
+        // Handle chat buttons
+        const chatButtons = document.querySelectorAll(".companion-card button");
+        chatButtons.forEach((button) => {
+          button.addEventListener("click", function (e) {
+            e.stopPropagation();
+            const card = this.closest(".companion-card");
+            const companionId = card.dataset.id;
+            const companionName = card.querySelector("h3").textContent.split(",")[0];
+
+            // Show a toast notification
+            showToast(`Starting chat with ${companionName}...`);
+
+            // In a real app, you would redirect to the chat page or open a chat interface
+            // For this demo, we'll just show a toast
+          });
+        });
+
+        // CTA button
+        const ctaButton = document.querySelector("section.gradient-bg button");
+        ctaButton.addEventListener("click", function () {
+          showToast("Starting your free chat experience...");
+        });
+
+        // Try for free button in nav
+        const tryFreeButton = document.querySelector("nav button");
+        tryFreeButton.addEventListener("click", function () {
+          showToast("Starting your free trial...");
+        });
+      });
+
+      function showToast(message) {
+        // Create toast element
+        const toast = document.createElement("div");
+        toast.className =
+          "fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm";
+        toast.textContent = message;
+
+        // Add to body
+        document.body.appendChild(toast);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+          toast.classList.add("opacity-0", "transition-opacity", "duration-300");
+          setTimeout(() => {
+            document.body.removeChild(toast);
+          }, 300);
+        }, 3000);
+      }
+    </script>
+  </body>
+</html>
