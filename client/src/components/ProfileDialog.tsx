@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import type { AuthContextType } from '@/context/AuthContext';
 
 interface ProfileDialogProps {
   open: boolean;
