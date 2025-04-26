@@ -3,9 +3,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Chat from "@/pages/Chat";
-import LandingPage from "@/pages/LandingPage";
-import { ChatProvider } from "@/context/ChatContext";
-import { ChatSettingsProvider } from "@/context/ChatSettingsContext";
+import LandingPage from "./pages/LandingPage";
+import { ChatProvider } from "./context/ChatContext";
 
 function Router() {
   return (
@@ -19,14 +18,12 @@ function Router() {
 
 function App() {
   return (
-    <ChatSettingsProvider>
-      <ChatProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ChatProvider>
-    </ChatSettingsProvider>
+    <ChatProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Router />
+      </TooltipProvider>
+    </ChatProvider>
   );
 }
 

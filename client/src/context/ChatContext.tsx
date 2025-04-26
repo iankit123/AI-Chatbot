@@ -3,7 +3,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useChatSettings } from './ChatSettingsContext';
 
 interface ChatContextType {
   messages: Message[];
@@ -35,11 +34,31 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [isTyping, setIsTyping] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<'hindi' | 'english'>('hindi');
   const { toast } = useToast();
-  const { companion } = useChatSettings();
-
-  // Use the companion information from context
-  const botName = companion.name;
-  const botAvatar = companion.avatar;
+  
+  // Get selected companion from localStorage or use default
+  const [botInfo, setBotInfo] = useState(() => {
+    const savedCompanion = localStorage.getItem('selectedCompanion');
+    if (savedCompanion) {
+      try {
+        const parsed = JSON.parse(savedCompanion);
+        return {
+          name: parsed.name || 'Priya',
+          avatar: parsed.avatar || 'https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20long%20dark%20hair%2C%20warm%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modest%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=1&orientation=portrait'
+        };
+      } catch (e) {
+        console.error('Error parsing companion data:', e);
+      }
+    }
+    
+    // Default bot information if nothing in localStorage
+    return {
+      name: 'Priya',
+      avatar: 'https://readdy.ai/api/search-image?query=Beautiful%20Indian%20woman%20with%20long%20dark%20hair%2C%20warm%20smile%2C%20professional%20portrait%2C%20soft%20lighting%2C%20culturally%20appropriate%20modest%20outfit%2C%20friendly%20expression%2C%20high%20quality%2C%20clear%20face%20shot%2C%20isolated%20on%20soft%20gradient%20background%2C%20centered%20composition&width=375&height=300&seq=1&orientation=portrait'
+    };
+  });
+  
+  const botName = botInfo.name;
+  const botAvatar = botInfo.avatar;
 
   const fetchMessages = useCallback(async () => {
     try {

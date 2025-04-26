@@ -1,6 +1,5 @@
 import { useContext } from "react";
 import { useLocation } from "wouter";
-import { useChatSettings } from "@/context/ChatSettingsContext";
 
 interface CompanionProfile {
   id: string;
@@ -40,15 +39,14 @@ const companions: CompanionProfile[] = [
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
-  const { setCompanion } = useChatSettings();
 
   const handleSelectCompanion = (companion: CompanionProfile) => {
-    // Save selected companion and navigate to chat
-    setCompanion({
+    // For now just navigate to chat - we'll implement selection later
+    localStorage.setItem('selectedCompanion', JSON.stringify({
       id: companion.id,
       name: companion.name,
       avatar: companion.imageUrl
-    });
+    }));
     setLocation("/chat");
   };
 
