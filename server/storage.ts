@@ -78,11 +78,12 @@ export class MemStorage implements IStorage {
   async clearMessages(companionId?: string): Promise<void> {
     if (companionId) {
       // Only clear messages for a specific companion
-      for (const [id, message] of this.messages.entries()) {
+      // Using Array.from to convert Map entries to array to avoid TypeScript error
+      Array.from(this.messages.entries()).forEach(([id, message]) => {
         if (message.companionId === companionId) {
           this.messages.delete(id);
         }
-      }
+      });
     } else {
       // Clear all messages
       this.messages.clear();

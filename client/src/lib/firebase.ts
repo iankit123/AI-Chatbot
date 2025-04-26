@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { getDatabase, ref, set, get, onValue, push, child, update } from "firebase/database";
 
-// Your web app's Firebase configuration
+// Firebase configuration from your Firebase project
 const firebaseConfig = {
   apiKey: "AIzaSyBQkLXkHnKdptcjEyWl6Bb9M1POUAIzyiI",
   authDomain: "ai-chatbot-b8586.firebaseapp.com",
@@ -93,6 +93,33 @@ export const getMessages = async (userId: string, companionId: string) => {
     return [];
   } catch (error) {
     console.error("Error getting messages: ", error);
+    throw error;
+  }
+};
+
+// Function to get messages for the current companion from Firebase
+export const getFirebaseMessages = async (userId: string, companionId: string) => {
+  try {
+    const chatRef = ref(database, `chats/${userId}/${companionId}/messages`);
+    const snapshot = await get(chatRef);
+    
+    if (snapshot.exists()) {
+      // Convert the object to an array and sort by timestamp
+      const messagesObj = snapshot.val();
+      const messages = Object.keys(messagesObj).map(key => ({
+        id: key,
+        ...messagesObj[key]
+      }));
+      
+      // Sort messages by timestamp
+      return messages.sort((a, b) => {
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      });
+    }
+    
+    return [];
+  } catch (error) {
+    console.error("Error getting Firebase messages: ", error);
     throw error;
   }
 };
