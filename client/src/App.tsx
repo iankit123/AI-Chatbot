@@ -21,12 +21,16 @@ function Router() {
 
 function App() {
   return (
-    <TooltipProvider>
-      <Toaster />
-      <ChatProvider>
-        <Router />
-      </ChatProvider>
-    </TooltipProvider>
+    <QueryClientProvider client={queryClient}>
+      <ChatSettingsProvider>
+        <TooltipProvider>
+          <Toaster />
+          <ChatProvider>
+            <Router />
+          </ChatProvider>
+        </TooltipProvider>
+      </ChatSettingsProvider>
+    </QueryClientProvider>
   );
 }
 

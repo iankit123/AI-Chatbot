@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useChatSettings } from "@/context/ChatSettingsContext";
 
 interface CompanionProfile {
   id: string;
@@ -41,6 +42,7 @@ export default function LandingPage() {
   const [, setLocation] = useLocation();
   const [selectedId, setSelectedId] = useState("");
   const [selectedName, setSelectedName] = useState("Priya");
+  const { setCompanion } = useChatSettings();
 
   // Initialize from localStorage or set default
   useEffect(() => {
@@ -72,15 +74,21 @@ export default function LandingPage() {
   }, []);
 
   const handleSelectCompanion = (companion: CompanionProfile) => {
-    // Save to localStorage directly
-    localStorage.setItem('selectedCompanion', JSON.stringify({
+    // Create companion object
+    const companionData = {
       id: companion.id,
       name: companion.name,
       avatar: companion.imageUrl
-    }));
+    };
     
+    // Update the context (this will also save to localStorage)
+    setCompanion(companionData);
+    
+    // Update local state
     setSelectedId(companion.id);
     setSelectedName(companion.name);
+    
+    // Navigate to chat
     setLocation("/chat");
   };
 
