@@ -7,9 +7,9 @@ import {
 } from "@shared/schema";
 
 export interface IStorage {
-  getMessages(): Promise<Message[]>;
+  getMessages(companionId?: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
-  clearMessages(): Promise<void>;
+  clearMessages(companionId?: string): Promise<void>;
   getCurrentConversation(): Promise<Conversation>;
 }
 
@@ -33,8 +33,18 @@ export class MemStorage implements IStorage {
     });
   }
 
-  async getMessages(): Promise<Message[]> {
-    return Array.from(this.messages.values()).sort((a, b) => {
+  async getMessages(companionId?: string): Promise<Message[]> {
+    let messages = Array.from(this.messages.values());
+    
+    // Filter by companion ID if provided
+    if (companionId) {
+      messages = messages.filter(message => 
+        !message.companionId || message.companionId === companionId
+      );
+    }
+    
+    // Sort by timestamp
+    return messages.sort((a, b) => {
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
   }
@@ -60,8 +70,18 @@ export class MemStorage implements IStorage {
     return message;
   }
 
-  async clearMessages(): Promise<void> {
-    this.messages.clear();
+  async clearMessages(companionId?: string): Promise<void> {
+    if (companionId) {
+      // Only clear messages for a specific companion
+      for (const [id, message] of this.messages.entries()) {
+        if (message.companionId === companionId) {
+          this.messages.delete(id);
+        }
+      }
+    } else {
+      // Clear all messages
+      this.messages.clear();
+    }
   }
 
   async getCurrentConversation(): Promise<Conversation> {

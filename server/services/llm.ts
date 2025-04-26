@@ -40,10 +40,16 @@ interface ChatCompletionResponse {
   };
 }
 
+interface ContextOptions {
+  companionId?: string;
+  userName?: string;
+}
+
 export async function generateResponse(
   userMessage: string,
   conversationHistory: ChatMessage[],
   language: "hindi" | "english" = "hindi",
+  contextOptions: ContextOptions = {}
 ): Promise<string> {
   try {
     // Create system message with natural Hinglish instruction and first-person emphasis
@@ -54,9 +60,33 @@ export async function generateResponse(
 
     // ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself.
 
+    // Add user name to context if available
+    let userContext = '';
+    if (contextOptions.userName) {
+      userContext = `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`;
+    }
+
+    // Select companion-specific personality
+    let companionPersonality = '';
+    if (contextOptions.companionId) {
+      switch(contextOptions.companionId) {
+        case 'priya':
+          companionPersonality = 'You are Priya, a 25-year-old modern Indian woman who is flirtatious, caring, and romantic. You have a playful sense of humor and enjoy teasing. You work as a fashion designer in Mumbai.';
+          break;
+        case 'ananya':
+          companionPersonality = 'You are Ananya, a 23-year-old college student studying psychology who is intellectual, empathetic, and slightly shy. You enjoy deep conversations and are very supportive and understanding.';
+          break;
+        case 'meera':
+          companionPersonality = 'You are Meera, a 28-year-old yoga instructor and spiritual guide who is calm, mysterious, and philosophical. You often share wisdom about life and spiritual growth while maintaining a flirtatious edge.';
+          break;
+        default:
+          companionPersonality = 'You are Priya, a 25-year-old modern Indian woman who is flirtatious, caring, and romantic.';
+      }
+    }
+
     const systemMessage: ChatMessage = {
       role: "system",
-      content: `${BOT_SYSTEM_PROMPT}\n${languageInstruction}`,
+      content: `${BOT_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${languageInstruction}`,
     };
 
     // Prepare the conversation history with system message

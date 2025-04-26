@@ -7,6 +7,7 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
+  companionId: text("companion_id"),  // Optional, to support older messages without a companion ID
 });
 
 export const conversations = pgTable("conversations", {
@@ -17,6 +18,7 @@ export const conversations = pgTable("conversations", {
 export const insertMessageSchema = createInsertSchema(messages).pick({
   content: true,
   role: true,
+  companionId: true,
 });
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;

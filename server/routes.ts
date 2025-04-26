@@ -9,10 +9,11 @@ import path from "path";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve static files from the client/public directory
   app.use(express.static(path.join(process.cwd(), 'client/public')));
-  // Get all messages
+  // Get messages - can filter by companion ID
   app.get('/api/messages', async (req, res) => {
     try {
-      const messages = await storage.getMessages();
+      const companionId = req.query.companionId as string | undefined;
+      const messages = await storage.getMessages(companionId);
       res.json(messages);
     } catch (error) {
       console.error('Error fetching messages:', error);
