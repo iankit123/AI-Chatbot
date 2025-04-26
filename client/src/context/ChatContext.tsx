@@ -4,6 +4,7 @@ import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { getRandomPhoto, getRandomPhotoPrompt } from '@/lib/companionPhotos';
+import { saveMessage, updateMessageCount, getFirebaseMessages, saveUserProfile } from '@/lib/firebase';
 
 interface ChatContextType {
   messages: Message[];
@@ -173,8 +174,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       return;
     }
     
-    // Check if free message limit reached (exactly on 3rd message)
-    if (newCount === 3 && !localStorage.getItem('authUser')) {
+    // Check if free message limit reached (on 3rd message or after if not logged in)
+    if (newCount >= 3 && !localStorage.getItem('authUser')) {
       setShowAuthDialog(true);
       return;
     }
@@ -287,7 +288,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         }
       }
       
-      // Save to localStorage instead of Firebase
+      // Save to both localStorage and Firebase
       try {
         // Save the full messages array to localStorage
         const updatedMessages = await fetchMessages(); // Get the latest messages
@@ -298,8 +299,33 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         
         // Store message count as well
         localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+        
+        // Save to Firebase if user is authenticated
+        const authUser = localStorage.getItem('authUser');
+        if (authUser) {
+          const userId = JSON.parse(authUser).uid;
+          
+          // Save user message to Firebase
+          await saveMessage(userId, companionId, {
+            content,
+            role: 'user',
+            timestamp: new Date().toISOString()
+          });
+          
+          // Save assistant message to Firebase
+          if (data.botMessage) {
+            await saveMessage(userId, companionId, {
+              content: data.botMessage.content,
+              role: 'assistant',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
+          // Update message count in Firebase
+          await updateMessageCount(userId, companionId);
+        }
       } catch (storageError) {
-        console.error('Error saving to localStorage:', storageError);
+        console.error('Error saving to storage:', storageError);
       }
       
       // Hide typing indicator

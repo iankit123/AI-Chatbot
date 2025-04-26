@@ -41,27 +41,31 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-screen chat-page">
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden chat-page">
       <Header />
       
       <Tabs defaultValue="text" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 bg-white border-b">
+        <TabsList className="grid w-full grid-cols-2 bg-white border-b shrink-0">
           <TabsTrigger value="text">Text Chat</TabsTrigger>
           <TabsTrigger value="voice">Voice Chat</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="text" className="flex-1 flex flex-col h-[calc(100vh-132px)] pb-16">
-          <ChatArea />
-          <ChatInput />
+        <TabsContent value="text" className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-auto">
+            <ChatArea />
+          </div>
+          <div className="shrink-0">
+            <ChatInput />
+          </div>
         </TabsContent>
         
-        <TabsContent value="voice" className="flex-1 h-[calc(100vh-132px)]">
+        <TabsContent value="voice" className="flex-1 overflow-auto">
           <VoiceChat />
         </TabsContent>
       </Tabs>
       
-      {/* Bottom Navigation */}
-      <div className="bg-white shadow-lg border-t border-gray-200 px-2 py-2 z-10">
+      {/* Bottom Navigation - Fixed to bottom with higher z-index */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 px-2 py-2 z-20">
         <div className="grid grid-cols-2 gap-1">
           <a
             href="/"

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { signInWithGoogle, createUser, signIn } from '@/lib/firebase';
 
 interface AuthDialogProps {
   open: boolean;
@@ -98,7 +99,25 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
     try {
       setLoading(true);
       setError('');
-      await simulateGoogleSignIn();
+      
+      // Use Firebase Google sign in
+      const user = await signInWithGoogle();
+      
+      // Save user to localStorage for easy access
+      localStorage.setItem('authUser', JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName
+      }));
+      
+      // Create a basic profile if none exists
+      if (!localStorage.getItem('guestProfile')) {
+        const profile = {
+          name: user.displayName || user.email?.split('@')[0] || 'User',
+          age: 25 // Default age
+        };
+        localStorage.setItem('guestProfile', JSON.stringify(profile));
+      }
       
       toast({
         title: "Successfully signed in",
@@ -126,18 +145,38 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       setLoading(true);
       setError('');
       
+      let user;
+      
       if (activeTab === 'login') {
-        await simulateEmailLogin(email, password);
+        // Use Firebase email/password login
+        user = await signIn(email, password);
         toast({
           title: "Welcome back!",
           description: "You've been successfully logged in."
         });
       } else {
-        await simulateEmailSignup(email, password);
+        // Use Firebase email/password registration
+        user = await createUser(email, password);
         toast({
           title: "Account created",
           description: "Your account has been created successfully."
         });
+      }
+      
+      // Save user to localStorage for easy access
+      localStorage.setItem('authUser', JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName
+      }));
+      
+      // Create a basic profile if none exists
+      if (!localStorage.getItem('guestProfile')) {
+        const profile = {
+          name: user.displayName || email.split('@')[0],
+          age: 25 // Default age
+        };
+        localStorage.setItem('guestProfile', JSON.stringify(profile));
       }
       
       onAuthComplete();

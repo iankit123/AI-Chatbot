@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { database, ref, push, set } from '@/lib/firebase';
 
 interface PremiumPhotoDialogProps {
   open: boolean;

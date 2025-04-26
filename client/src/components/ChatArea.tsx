@@ -18,7 +18,7 @@ export function ChatArea() {
   return (
     <div 
       ref={chatAreaRef}
-      className="flex-grow overflow-y-auto px-4 py-3 space-y-4 chat-area h-full"
+      className="w-full px-4 py-3 space-y-4 chat-area pb-16"
     >
       {/* Date display */}
       <div className="text-center text-neutral-700 text-sm my-4">

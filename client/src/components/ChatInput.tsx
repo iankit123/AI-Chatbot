@@ -19,7 +19,7 @@ export function ChatInput() {
   };
 
   return (
-    <div className="bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] p-3 pb-4">
+    <div className="bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] p-3">
       <div className="flex items-center gap-2">
         <button 
           className="p-2 text-neutral-700 rounded-full hover:bg-neutral-100" 
