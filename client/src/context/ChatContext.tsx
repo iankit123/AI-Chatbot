@@ -3,6 +3,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { getRandomPhoto, getRandomPhotoPrompt } from '@/lib/companionPhotos';
 
 interface ChatContextType {
   messages: Message[];
@@ -207,11 +208,88 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Get response data
       const data = await res.json();
       
+      // Check if we should offer a photo based on the message count and user response
+      const companionId = stableGetCompanionId();
+      
+      // If we have a photo prompt at this message count
+      const photoPrompt = getRandomPhotoPrompt(companionId, newCount);
+      
+      // If we have a photo prompt, inject it into the bot response
+      if (photoPrompt && !data.error) {
+        // Modify the response that will be sent to include the photo prompt
+        try {
+          // Send an additional message with the photo prompt
+          await apiRequest('POST', '/api/messages', {
+            content: photoPrompt,
+            language: currentLanguage,
+            companionId: companionId
+          });
+          
+          // Refresh messages to include the photo prompt
+          await fetchMessages();
+        } catch (promptError) {
+          console.error('Error sending photo prompt:', promptError);
+        }
+      }
+      
+      // If the bot suggested a photo previously and the user confirmed (yes/sure/ok/etc)
+      const userSaidYesToPhoto = 
+        content.toLowerCase().includes('yes') || 
+        content.toLowerCase().includes('sure') || 
+        content.toLowerCase().includes('ok') ||
+        content.toLowerCase().includes('okay') ||
+        content.toLowerCase().includes('show') ||
+        content.toLowerCase().includes('send') ||
+        content.toLowerCase().includes('share') ||
+        content.toLowerCase().includes('photo') ||
+        content.toLowerCase().includes('picture');
+      
+      // Track if we need to show a photo
+      let shouldShowPhoto = false;
+      let photoUrl = null;
+      
+      // Find if the last bot message contained a photo prompt
+      const lastMessages = messages.slice(-3);
+      const botSuggestedPhoto = lastMessages.some(msg => 
+        msg.role === 'assistant' && 
+        (msg.content.includes('picture') || 
+         msg.content.includes('photo') || 
+         msg.content.toLowerCase().includes('dekho'))
+      );
+      
+      if (botSuggestedPhoto && userSaidYesToPhoto) {
+        // User said yes to a photo offer, show a photo
+        const randomPhoto = getRandomPhoto(companionId);
+        if (randomPhoto) {
+          shouldShowPhoto = true;
+          photoUrl = randomPhoto.url;
+          setCurrentPhoto(randomPhoto.url);
+          
+          // Send the photo description as a follow-up message
+          setTimeout(async () => {
+            try {
+              await apiRequest('POST', '/api/messages', {
+                content: randomPhoto.response,
+                language: currentLanguage,
+                companionId: companionId
+              });
+              
+              // Fetch the updated messages
+              await fetchMessages();
+              
+              // Show the premium photo dialog
+              setShowPhotoDialog(true);
+            } catch (error) {
+              console.error('Error sending photo response:', error);
+            }
+          }, 1500);
+        }
+      }
+      
       // Save to localStorage instead of Firebase
       try {
         // Save the full messages array to localStorage
         const updatedMessages = await fetchMessages(); // Get the latest messages
-        const companionId = stableGetCompanionId();
         const localStorageKey = `messages_${companionId}`;
         
         // Store in localStorage

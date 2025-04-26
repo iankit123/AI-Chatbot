@@ -5,6 +5,7 @@ import { ChatInput } from '@/components/ChatInput';
 import { UserProfileDialog } from '@/components/UserProfileDialog';
 import { AuthDialog } from '@/components/AuthDialog';
 import { ProfileDialog } from '@/components/ProfileDialog';
+import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
 import { useChat } from '@/context/ChatContext';
 
 export default function Chat() {
@@ -13,7 +14,10 @@ export default function Chat() {
     showProfileDialog, 
     setShowProfileDialog, 
     showAuthDialog, 
-    setShowAuthDialog 
+    setShowAuthDialog,
+    showPhotoDialog,
+    setShowPhotoDialog,
+    currentPhoto
   } = useChat();
   
   const [showAppProfileDialog, setShowAppProfileDialog] = useState(false);
@@ -90,6 +94,14 @@ export default function Chat() {
       <ProfileDialog
         open={showAppProfileDialog}
         onOpenChange={setShowAppProfileDialog}
+      />
+      
+      {/* Premium Photo Dialog */}
+      <PremiumPhotoDialog
+        open={showPhotoDialog}
+        onOpenChange={setShowPhotoDialog}
+        companionName={botName}
+        blurredImageUrl={currentPhoto || '/images/companions/priya1.jpg'}
       />
     </div>
   );
