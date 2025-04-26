@@ -174,8 +174,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       return;
     }
     
-    // Check if free message limit reached (on 3rd message or after if not logged in)
-    if (newCount >= 3 && !localStorage.getItem('authUser')) {
+    // Check if free message limit reached (exactly on 3rd message if not logged in)
+    if (newCount === 3 && !localStorage.getItem('authUser')) {
       setShowAuthDialog(true);
       return;
     }
