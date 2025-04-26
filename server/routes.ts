@@ -26,35 +26,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate request body
       const messageSchema = z.object({
         content: z.string().min(1),
-        language: z.enum(['hindi', 'english']).default('hindi')
+        language: z.enum(['hindi', 'english']).default('hindi'),
+        companionId: z.string().default('priya')
       });
       
       const validatedData = messageSchema.parse(req.body);
       
-      // Save the user message
+      // Save the user message with companion ID
       const userMessage = await storage.createMessage({
         content: validatedData.content,
-        role: 'user'
+        role: 'user',
+        companionId: validatedData.companionId
       });
       
-      // Get conversation history for context
+      // Get conversation history for this specific companion
       const allMessages = await storage.getMessages();
-      const conversationHistory = allMessages.map(msg => ({
+      // Filter messages for this companion
+      const companionMessages = allMessages.filter(
+        msg => !msg.companionId || msg.companionId === validatedData.companionId
+      );
+      
+      const conversationHistory = companionMessages.map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content
       }));
       
-      // Generate AI response
+      // Get user profile if available
+      let userName = '';
+      const guestProfile = req.cookies?.guestProfile;
+      if (guestProfile) {
+        try {
+          const profile = JSON.parse(guestProfile);
+          userName = profile.name || '';
+        } catch (e) {
+          console.error('Error parsing user profile from cookie:', e);
+        }
+      }
+      
+      // Generate AI response with additional context
       const responseContent = await generateResponse(
         validatedData.content,
         conversationHistory,
-        validatedData.language
+        validatedData.language,
+        { 
+          companionId: validatedData.companionId,
+          userName
+        }
       );
       
-      // Save the AI response
+      // Save the AI response with companion ID
       const botMessage = await storage.createMessage({
         content: responseContent,
-        role: 'assistant'
+        role: 'assistant',
+        companionId: validatedData.companionId
       });
       
       // Return both messages

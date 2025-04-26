@@ -45,6 +45,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<'hindi' | 'english'>('hindi');
+  const [messageCount, setMessageCount] = useState(0);
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { toast } = useToast();
   
   // Initialize from localStorage directly instead of using ChatSettingsContext
@@ -76,6 +79,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     }
   });
   
+  // Get current selected companion ID
+  const getCompanionId = () => {
+    try {
+      const savedCompanion = localStorage.getItem('selectedCompanion');
+      if (savedCompanion) {
+        const companion = JSON.parse(savedCompanion);
+        return companion.id;
+      }
+      return 'priya';
+    } catch (error) {
+      console.error('Error getting companion ID:', error);
+      return 'priya';
+    }
+  };
+  
   // Listen for localStorage changes
   useEffect(() => {
     const handleStorageChange = () => {
@@ -85,6 +103,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           const companion = JSON.parse(savedCompanion);
           setBotName(companion.name);
           setBotAvatar(companion.avatar);
+          // Reset messages when companion changes
+          setMessages([]);
         }
       } catch (error) {
         console.error('Error handling storage change:', error);
@@ -118,6 +138,22 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const sendMessage = async (content: string) => {
     if (!content.trim()) return;
 
+    // Track message count for limits
+    const newCount = messageCount + 1;
+    setMessageCount(newCount);
+    
+    // Check if user needs to provide profile (first message)
+    if (newCount === 1 && !localStorage.getItem('guestProfile')) {
+      setShowProfileDialog(true);
+      return;
+    }
+    
+    // Check if free message limit reached (after 3 messages)
+    if (newCount > 3 && !localStorage.getItem('authUser')) {
+      setShowAuthDialog(true);
+      return;
+    }
+
     // Create user message
     const userMessage: Omit<Message, 'id' | 'timestamp'> = {
       content,
@@ -126,7 +162,6 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
     try {
       // Add user message to UI immediately (optimistic update)
-      // Create a temporary message with the right types
       const tempMessage: Message = {
         ...userMessage,
         id: -1, // Will be replaced with actual id from server
@@ -141,11 +176,39 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Send message to server
       const res = await apiRequest('POST', '/api/messages', {
         content,
-        language: currentLanguage
+        language: currentLanguage,
+        companionId: getCompanionId() // Pass companion ID to server
       });
 
       // Get response data
       const data = await res.json();
+      
+      // Save to Firebase if user is logged in
+      const userId = localStorage.getItem('authUser');
+      if (userId) {
+        try {
+          // Save user message
+          await saveMessage(userId, getCompanionId(), {
+            content,
+            role: 'user',
+            timestamp: new Date().toISOString()
+          });
+          
+          // Save bot response
+          if (data.botMessage) {
+            await saveMessage(userId, getCompanionId(), {
+              content: data.botMessage.content,
+              role: 'assistant',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
+          // Update message count
+          await updateMessageCount(userId, getCompanionId());
+        } catch (firebaseError) {
+          console.error('Firebase error:', firebaseError);
+        }
+      }
       
       // Hide typing indicator
       setIsTyping(false);
@@ -204,6 +267,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         currentLanguage,
         botName,
         botAvatar,
+        messageCount,
+        showProfileDialog,
+        showAuthDialog,
+        setShowProfileDialog,
+        setShowAuthDialog,
         sendMessage, 
         clearChat, 
         toggleLanguage
