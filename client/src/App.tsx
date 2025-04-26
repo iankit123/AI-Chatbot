@@ -5,6 +5,7 @@ import NotFound from "@/pages/not-found";
 import Chat from "@/pages/Chat";
 import LandingPage from "./pages/LandingPage";
 import { ChatProvider } from "./context/ChatContext";
+import { ChatSettingsProvider } from "./context/ChatSettingsContext";
 
 function Router() {
   return (
@@ -18,12 +19,14 @@ function Router() {
 
 function App() {
   return (
-    <ChatProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </ChatProvider>
+    <ChatSettingsProvider>
+      <ChatProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </ChatProvider>
+    </ChatSettingsProvider>
   );
 }
 

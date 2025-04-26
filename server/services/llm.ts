@@ -66,10 +66,10 @@ export async function generateResponse(
 
     // Prepare the request body
     const requestBody: ChatCompletionRequest = {
-      model: "llama3-70b-8192", // Using Llama 3 70B model
+      model: "llama3-8b-8192", // Using Llama 3 8B model (more stable)
       messages,
-      temperature: 0.8, // Slightly creative
-      max_tokens: 800, // Reasonable response length
+      temperature: 0.7, // Balanced creativity and consistency
+      max_tokens: 500, // Reasonable response length
     };
 
     // Make request to Groq API
