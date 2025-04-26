@@ -59,17 +59,18 @@ export function VoiceChat() {
     }, 2000);
   };
   
+  // Fixed content that displays at the top of the screen
   return (
-    <div className="flex flex-col items-center p-4 text-center h-full overflow-auto">
-      <div className="bg-gray-100 p-6 rounded-xl max-w-md mx-auto w-full text-center">
-        <div className="mb-6">
+    <div className="absolute inset-0 flex flex-col items-center">
+      <div className="bg-gray-100 p-6 rounded-xl max-w-md mx-auto w-full mt-4 shadow-md">
+        <div className="mb-4">
           <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
             <Lock className="w-8 h-8 text-gray-500" />
           </div>
         </div>
         
         <h3 className="text-xl font-semibold mb-2">Voice Chat: Premium Feature</h3>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 mb-4">
           Only for selected members at ₹99. Talk to {botName} and hear her sweet voice.
         </p>
         
