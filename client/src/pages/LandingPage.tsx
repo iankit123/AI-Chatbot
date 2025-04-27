@@ -18,7 +18,7 @@ const companions: CompanionProfile[] = [
     age: 24,
     description: "Friendly and caring, loves deep conversations",
     descriptionHindi: "दोस्ताना और देखभाल करने वाली, गहरी बातचीत पसंद है",
-    imageUrl: "/images/priya-portrait.png"
+    imageUrl: "/images/priya.png"
   },
   {
     id: "ananya",
