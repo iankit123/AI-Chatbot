@@ -4,3 +4,9 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Firebase credentials
+*-firebase-adminsdk-*.json
+attached_assets/ai-chatbot-b8586-firebase-adminsdk-fbsvc-48a831bb96.json
+.env.local
+.env
