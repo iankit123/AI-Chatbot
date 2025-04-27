@@ -116,8 +116,8 @@ export function PremiumPhotoDialog({
             </div>
             <img 
               src={blurredImageUrl} 
-              alt={`Blurred photo from ${companionName}`}
-              className="w-full h-full object-cover filter blur-md"
+              alt={`Photo from ${companionName}`}
+              className="w-full h-full object-cover"
             />
           </div>
           
