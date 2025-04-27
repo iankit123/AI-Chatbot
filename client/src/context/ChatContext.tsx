@@ -4,7 +4,7 @@ import { Message } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { getRandomPhoto, getRandomPhotoPrompt } from '@/lib/companionPhotos';
-import { saveMessage, updateMessageCount, getFirebaseMessages, saveUserProfile } from '@/lib/firebase';
+// Firebase functions are dynamically imported when needed to avoid circular dependencies
 
 interface ChatContextType {
   messages: Message[];
@@ -225,16 +225,26 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           setMessages(data); // Fallback to API data
         }
       } else {
-        // For non-authenticated users, ensure no old messages are loaded
-        // But only if this session hasn't been initialized yet
+        // For non-authenticated users, keep chat history within the session
+        // but don't load from previous sessions
         const sessionInitialized = sessionStorage.getItem('chatSessionInitialized');
-        if (data.length > 0 && !sessionInitialized) {
-          console.log("First visit: non-authenticated user has messages - clearing them");
-          await apiRequest('DELETE', '/api/messages');
-          setMessages([]);
+        
+        if (!sessionInitialized) {
+          console.log("First session: initializing chat for non-logged in user");
+          
+          // Clear any existing messages to start fresh
+          if (data.length > 0) {
+            console.log("Clearing existing messages for new session");
+            await apiRequest('DELETE', '/api/messages');
+            setMessages([]);
+          }
+          
+          // Mark this session as initialized to preserve messages during the session
           sessionStorage.setItem('chatSessionInitialized', 'true');
+          console.log("Session marked as initialized, chat history will persist during this session");
         } else {
-          // In an active session, use API data
+          // In an active session, use the API data
+          console.log("Active session: loading", data.length, "messages from API");
           setMessages(data);
         }
       }
@@ -426,6 +436,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         const authUser = localStorage.getItem('authUser');
         if (authUser) {
           try {
+            // Import Firebase functions dynamically to avoid circular dependencies
+            const { saveMessage, updateMessageCount } = await import('@/lib/firebase');
+            
             // Handle both formats of authUser storage (string email or JSON object)
             let userId;
             try {

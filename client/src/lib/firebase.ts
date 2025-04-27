@@ -24,7 +24,41 @@ export const googleProvider = new GoogleAuthProvider();
 export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    const user = result.user;
+    
+    // Save or update user information in Firebase database
+    const userId = user.uid;
+    const userRef = ref(database, `users/${userId}`);
+    
+    // Get existing user data if any
+    const snapshot = await get(userRef);
+    let userData = {};
+    
+    if (snapshot.exists()) {
+      userData = snapshot.val();
+    }
+    
+    // Update with new login data
+    await update(userRef, {
+      ...userData,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      lastLogin: new Date().toISOString(),
+      provider: 'google'
+    });
+    
+    // Add this login to activation events
+    const activationRef = ref(database, `users/${userId}/activationRequests`);
+    const newRequestRef = push(activationRef);
+    await set(newRequestRef, {
+      timestamp: new Date().toISOString(),
+      status: 'logged_in',
+      source: 'google_login'
+    });
+    
+    console.log("Google user login data saved to Firebase:", userId);
+    return user;
   } catch (error) {
     console.error("Error signing in with Google: ", error);
     throw error;
@@ -104,6 +138,26 @@ export const signIn = async (email: string, password: string) => {
 
 export const signOutUser = async () => {
   try {
+    // Get current user before signing out
+    const user = auth.currentUser;
+    
+    if (user) {
+      // Log the logout event to Firebase
+      const userId = user.uid;
+      const logoutRef = ref(database, `users/${userId}/activationRequests`);
+      const newLogoutRef = push(logoutRef);
+      
+      // First log the logout event
+      await set(newLogoutRef, {
+        timestamp: new Date().toISOString(),
+        status: 'logged_out',
+        source: 'user_initiated'
+      });
+      
+      console.log('Logout event logged to Firebase');
+    }
+    
+    // Then sign out
     await signOut(auth);
   } catch (error) {
     console.error("Error signing out: ", error);
