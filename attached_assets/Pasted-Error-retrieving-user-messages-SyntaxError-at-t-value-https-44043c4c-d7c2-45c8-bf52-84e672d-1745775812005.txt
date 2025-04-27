@@ -1,0 +1,27 @@
+Error retrieving user messages: 
+SyntaxError {}
+
+at t.value (https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Current message count: 4 Auth user exists: true
+User accepted premium photo offer, showing premium photo
+Using premium photo URL: /images/premium/priya5.png
+Sent premium photo message response: 
+Response {type: "basic", url: "https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/api/messages", redirected: false, status: 201, ok: true, …}
+Error retrieving user messages: 
+SyntaxError {}
+
+at t.value (https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Opening premium dialog for image: /images/premium/priya5.png
+Error saving to Firebase: 
+SyntaxError {}
+message: "Unexpected token 'a', "a@a.com" is not valid JSON"
+stack: "SyntaxError: Unexpected token 'a', "a@a.com" is not valid JSON↵ at JSON.parse (<anonymous>)↵ at https://44043c4c-d7c2-45c8-bf52-84e672d32364-00-24xf8oraev15z.kirk.replit.dev/src/components/PremiumPhotoDialog.tsx:58:31"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object
