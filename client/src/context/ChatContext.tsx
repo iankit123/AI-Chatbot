@@ -56,13 +56,16 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       ? JSON.parse(localStorage.getItem('selectedCompanion')!).id 
       : 'priya';
     
+    // Check if this is the first time loading the page in this session
+    const sessionInitialized = sessionStorage.getItem('chatSessionInitialized');
+    
     // Force reset message count to 0 on initial page load
     localStorage.setItem(`messageCount_${companionId}`, '0');
     setMessageCount(0);
     
-    // For non-logged in users, clear chat history on page load/refresh
+    // For non-logged in users, clear chat history ONLY on first page load
     const authUser = localStorage.getItem('authUser');
-    if (!authUser) {
+    if (!authUser && !sessionInitialized) {
       // Clear messages from localStorage
       localStorage.removeItem(`messages_${companionId}`);
       
@@ -74,7 +77,12 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         console.error('Error clearing messages on page load:', err);
       });
       
-      console.log("Non-logged in user - cleared chat history");
+      console.log("Initial page load - cleared chat history for non-logged in user");
+      
+      // Mark this session as initialized so we don't clear again on soft refreshes
+      sessionStorage.setItem('chatSessionInitialized', 'true');
+    } else {
+      console.log("Session already initialized, not clearing chat");
     }
     
     console.log("Page initialized - reset message count to 0");
@@ -180,10 +188,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         }
       } else {
         // For non-authenticated users, ensure no old messages are loaded
-        if (data.length > 0) {
-          console.log("Non-authenticated user has messages - clearing them");
+        // But only if this session hasn't been initialized yet
+        const sessionInitialized = sessionStorage.getItem('chatSessionInitialized');
+        if (data.length > 0 && !sessionInitialized) {
+          console.log("First visit: non-authenticated user has messages - clearing them");
           await apiRequest('DELETE', '/api/messages');
           setMessages([]);
+          sessionStorage.setItem('chatSessionInitialized', 'true');
         }
       }
     } catch (error) {
