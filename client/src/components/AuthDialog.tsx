@@ -38,6 +38,8 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
     }
     onOpenChange(newOpen);
   };
+  
+  // Show both login and signup tabs by default
   const [activeTab, setActiveTab] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
