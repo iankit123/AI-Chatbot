@@ -15,7 +15,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "priya1",
       companionId: "priya",
-      url: "/images/premium/priya.jpg",
+      url: "/images/priya.png",
       description: "Me in a green saree at my cousin's wedding last month",
       prompt:
         "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
@@ -69,7 +69,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
       {
         id: "ananya1",
         companionId: "ananya",
-        url: "/images/premium/ananya.jpg",
+        url: "/images/ananya.png",
         description: "Me in a green saree at my cousin's wedding last month",
         prompt:
           "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
@@ -121,7 +121,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "meera1",
       companionId: "meera",
-      url: "/images/premium/meera.jpg",
+      url: "/images/meera.png",
       description: "Me in a green saree at my cousin's wedding last month",
       prompt:
         "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",

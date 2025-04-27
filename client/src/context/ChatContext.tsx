@@ -590,9 +590,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
               // Fetch the updated messages
               await fetchMessages();
-
-              // Show the premium photo dialog
-              setShowPhotoDialog(true);
+              
+              // We won't auto-show the dialog anymore
+              // User will need to click on the photo to see it in the premium dialog
             } catch (error) {
               console.error("Error sending photo response:", error);
             }
