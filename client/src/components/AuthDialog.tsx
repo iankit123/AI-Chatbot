@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { signInWithGoogle, createUser, signIn } from '@/lib/firebase';
 import { getDatabase, ref, push, set } from 'firebase/database';
+import { FirebaseError } from 'firebase/app';
 
 interface AuthDialogProps {
   open: boolean;
@@ -44,6 +45,37 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   const [loading, setLoading] = useState(false);
   
   const { toast } = useToast();
+  
+  // Helper function to format Firebase auth errors into user-friendly messages
+  const formatFirebaseError = (error: any): string => {
+    if (error instanceof FirebaseError) {
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          return 'This email is already registered. Please try logging in instead.';
+        case 'auth/invalid-email':
+          return 'Please enter a valid email address.';
+        case 'auth/user-disabled':
+          return 'This account has been disabled. Please contact support.';
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          return 'Invalid email or password. Please try again.';
+        case 'auth/too-many-requests':
+          return 'Too many failed login attempts. Please try again later.';
+        case 'auth/weak-password':
+          return 'Password should be at least 6 characters long.';
+        case 'auth/operation-not-allowed':
+          return 'This login method is not allowed.';
+        case 'auth/popup-closed-by-user':
+          return 'Sign-in was cancelled. Please try again.';
+        case 'auth/configuration-not-found':
+          return 'Authentication service is being set up. Using offline mode for now.';
+        default:
+          console.error('Firebase error:', error.code, error.message);
+          return `Authentication error: ${error.message}`;
+      }
+    }
+    return error?.message || 'An unexpected error occurred. Please try again.';
+  };
   
   // Track activation request when auth dialog opens (triggered by message limit)
   useEffect(() => {
@@ -205,22 +237,52 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
         }
         
         console.log("Successfully authenticated with Google via Firebase:", user.uid);
-      } catch (firebaseError) {
-        console.warn("Firebase Google sign-in failed, using fallback:", firebaseError);
         
-        // Use fallback authentication if Firebase fails
-        await simulateGoogleSignIn();
+        toast({
+          title: "Successfully signed in",
+          description: "Welcome! You now have unlimited access."
+        });
+      } catch (firebaseError) {
+        // Format error message for display
+        const errorMsg = formatFirebaseError(firebaseError);
+        console.warn("Firebase Google sign-in failed:", errorMsg);
+        
+        // For configuration errors, we use fallback but show a specific message
+        if (firebaseError instanceof FirebaseError && 
+            (firebaseError.code === 'auth/configuration-not-found' || 
+             firebaseError.code === 'auth/popup-blocked' ||
+             firebaseError.code === 'auth/cancelled-popup-request' ||
+             firebaseError.code === 'auth/popup-closed-by-user')) {
+          
+          toast({
+            title: "Using offline mode",
+            description: "Google sign-in unavailable. Using local storage for now.",
+          });
+          
+          // Use fallback authentication if Firebase fails
+          await simulateGoogleSignIn();
+          
+          toast({
+            title: "Signed in (offline mode)",
+            description: "Welcome! You've been signed in using offline mode."
+          });
+        } else {
+          // For other errors, display them to the user and don't use fallback
+          setError(errorMsg);
+          throw new Error(errorMsg);
+        }
       }
-      
-      toast({
-        title: "Successfully signed in",
-        description: "Welcome! You now have unlimited access."
-      });
       
       onAuthComplete();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Sign in failed';
       setError(errorMessage);
+      
+      toast({
+        title: "Sign-in failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -266,21 +328,37 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
         
         console.log("Successfully authenticated with Firebase:", user.uid);
       } catch (firebaseError) {
-        console.warn("Firebase auth failed, using fallback:", firebaseError);
+        // Format error message for display
+        const errorMsg = formatFirebaseError(firebaseError);
+        console.warn("Firebase auth failed:", errorMsg);
         
-        // Use fallback authentication if Firebase fails
-        if (activeTab === 'login') {
-          await simulateEmailLogin(email, password);
+        // For configuration errors, we use fallback but show a specific message
+        if (firebaseError instanceof FirebaseError && 
+            firebaseError.code === 'auth/configuration-not-found') {
+          
           toast({
-            title: "Welcome back!",
-            description: "You've been successfully logged in."
+            title: "Using offline mode",
+            description: "Authentication service is being set up. Using local storage for now.",
           });
+          
+          // Use fallback authentication if Firebase fails
+          if (activeTab === 'login') {
+            await simulateEmailLogin(email, password);
+            toast({
+              title: "Welcome back!",
+              description: "You've been successfully logged in (offline mode)."
+            });
+          } else {
+            await simulateEmailSignup(email, password);
+            toast({
+              title: "Account created",
+              description: "Your account has been created successfully (offline mode)."
+            });
+          }
         } else {
-          await simulateEmailSignup(email, password);
-          toast({
-            title: "Account created",
-            description: "Your account has been created successfully."
-          });
+          // For other errors, display them to the user and don't use fallback
+          setError(errorMsg);
+          throw new Error(errorMsg);
         }
       }
       

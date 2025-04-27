@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, browserSessionPersistence, setPersistence } from "firebase/auth";
 import { getDatabase, ref, set, get, onValue, push, child, update } from "firebase/database";
 
 // Firebase configuration from your Firebase project
@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBQkLXkHnKdptcjEyWl6Bb9M1POUAIzyiI",
   authDomain: "ai-chatbot-b8586.firebaseapp.com",
   projectId: "ai-chatbot-b8586",
-  storageBucket: "ai-chatbot-b8586.firebasestorage.app",
+  storageBucket: "ai-chatbot-b8586.appspot.com", // Fixed storage bucket URL
   messagingSenderId: "37299411471",
   appId: "1:37299411471:web:ce52c2c4cbe8e7052b217a",
   measurementId: "G-XD6XLN201T",
@@ -17,6 +17,10 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+// Set persistence to session to keep user logged in during session
+setPersistence(auth, browserSessionPersistence).catch((error) => {
+  console.error("Firebase persistence error:", error);
+});
 export const database = getDatabase(app);
 export const googleProvider = new GoogleAuthProvider();
 
