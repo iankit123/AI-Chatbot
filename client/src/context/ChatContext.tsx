@@ -345,6 +345,45 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Check if we should offer a photo based on the message count and user response
       const companionId = stableGetCompanionId();
       
+      // Special case: For signed-in users at message count 4, add the special photo offer message
+      // This is *after* the 4th message from the companion (so on the 8th message in the chat)
+      const authUser = localStorage.getItem('authUser');
+      if (authUser && potentialNewCount >= 4 && potentialNewCount % 4 === 0) {
+        try {
+          // Get user's name from profile if available
+          let userName = ""; 
+          const guestProfile = localStorage.getItem('guestProfile');
+          if (guestProfile) {
+            const profile = JSON.parse(guestProfile);
+            userName = profile.name || "";
+          }
+          
+          // Special photo offer message
+          const photoOfferMessage = `${userName ? userName + ", " : ""}Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?`;
+          
+          // Send special photo offer message
+          await apiRequest('POST', '/api/messages', {
+            content: photoOfferMessage,
+            language: currentLanguage,
+            companionId: companionId
+          });
+          
+          console.log("Sent premium photo offer message");
+          
+          // After this message, we'll show a photo in the next user response
+          // Flag this in sessionStorage
+          sessionStorage.setItem('showPremiumPhotoNext', 'true');
+          
+          // Refresh messages to include the photo offer
+          await fetchMessages();
+        } catch (offerError) {
+          console.error('Error sending premium photo offer:', offerError);
+        }
+        
+        return; // Don't process regular photo prompts in this case
+      }
+      
+      // Regular photo prompt handling
       // If we have a photo prompt at this message count
       const photoPrompt = getRandomPhotoPrompt(companionId, potentialNewCount);
       
@@ -366,8 +405,68 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         }
       }
       
-      // If the bot suggested a photo previously and the user confirmed (yes/sure/ok/etc)
+      // Check if we should show a premium photo (if user was prompted in previous message)
+      const showPremiumPhotoNext = sessionStorage.getItem('showPremiumPhotoNext');
+      
+      // Check if user responded positively to premium photo offer
       const userSaidYesToPhoto = 
+        content.toLowerCase().includes('yes') || 
+        content.toLowerCase().includes('sure') || 
+        content.toLowerCase().includes('ok') ||
+        content.toLowerCase().includes('okay') ||
+        content.toLowerCase().includes('show') ||
+        content.toLowerCase().includes('send') ||
+        content.toLowerCase().includes('share') ||
+        content.toLowerCase().includes('photo') ||
+        content.toLowerCase().includes('picture') ||
+        content.toLowerCase().includes('haan') ||
+        content.toLowerCase().includes('ha') ||
+        content.toLowerCase().includes('dikhao');
+      
+      // If previous message had premium photo offer and user said yes
+      if (showPremiumPhotoNext === 'true' && userSaidYesToPhoto) {
+        // Clear the flag
+        sessionStorage.removeItem('showPremiumPhotoNext');
+        
+        // Get a random companion photo from the public folder
+        const companionFolderPath = `/images/companions/${companionId}/`;
+        
+        // Get at least one image from the folder for premium photo display
+        // For this implementation, we'll hardcode the path to ensure it works
+        const photoNumber = Math.floor(Math.random() * 3) + 1; // Random number between 1-3
+        const premiumPhotoUrl = `${companionFolderPath}${photoNumber}.jpg`;
+        
+        // Set current photo to display in premium dialog
+        setCurrentPhoto(premiumPhotoUrl);
+        
+        // Add bot response with premium photo attached
+        setTimeout(async () => {
+          try {
+            // Create a follow-up message with the photo
+            await apiRequest('POST', '/api/messages', {
+              content: "Ye meri kal ki photo hai. Kaisi lagi? 😊",
+              language: currentLanguage,
+              companionId: companionId,
+              photoUrl: premiumPhotoUrl, // Pass photo URL to include in message
+              isPremium: true // Mark this as a premium photo message
+            });
+            
+            // Fetch the updated messages
+            await fetchMessages();
+            
+            // Show the premium photo dialog (blurred photo with upgrade option)
+            setShowPhotoDialog(true);
+          } catch (error) {
+            console.error('Error sending premium photo response:', error);
+          }
+        }, 1000);
+        
+        return; // Skip regular photo handling
+      }
+      
+      // Regular photo handling (non-premium)
+      // If the bot suggested a regular photo previously and the user confirmed
+      const userSaidYesToRegularPhoto = 
         content.toLowerCase().includes('yes') || 
         content.toLowerCase().includes('sure') || 
         content.toLowerCase().includes('ok') ||
@@ -391,8 +490,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
          msg.content.toLowerCase().includes('dekho'))
       );
       
-      if (botSuggestedPhoto && userSaidYesToPhoto) {
-        // User said yes to a photo offer, show a photo
+      // Handle regular (non-premium) photo requests
+      if (botSuggestedPhoto && userSaidYesToRegularPhoto && !showPremiumPhotoNext) {
+        // User said yes to a regular photo offer, show a photo
         const randomPhoto = getRandomPhoto(companionId);
         if (randomPhoto) {
           shouldShowPhoto = true;
