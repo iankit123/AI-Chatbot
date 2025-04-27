@@ -156,13 +156,23 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     const savedCount = localStorage.getItem(`messageCount_${companionId}`);
     const authUser = localStorage.getItem('authUser');
     
+    console.log("Initializing message count, savedCount:", savedCount);
+    
     // If user is not logged in and count is 3 or more, reset to 2
     // This ensures the chat input stays visible but auth dialog appears on next attempt
     if (!authUser && savedCount && parseInt(savedCount, 10) >= 3) {
       setMessageCount(2);
       localStorage.setItem(`messageCount_${companionId}`, '2');
+      console.log("User not logged in with high count, resetting to 2");
     } else if (savedCount) {
-      setMessageCount(parseInt(savedCount, 10) || 0);
+      const count = parseInt(savedCount, 10) || 0;
+      setMessageCount(count);
+      console.log("Setting message count from localStorage:", count);
+    } else {
+      // If no saved count, explicitly set to 0
+      setMessageCount(0);
+      localStorage.setItem(`messageCount_${companionId}`, '0');
+      console.log("No saved count, initializing to 0");
     }
     
     fetchMessages();
@@ -182,7 +192,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     // Check if free message limit reached (on 3rd message if not logged in)
     // Importantly, we check for messageCount === 2 (which means this is the 3rd message attempt)
-    if (messageCount === 2 && !localStorage.getItem('authUser')) {
+    const authUser = localStorage.getItem('authUser');
+    console.log("Current message count:", messageCount, "Auth user exists:", !!authUser);
+    
+    if (messageCount === 2 && !authUser) {
+      console.log("Showing auth dialog for 3rd message");
       setShowAuthDialog(true);
       return;
     }
@@ -395,6 +409,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         localStorage.removeItem(`messages_${companionId}`);
         localStorage.setItem(`messageCount_${companionId}`, '0');
         setMessageCount(0);
+        console.log("Cleared chat and reset message count to 0");
       } catch (localError) {
         console.error('Error clearing localStorage:', localError);
       }
