@@ -488,10 +488,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           // Clear the flag
           sessionStorage.removeItem("showPremiumPhotoNext");
 
-          // Determine the companion folder path - make sure this exists in the public folder
+          // Determine the companion folder path
           const companionId = stableGetCompanionId();
-          // Use premium folder for premium photos with png extension
-          const premiumPhotoUrl = `/images/${companionId}.png`;
+          
+          // Get a random premium photo from the premium folder
+          // We have priya.jpg, priya4.jpg, priya5.png, ananya.jpg, meera.jpg
+          const premiumPhotos = {
+            priya: ["/images/premium/priya.jpg", "/images/premium/priya4.jpg", "/images/premium/priya5.png"],
+            ananya: ["/images/premium/ananya.jpg"],
+            meera: ["/images/premium/meera.jpg"]
+          };
+          
+          // Select a random photo for this companion
+          const companionPhotos = premiumPhotos[companionId as keyof typeof premiumPhotos] || premiumPhotos.priya;
+          const randomIndex = Math.floor(Math.random() * companionPhotos.length);
+          const premiumPhotoUrl = companionPhotos[randomIndex];
 
           console.log("Using premium photo URL:", premiumPhotoUrl);
 
@@ -506,14 +517,14 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             companionId: companionId,
             photoUrl: premiumPhotoUrl, // Pass photo URL to include in message
             isPremium: true, // Mark this as a premium photo message
-            skipUserMessage: true // Important: don't create duplicate user message
+            skipUserMessage: true, // Important: don't create duplicate user message
           });
 
           console.log("Sent premium photo message response:", response);
 
           // Fetch the updated messages to refresh the chat
           await fetchMessages();
-          
+
           // We'll set the photo, but not auto-show the dialog
           // User needs to click on the photo to see it in the premium dialog
         } catch (error) {
@@ -590,7 +601,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
               // Fetch the updated messages
               await fetchMessages();
-              
+
               // We won't auto-show the dialog anymore
               // User will need to click on the photo to see it in the premium dialog
             } catch (error) {

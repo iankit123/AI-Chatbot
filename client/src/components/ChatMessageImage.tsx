@@ -66,7 +66,7 @@ export function ChatMessageImage({ imageUrl, companionName, isBlurred = true }: 
             e.currentTarget.src = '/images/photo-placeholder.png';
           }
         }}
-        className={`w-full h-auto object-cover rounded-lg ${isBlurred ? 'blur-lg' : ''}`}
+        className={`w-full h-auto object-cover rounded-lg`}
       />
       
       {/* Premium image overlay with download button */}
