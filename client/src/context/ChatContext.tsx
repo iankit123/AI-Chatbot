@@ -163,28 +163,66 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     try {
       // Check if user is authenticated
       const authUser = localStorage.getItem('authUser');
-      
-      // Get messages specific to the current companion
       const companionId = stableGetCompanionId();
+      
+      // Get messages specific to the current companion from API
       const res = await fetch(`/api/messages?companionId=${companionId}`);
       if (!res.ok) throw new Error('Failed to fetch messages');
       const data = await res.json();
-      setMessages(data);
       
-      // Only try to restore messages from localStorage for authenticated users
       if (authUser) {
+        // For authenticated users, try to restore from Firebase first, then localStorage
         try {
+          // Parse the user data to get the user ID
+          const userData = JSON.parse(authUser);
+          const userId = userData.uid;
+          
+          try {
+            // Try to get messages from Firebase for this user and companion
+            console.log("Fetching Firebase messages for user:", userId, "companion:", companionId);
+            
+            // Import here to avoid circular dependency
+            const { getFirebaseMessages } = await import('@/lib/firebase');
+            const firebaseMessages = await getFirebaseMessages(userId, companionId);
+            
+            if (firebaseMessages && firebaseMessages.length > 0) {
+              // Format Firebase messages to match our API structure
+              const formattedMessages = firebaseMessages.map((msg, index) => ({
+                id: index + 1, // Generate sequential IDs
+                content: msg.content,
+                role: msg.role,
+                companionId: companionId,
+                timestamp: new Date(msg.timestamp)
+              }));
+              
+              console.log("Restored", formattedMessages.length, "messages from Firebase");
+              setMessages(formattedMessages);
+              return; // Exit if we successfully loaded from Firebase
+            } else {
+              console.log("No Firebase messages found, checking localStorage");
+            }
+          } catch (firebaseError) {
+            console.error("Error fetching Firebase messages:", firebaseError);
+          }
+          
+          // Try localStorage as fallback
           const localStorageKey = `messages_${companionId}`;
           const savedMessages = localStorage.getItem(localStorageKey);
+          
           if (savedMessages && data.length === 0) {
             const parsedMessages = JSON.parse(savedMessages);
             if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
               setMessages(parsedMessages);
               console.log("Restored messages from localStorage for authenticated user");
+              return; // Exit if we successfully loaded from localStorage
             }
           }
-        } catch (localStorageError) {
-          console.error('Error retrieving messages from localStorage:', localStorageError);
+          
+          // If we reach here, use API data as last resort
+          setMessages(data);
+        } catch (error) {
+          console.error('Error retrieving user messages:', error);
+          setMessages(data); // Fallback to API data
         }
       } else {
         // For non-authenticated users, ensure no old messages are loaded
@@ -195,6 +233,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           await apiRequest('DELETE', '/api/messages');
           setMessages([]);
           sessionStorage.setItem('chatSessionInitialized', 'true');
+        } else {
+          // In an active session, use API data
+          setMessages(data);
         }
       }
     } catch (error) {

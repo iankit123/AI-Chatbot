@@ -34,6 +34,27 @@ export const signInWithGoogle = async () => {
 export const createUser = async (email: string, password: string) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Save user registration data in Firebase database
+    const userId = userCredential.user.uid;
+    const userRef = ref(database, `users/${userId}`);
+    await set(userRef, {
+      email: email,
+      createdAt: new Date().toISOString(),
+      accountType: 'email_password',
+      lastLogin: new Date().toISOString()
+    });
+    
+    // Also track this signup as an activation request
+    const activationRef = ref(database, `users/${userId}/activationRequests`);
+    const newRequestRef = push(activationRef);
+    await set(newRequestRef, {
+      timestamp: new Date().toISOString(),
+      status: 'signed_up',
+      source: 'email_registration'
+    });
+    
+    console.log('User created and saved to Firebase database');
     return userCredential.user;
   } catch (error) {
     console.error("Error creating user: ", error);
@@ -44,6 +65,36 @@ export const createUser = async (email: string, password: string) => {
 export const signIn = async (email: string, password: string) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Update last login timestamp
+    const userId = userCredential.user.uid;
+    const userRef = ref(database, `users/${userId}`);
+    
+    // Get current user data
+    const snapshot = await get(userRef);
+    let userData = {};
+    
+    if (snapshot.exists()) {
+      userData = snapshot.val();
+    }
+    
+    // Update with lastLogin timestamp
+    await update(userRef, {
+      ...userData,
+      lastLogin: new Date().toISOString(),
+      email: email // Ensure email is always up to date
+    });
+    
+    // Add login event to activation requests
+    const activationRef = ref(database, `users/${userId}/activationRequests`);
+    const newRequestRef = push(activationRef);
+    await set(newRequestRef, {
+      timestamp: new Date().toISOString(),
+      status: 'logged_in',
+      source: 'email_login'
+    });
+    
+    console.log('User login tracked in Firebase database');
     return userCredential.user;
   } catch (error) {
     console.error("Error signing in: ", error);
@@ -126,11 +177,23 @@ export const getFirebaseMessages = async (userId: string, companionId: string) =
 
 export const saveUserProfile = async (userId: string, profile: any) => {
   try {
+    // Save the main profile
     const userRef = ref(database, `users/${userId}/profile`);
     await set(userRef, {
       ...profile,
       updatedAt: new Date().toISOString()
     });
+    
+    // Add to activation requests
+    const activationRef = ref(database, `users/${userId}/activationRequests`);
+    const newRequestRef = push(activationRef);
+    await set(newRequestRef, {
+      timestamp: new Date().toISOString(),
+      status: 'requested',
+      source: 'profile_update'
+    });
+    
+    console.log('Saved user profile and activation request to Firebase');
   } catch (error) {
     console.error("Error saving user profile: ", error);
     throw error;

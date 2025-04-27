@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { signInWithGoogle, createUser, signIn } from '@/lib/firebase';
+import { getDatabase, ref, push, set } from 'firebase/database';
 
 interface AuthDialogProps {
   open: boolean;
@@ -43,6 +44,55 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   const [loading, setLoading] = useState(false);
   
   const { toast } = useToast();
+  
+  // Track activation request when auth dialog opens (triggered by message limit)
+  useEffect(() => {
+    if (open) {
+      try {
+        // Try to log this activation request to Firebase if possible
+        const database = getDatabase();
+        const authData = localStorage.getItem('authUser');
+        
+        if (authData) {
+          // If there's already some auth data, track it properly
+          try {
+            const user = JSON.parse(authData);
+            const userId = user.uid;
+            
+            // Log activation prompt event
+            const activationRef = ref(database, `users/${userId}/activationRequests`);
+            const newRequestRef = push(activationRef);
+            set(newRequestRef, {
+              timestamp: new Date().toISOString(),
+              status: 'prompted',
+              source: 'message_limit_reached'
+            }).then(() => {
+              console.log('Activation request logged to Firebase');
+            }).catch(error => {
+              console.error('Error logging activation request:', error);
+            });
+          } catch (e) {
+            console.error('Error parsing auth data:', e);
+          }
+        } else {
+          // If there's no auth data, still track as anonymous
+          const anonymousRef = ref(database, 'anonymous_activation_requests');
+          const newRequestRef = push(anonymousRef);
+          set(newRequestRef, {
+            timestamp: new Date().toISOString(),
+            status: 'prompted',
+            source: 'message_limit_reached'
+          }).then(() => {
+            console.log('Anonymous activation request logged to Firebase');
+          }).catch(error => {
+            console.error('Error logging anonymous activation request:', error);
+          });
+        }
+      } catch (error) {
+        console.error('Firebase activation tracking error:', error);
+      }
+    }
+  }, [open]);
   
   // Simplified local auth handling as fallback if Firebase fails
   const simulateEmailLogin = async (email: string, password: string) => {
