@@ -13,20 +13,32 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   const isBot = message.role === "assistant";
   const { botName } = useChat();
 
-  // Check if message contains an image URL
+  // Check if message contains a photo URL either in content or as a photoUrl field
   const hasImage = useMemo(() => {
-    // Detect if message contains an image URL pattern
+    // Check for photoUrl field first (for premium photos)
+    if (message.photoUrl) return true;
+    
+    // Otherwise, detect if message contains an image URL pattern
     const imageUrlRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
     return imageUrlRegex.test(message.content);
-  }, [message.content]);
+  }, [message.content, message.photoUrl]);
 
-  // Extract image URL from message
+  // Extract image URL from message (from photoUrl field or content)
   const imageUrl = useMemo(() => {
+    // Prefer the photoUrl field if available (for premium photos)
+    if (message.photoUrl) return message.photoUrl;
+    
+    // Otherwise extract from content
     if (!hasImage) return null;
     const imageUrlRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
     const match = message.content.match(imageUrlRegex);
     return match ? match[0] : null;
-  }, [message.content, hasImage]);
+  }, [message.content, hasImage, message.photoUrl]);
+
+  // Check if this is a premium photo
+  const isPremiumPhoto = useMemo(() => {
+    return !!message.isPremium;
+  }, [message.isPremium]);
 
   // Process the message content to highlight first-person words/phrases
   const processedContent = useMemo(() => {
@@ -34,8 +46,8 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
 
     // Hindi first-person pronouns to highlight (in Roman script)
     const firstPersonWords: string[] = [
-      // 'main', 'mujhe', 'mera', 'meri', 'mere', 'hum', 'humein',
-      // 'hamara', 'hamari', 'hamare', 'maine', 'humne'
+      'main', 'mujhe', 'mera', 'meri', 'mere', 'hum', 'humein',
+      'hamara', 'hamari', 'hamare', 'maine', 'humne'
     ];
 
     // Simple word-by-word highlighting
@@ -45,7 +57,7 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
     firstPersonWords.forEach((word) => {
       // Match whole words only, case-insensitive
       const regex = new RegExp(`\\b${word}\\b`, "gi");
-      content = content.replace(regex, `<strong>${word}</strong>`);
+      content = content.replace(regex, `<span class="text-red-500 font-medium">${word}</span>`);
     });
 
     return content;
@@ -68,7 +80,7 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
               <ChatMessageImage 
                 imageUrl={imageUrl} 
                 companionName={botName} 
-                isBlurred={true}
+                isBlurred={isPremiumPhoto} // Only blur premium photos
               />
             </div>
           )}

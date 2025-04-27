@@ -192,7 +192,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
                 content: msg.content,
                 role: msg.role,
                 companionId: companionId,
-                timestamp: new Date(msg.timestamp)
+                timestamp: new Date(msg.timestamp),
+                photoUrl: msg.photoUrl || null,
+                isPremium: msg.isPremium || null
               }));
               
               console.log("Restored", formattedMessages.length, "messages from Firebase");
@@ -317,6 +319,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       content,
       role: 'user',
       companionId: stableGetCompanionId(),
+      photoUrl: null,
+      isPremium: null
     };
 
     try {
