@@ -40,28 +40,10 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
     return !!message.isPremium;
   }, [message.isPremium]);
 
-  // Process the message content to highlight first-person words/phrases
+  // Process the message content without highlighting
   const processedContent = useMemo(() => {
-    if (!isBot) return message.content;
-
-    // Hindi first-person pronouns to highlight (in Roman script)
-    const firstPersonWords: string[] = [
-      'main', 'mujhe', 'mera', 'meri', 'mere', 'hum', 'humein',
-      'hamara', 'hamari', 'hamare', 'maine', 'humne'
-    ];
-
-    // Simple word-by-word highlighting
-    let content = message.content;
-
-    // Replace first-person words with highlighted versions
-    firstPersonWords.forEach((word) => {
-      // Match whole words only, case-insensitive
-      const regex = new RegExp(`\\b${word}\\b`, "gi");
-      content = content.replace(regex, `<span class="text-red-500 font-medium">${word}</span>`);
-    });
-
-    return content;
-  }, [message.content, isBot]);
+    return message.content;
+  }, [message.content]);
 
   if (isBot) {
     return (

@@ -24,22 +24,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Send a message
   app.post('/api/messages', async (req, res) => {
     try {
-      // Validate request body
+      // Validate request body with extended schema for premium photos
       const messageSchema = z.object({
         content: z.string().min(1),
         language: z.enum(['hindi', 'english']).default('hindi'),
-        companionId: z.string().default('priya')
+        companionId: z.string().default('priya'),
+        // Optional photo fields for premium messages
+        photoUrl: z.string().optional(),
+        isPremium: z.boolean().optional()
       });
       
       const validatedData = messageSchema.parse(req.body);
       
-      // Save the user message with companion ID
+      // Check if this is a photo message (premium or regular)
+      const isPhotoMessage = !!validatedData.photoUrl;
+      
+      // Save the user message with companion ID and optional photo fields
       const userMessage = await storage.createMessage({
         content: validatedData.content,
         role: 'user',
-        companionId: validatedData.companionId
+        companionId: validatedData.companionId,
+        photoUrl: validatedData.photoUrl,
+        isPremium: validatedData.isPremium
       });
       
+      // If this is just saving a photo message (for premium photos), skip the LLM response
+      if (isPhotoMessage && validatedData.isPremium) {
+        console.log("Processing premium photo message with URL:", validatedData.photoUrl);
+        
+        // For premium photos, we directly create the bot response with the photo
+        const botMessage = await storage.createMessage({
+          content: validatedData.content,
+          role: 'assistant',
+          companionId: validatedData.companionId,
+          photoUrl: validatedData.photoUrl,
+          isPremium: validatedData.isPremium
+        });
+        
+        // Return both messages
+        return res.status(201).json({ userMessage, botMessage });
+      }
+      
+      // Normal message flow (non-photo message)
       // Get conversation history for this specific companion
       const allMessages = await storage.getMessages();
       // Filter messages for this companion
@@ -79,7 +105,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const botMessage = await storage.createMessage({
         content: responseContent,
         role: 'assistant',
-        companionId: validatedData.companionId
+        companionId: validatedData.companionId,
+        photoUrl: validatedData.photoUrl,
+        isPremium: validatedData.isPremium
       });
       
       // Return both messages

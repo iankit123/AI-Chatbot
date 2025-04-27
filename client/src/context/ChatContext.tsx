@@ -429,41 +429,59 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       
       // If previous message had premium photo offer and user said yes
       if (showPremiumPhotoNext === 'true' && userSaidYesToPhoto) {
-        // Clear the flag
-        sessionStorage.removeItem('showPremiumPhotoNext');
-        
-        // Get a random companion photo from the public folder
-        const companionFolderPath = `/images/companions/${companionId}/`;
-        
-        // Get at least one image from the folder for premium photo display
-        // For this implementation, we'll hardcode the path to ensure it works
-        const photoNumber = Math.floor(Math.random() * 3) + 1; // Random number between 1-3
-        const premiumPhotoUrl = `${companionFolderPath}${photoNumber}.jpg`;
-        
-        // Set current photo to display in premium dialog
-        setCurrentPhoto(premiumPhotoUrl);
-        
-        // Add bot response with premium photo attached
-        setTimeout(async () => {
+        try {
+          console.log("User accepted premium photo offer, showing premium photo");
+          
+          // Clear the flag
+          sessionStorage.removeItem('showPremiumPhotoNext');
+          
+          // Determine the companion folder path - make sure this exists in the public folder
+          const companionId = stableGetCompanionId();
+          // Using a more reliable path for testing
+          const premiumPhotoUrl = `/images/${companionId}.png`;
+          
+          console.log("Using premium photo URL:", premiumPhotoUrl);
+          
+          // Set current photo to display in premium dialog
+          setCurrentPhoto(premiumPhotoUrl);
+          
+          // Add bot response with premium photo attached
+          // Create a follow-up message with the photo
+          const response = await apiRequest('POST', '/api/messages', {
+            content: "Ye meri kal ki photo hai. Kaisi lagi? 😊",
+            language: currentLanguage,
+            companionId: companionId,
+            photoUrl: premiumPhotoUrl, // Pass photo URL to include in message
+            isPremium: true // Mark this as a premium photo message
+          });
+          
+          console.log("Sent premium photo message response:", response);
+          
+          // Fetch the updated messages
+          await fetchMessages();
+          
+          // Force show the premium photo dialog with a delay
+          setTimeout(() => {
+            setShowPhotoDialog(true);
+            console.log("Premium photo dialog opened");
+          }, 800);
+        } catch (error) {
+          console.error('Error handling premium photo:', error);
+          
+          // Fallback to send a regular message if photo processing fails
           try {
-            // Create a follow-up message with the photo
             await apiRequest('POST', '/api/messages', {
-              content: "Ye meri kal ki photo hai. Kaisi lagi? 😊",
+              content: "Sorry, meri photo load nahi ho rahi hai. Technical issue hai. Baad me try karenge.",
               language: currentLanguage,
-              companionId: companionId,
-              photoUrl: premiumPhotoUrl, // Pass photo URL to include in message
-              isPremium: true // Mark this as a premium photo message
+              companionId: companionId
             });
             
             // Fetch the updated messages
             await fetchMessages();
-            
-            // Show the premium photo dialog (blurred photo with upgrade option)
-            setShowPhotoDialog(true);
-          } catch (error) {
-            console.error('Error sending premium photo response:', error);
+          } catch (fallbackError) {
+            console.error('Error sending fallback message:', fallbackError);
           }
-        }, 1000);
+        }
         
         return; // Skip regular photo handling
       }
