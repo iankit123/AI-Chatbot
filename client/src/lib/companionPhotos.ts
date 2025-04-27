@@ -15,7 +15,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "priya1",
       companionId: "priya",
-      url: "https://replit.com/@ankitiitrpi/IndianCompanion#client/public/images/companions/priya1.jpg",
+      url: "/images/premium/priya.jpg",
       description: "Me in a green saree at my cousin's wedding last month",
       prompt:
         "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
@@ -67,9 +67,9 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
   // We can add other companions in the future
   ananya: [
       {
-        id: "priya1",
-        companionId: "priya",
-        url: "https://replit.com/@ankitiitrpi/IndianCompanion#client/public/images/companions/priya1.jpg",
+        id: "ananya1",
+        companionId: "ananya",
+        url: "/images/premium/ananya.jpg",
         description: "Me in a green saree at my cousin's wedding last month",
         prompt:
           "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
@@ -119,9 +119,9 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     ],
   meera: [
     {
-      id: "priya1",
-      companionId: "priya",
-      url: "https://replit.com/@ankitiitrpi/IndianCompanion#client/public/images/companions/priya1.jpg",
+      id: "meera1",
+      companionId: "meera",
+      url: "/images/premium/meera.jpg",
       description: "Me in a green saree at my cousin's wedding last month",
       prompt:
         "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
