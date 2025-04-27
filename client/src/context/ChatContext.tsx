@@ -51,7 +51,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   
   // Initial setup - runs once when component mounts
   useEffect(() => {
-    // Clear the message count on page load/refresh
+    // Get current companion ID
     const companionId = localStorage.getItem('selectedCompanion') 
       ? JSON.parse(localStorage.getItem('selectedCompanion')!).id 
       : 'priya';
@@ -59,6 +59,24 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     // Force reset message count to 0 on initial page load
     localStorage.setItem(`messageCount_${companionId}`, '0');
     setMessageCount(0);
+    
+    // For non-logged in users, clear chat history on page load/refresh
+    const authUser = localStorage.getItem('authUser');
+    if (!authUser) {
+      // Clear messages from localStorage
+      localStorage.removeItem(`messages_${companionId}`);
+      
+      // Clear messages from state
+      setMessages([]);
+      
+      // Clear messages from API
+      apiRequest('DELETE', '/api/messages').catch(err => {
+        console.error('Error clearing messages on page load:', err);
+      });
+      
+      console.log("Non-logged in user - cleared chat history");
+    }
+    
     console.log("Page initialized - reset message count to 0");
     
     // This will only run once on component mount
@@ -135,6 +153,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
   const fetchMessages = useCallback(async () => {
     try {
+      // Check if user is authenticated
+      const authUser = localStorage.getItem('authUser');
+      
       // Get messages specific to the current companion
       const companionId = stableGetCompanionId();
       const res = await fetch(`/api/messages?companionId=${companionId}`);
@@ -142,18 +163,28 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       const data = await res.json();
       setMessages(data);
       
-      // Try to get any messages from localStorage as a fallback
-      try {
-        const localStorageKey = `messages_${companionId}`;
-        const savedMessages = localStorage.getItem(localStorageKey);
-        if (savedMessages && data.length === 0) {
-          const parsedMessages = JSON.parse(savedMessages);
-          if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-            setMessages(parsedMessages);
+      // Only try to restore messages from localStorage for authenticated users
+      if (authUser) {
+        try {
+          const localStorageKey = `messages_${companionId}`;
+          const savedMessages = localStorage.getItem(localStorageKey);
+          if (savedMessages && data.length === 0) {
+            const parsedMessages = JSON.parse(savedMessages);
+            if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+              setMessages(parsedMessages);
+              console.log("Restored messages from localStorage for authenticated user");
+            }
           }
+        } catch (localStorageError) {
+          console.error('Error retrieving messages from localStorage:', localStorageError);
         }
-      } catch (localStorageError) {
-        console.error('Error retrieving messages from localStorage:', localStorageError);
+      } else {
+        // For non-authenticated users, ensure no old messages are loaded
+        if (data.length > 0) {
+          console.log("Non-authenticated user has messages - clearing them");
+          await apiRequest('DELETE', '/api/messages');
+          setMessages([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching messages:', error);

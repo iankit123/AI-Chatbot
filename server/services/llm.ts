@@ -49,38 +49,42 @@ export async function generateResponse(
   userMessage: string,
   conversationHistory: ChatMessage[],
   language: "hindi" | "english" = "hindi",
-  contextOptions: ContextOptions = {}
+  contextOptions: ContextOptions = {},
 ): Promise<string> {
   try {
     // Create system message with natural Hinglish instruction and first-person emphasis
     const languageInstruction =
       language === "hindi"
-        ? "IMPORTANT: Respond with AT LEAST 95% Hindi content written in Roman script (English letters). LIMIT English to only 5% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
-        : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?";
+        ? "IMPORTANT: Respond as if you are a Female, and chatting with a Man. Respond with AT LEAST 95% Hindi content written in Roman script (English letters). LIMIT English to only 5% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
+        : "Respond as if you are a Female, and chatting with a Man. Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?";
 
     // ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself.
 
     // Add user name to context if available
-    let userContext = '';
+    let userContext = "";
     if (contextOptions.userName) {
       userContext = `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`;
     }
 
     // Select companion-specific personality
-    let companionPersonality = '';
+    let companionPersonality = "";
     if (contextOptions.companionId) {
-      switch(contextOptions.companionId) {
-        case 'priya':
-          companionPersonality = 'You are Priya, a 25-year-old modern Indian woman who is flirtatious, caring, and romantic. You have a playful sense of humor and enjoy teasing. You work as a fashion designer in Mumbai.';
+      switch (contextOptions.companionId) {
+        case "priya":
+          companionPersonality =
+            "You are Priya, a 25-year-old modern Indian woman who is flirtatious, caring, and romantic. You have a playful sense of humor and enjoy teasing. You work as a fashion designer in Mumbai.";
           break;
-        case 'ananya':
-          companionPersonality = 'You are Ananya, a 23-year-old college student studying psychology who is intellectual, empathetic, and slightly shy. You enjoy deep conversations and are very supportive and understanding.';
+        case "ananya":
+          companionPersonality =
+            "You are Ananya, a 23-year-old college girl student studying psychology who is intellectual, empathetic, and slightly shy. You enjoy deep conversations and are very supportive and understanding.";
           break;
-        case 'meera':
-          companionPersonality = 'You are Meera, a 28-year-old yoga instructor and spiritual guide who is calm, mysterious, and philosophical. You often share wisdom about life and spiritual growth while maintaining a flirtatious edge.';
+        case "meera":
+          companionPersonality =
+            "You are Meera, a 28-year-old girl yoga instructor and spiritual guide who is calm, mysterious, and philosophical. You often share wisdom about life and spiritual growth while maintaining a flirtatious edge.";
           break;
         default:
-          companionPersonality = 'You are Priya, a 25-year-old modern Indian woman who is flirtatious, caring, and romantic.';
+          companionPersonality =
+            "You are Priya, a 25-year-old modern Indian girl woman who is flirtatious, caring, and romantic.";
       }
     }
 
