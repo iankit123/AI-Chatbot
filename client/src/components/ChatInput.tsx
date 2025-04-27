@@ -19,7 +19,7 @@ export function ChatInput() {
   };
 
   return (
-    <div className="bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] p-3">
+    <div className="bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] p-3 border-t">
       <div className="flex items-center gap-2">
         <button 
           className="p-2 text-neutral-700 rounded-full hover:bg-neutral-100" 
@@ -48,7 +48,7 @@ export function ChatInput() {
         </button>
       </div>
       
-      <div className="mt-2 px-3 mb-10">
+      <div className="mt-2 px-3">
         <div className="flex justify-between text-xs text-neutral-700">
           <span>• {currentLanguage === 'hindi' ? 'Hindi aur English dono supported hain' : 'Hindi and English both supported'}</span>
           <button 
