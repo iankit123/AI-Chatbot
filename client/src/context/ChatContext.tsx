@@ -212,11 +212,17 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           const savedMessages = localStorage.getItem(localStorageKey);
           
           if (savedMessages && data.length === 0) {
-            const parsedMessages = JSON.parse(savedMessages);
-            if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-              setMessages(parsedMessages);
-              console.log("Restored messages from localStorage for authenticated user");
-              return; // Exit if we successfully loaded from localStorage
+            try {
+              const parsedMessages = JSON.parse(savedMessages);
+              if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+                setMessages(parsedMessages);
+                console.log("Restored messages from localStorage for authenticated user");
+                return; // Exit if we successfully loaded from localStorage
+              }
+            } catch (parseError) {
+              console.error("Error parsing saved messages from localStorage:", parseError);
+              // Clear the corrupted localStorage data
+              localStorage.removeItem(localStorageKey);
             }
           }
           
@@ -545,14 +551,26 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Save to both localStorage and Firebase
       try {
         // Save the full messages array to localStorage
-        const updatedMessages = await fetchMessages(); // Get the latest messages
+        await fetchMessages(); // Get the latest messages first
         const localStorageKey = `messages_${companionId}`;
         
-        // Store in localStorage
-        localStorage.setItem(localStorageKey, JSON.stringify(messages));
+        // Store in localStorage with proper error handling
+        try {
+          if (Array.isArray(messages)) {
+            localStorage.setItem(localStorageKey, JSON.stringify(messages));
+            console.log("Saved messages to localStorage:", messages.length);
+          } else {
+            console.error("Cannot save messages to localStorage: messages is not an array", messages);
+          }
+        } catch (storageError) {
+          console.error("Error saving messages to localStorage:", storageError);
+          // Clear potentially corrupt data
+          localStorage.removeItem(localStorageKey);
+        }
         
         // Store message count as well
         localStorage.setItem(`messageCount_${companionId}`, potentialNewCount.toString());
+        console.log("Updated message count in localStorage:", potentialNewCount);
         
         // Save to Firebase if user is authenticated
         const authUser = localStorage.getItem('authUser');
