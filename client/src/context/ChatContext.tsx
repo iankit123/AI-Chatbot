@@ -661,9 +661,15 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
               userId = parsed.uid;
               console.log("Using Firebase auth user ID:", userId);
             } catch (e) {
-              // If not JSON, use the email directly (for simulated login)
-              userId = `guest-${new Date().getTime()}`;
-              console.log("Using guest user ID:", userId);
+              // If not JSON, use the device ID for consistent tracking
+              // Get or create device ID from localStorage
+              let deviceId = localStorage.getItem('deviceId');
+              if (!deviceId) {
+                deviceId = `device-${new Date().getTime()}-${Math.random().toString(36).substring(2, 9)}`;
+                localStorage.setItem('deviceId', deviceId);
+              }
+              userId = deviceId;
+              console.log("Using device ID for tracking:", userId);
             }
 
             // Save user message to Firebase

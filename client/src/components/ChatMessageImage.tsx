@@ -9,7 +9,6 @@ interface ChatMessageImageProps {
 }
 
 export function ChatMessageImage({ imageUrl, companionName, isBlurred = true }: ChatMessageImageProps) {
-  const [clicked, setClicked] = useState(false);
   const [imageError, setImageError] = useState(false);
   const { setShowPhotoDialog, setCurrentPhoto } = useChat();
   
@@ -38,7 +37,7 @@ export function ChatMessageImage({ imageUrl, companionName, isBlurred = true }: 
   // Handle image click to open premium dialog
   const handleImageClick = () => {
     if (isBlurred) {
-      setClicked(true);
+      // Don't set clicked state to keep showing the lock icon
       console.log("Opening premium dialog for image:", imageUrl);
       setCurrentPhoto(imageUrl);
       
@@ -69,8 +68,8 @@ export function ChatMessageImage({ imageUrl, companionName, isBlurred = true }: 
         className={`w-full h-auto object-cover rounded-lg`}
       />
       
-      {/* Premium image overlay with download button */}
-      {isBlurred && !clicked && (
+      {/* Premium image overlay with download button - always show for premium photos */}
+      {isBlurred && (
         <div 
           className="absolute inset-0 flex items-center justify-center cursor-pointer bg-black/30"
           onClick={handleImageClick}
