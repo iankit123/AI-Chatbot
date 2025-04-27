@@ -31,7 +31,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companionId: z.string().default('priya'),
         // Optional photo fields for premium messages
         photoUrl: z.string().optional(),
-        isPremium: z.boolean().optional()
+        isPremium: z.boolean().optional(),
+        skipUserMessage: z.boolean().optional()
       });
       
       const validatedData = messageSchema.parse(req.body);
@@ -39,14 +40,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if this is a photo message (premium or regular)
       const isPhotoMessage = !!validatedData.photoUrl;
       
-      // Save the user message with companion ID and optional photo fields
-      const userMessage = await storage.createMessage({
-        content: validatedData.content,
-        role: 'user',
-        companionId: validatedData.companionId,
-        photoUrl: validatedData.photoUrl,
-        isPremium: validatedData.isPremium
-      });
+      // Only create a user message if not explicitly skipped
+      let userMessage;
+      if (!validatedData.skipUserMessage) {
+        userMessage = await storage.createMessage({
+          content: validatedData.content,
+          role: 'user',
+          companionId: validatedData.companionId,
+          photoUrl: validatedData.photoUrl,
+          isPremium: validatedData.isPremium
+        });
+      }
       
       // If this is just saving a photo message (for premium photos), skip the LLM response
       if (isPhotoMessage && validatedData.isPremium) {
