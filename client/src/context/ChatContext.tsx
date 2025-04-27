@@ -48,6 +48,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [showPhotoDialog, setShowPhotoDialog] = useState(false);
+  
+  // Initial setup - runs once when component mounts
+  useEffect(() => {
+    // Clear the message count on page load/refresh
+    const companionId = localStorage.getItem('selectedCompanion') 
+      ? JSON.parse(localStorage.getItem('selectedCompanion')!).id 
+      : 'priya';
+    
+    // Force reset message count to 0 on initial page load
+    localStorage.setItem(`messageCount_${companionId}`, '0');
+    setMessageCount(0);
+    console.log("Page initialized - reset message count to 0");
+    
+    // This will only run once on component mount
+  }, []);
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const { toast } = useToast();
   
