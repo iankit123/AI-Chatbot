@@ -443,8 +443,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           
           // Determine the companion folder path - make sure this exists in the public folder
           const companionId = stableGetCompanionId();
-          // Using a more reliable path for testing
-          const premiumPhotoUrl = `/images/${companionId}.png`;
+          // Use premium folder for premium photos
+          const premiumPhotoUrl = `/images/premium/${companionId}.png`;
           
           console.log("Using premium photo URL:", premiumPhotoUrl);
           
