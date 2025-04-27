@@ -40,7 +40,8 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   };
   
   // Show both login and signup tabs by default
-  const [activeTab, setActiveTab] = useState('login');
+  // Start with signup tab for new users
+  const [activeTab, setActiveTab] = useState('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -387,12 +388,12 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {activeTab === 'login' ? 'Login to continue chatting' : 'Create your account'}
+            {activeTab === 'login' ? 'Login to continue chatting' : 'Sign Up or Login'}
           </DialogTitle>
           <DialogDescription>
             {activeTab === 'login'
               ? 'Sign in to access unlimited chats with your companion.'
-              : 'Join to enjoy unlimited conversations with your companion.'}
+              : 'Create a new account or switch to Login if you already have one.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -432,6 +433,17 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Logging in...' : 'Login'}
               </Button>
+              
+              <div className="text-center mt-4 text-sm text-muted-foreground">
+                Don't have an account?{' '}
+                <button 
+                  type="button" 
+                  onClick={() => setActiveTab('signup')} 
+                  className="text-primary hover:underline font-medium"
+                >
+                  Sign up here
+                </button>
+              </div>
             </form>
           </TabsContent>
           
@@ -465,6 +477,17 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Creating account...' : 'Sign Up'}
               </Button>
+              
+              <div className="text-center mt-4 text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <button 
+                  type="button" 
+                  onClick={() => setActiveTab('login')} 
+                  className="text-primary hover:underline font-medium"
+                >
+                  Login here
+                </button>
+              </div>
             </form>
           </TabsContent>
         </Tabs>
