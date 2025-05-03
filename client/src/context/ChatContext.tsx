@@ -146,13 +146,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           setMessages([]);
             
             console.log("[ChatContext] Companion updated successfully to:", companion.name);
-        }
-      } catch (error) {
+          }
+        } catch (error) {
           console.error("[ChatContext] Error updating companion from localStorage:", error);
         }
       }
     };
-
+    
     // Create a more specific handler for the custom event  
     const handleCompanionSelected = () => {
       console.log("[ChatContext] Companion selection event received, updating companion");
@@ -200,13 +200,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           // Get the current user's ID
           const authUser = localStorage.getItem("authUser");
           if (!authUser) return;
-
+          
           const { uid } = JSON.parse(authUser);
           console.log("[ChatContext] Loading chat history for user:", uid, "with companion:", companionId);
-
+          
           // Load messages from Firebase
           const firebaseMessages = await getFirebaseMessages(uid, companionId);
-            if (firebaseMessages && firebaseMessages.length > 0) {
+          if (firebaseMessages && firebaseMessages.length > 0) {
             console.log("[ChatContext] Found previous chat history with", firebaseMessages.length, "messages");
             
             // Convert Firebase messages format to app Message format
@@ -231,7 +231,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             console.log("[ChatContext] Updated message count to", count, "based on chat history");
             } else {
             console.log("[ChatContext] No previous chat history found, starting fresh");
-            }
+          }
         } catch (error) {
           console.error("[ChatContext] Error loading chat history:", error);
           // If error loading history, just continue with empty chat
@@ -274,7 +274,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Helper: check if user is authenticated
   const isAuthenticated = () => {
     try {
-    const authUser = localStorage.getItem("authUser");
+      const authUser = localStorage.getItem("authUser");
       if (!authUser) return false;
       const parsed = JSON.parse(authUser);
       return !!parsed.uid;
@@ -303,7 +303,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     // Trim the content first
     const trimmedContent = content.trim();
     if (!trimmedContent) return;
-
+    
     // Prevent duplicate messages
     if (trimmedContent === lastProcessedMessageRef.current) {
       console.log("[ChatContext] Duplicate message detected, ignoring:", trimmedContent);
@@ -637,7 +637,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Get the last message to check if there was a photo in the conversation context
       const lastMessages = [...messages].slice(-3); // Get up to 3 recent messages for context
       const lastPhotoMessage = lastMessages.find(msg => msg.photoUrl && msg.isPremium);
-
+      
       // Include this context in the API request
       const res = await apiRequest("POST", "/api/messages", {
         content,
@@ -652,13 +652,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           timeElapsed: Math.floor((Date.now() - lastPhotoMessage.timestamp.getTime()) / 1000) // seconds since photo was sent
         } : null,
       });
-
+      
       // Check for rate limiting or error responses
       if (!res.ok) {
         // If we get a 429 Too Many Requests
         if (res.status === 429) {
           setIsRateLimited(true);
-
+          
           // Add a system message about rate limiting
           const errorMsg: Message = {
             id: tempId - 1,
@@ -671,18 +671,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             contextInfo: null
           };
           setMessages((prev) => [...prev, errorMsg]);
-
+          
           // Auto-reset rate limit after 15 seconds
           setTimeout(() => setIsRateLimited(false), 15000);
           
           console.log("[ChatContext] Rate limit hit, cooling down for 15 seconds");
           setIsTyping(false);
           return;
-          }
+        }
         
         throw new Error(`API request failed with status ${res.status}`);
-        }
-
+      }
+      
       // Reset rate limit flag if successful
       setIsRateLimited(false);
       
@@ -726,7 +726,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     const lowerContent = content.toLowerCase().trim();
     console.log(`[ChatContext] Checking if "${lowerContent}" is affirmative`);
-
+    
     // Exact match for common affirmative words
     const exactMatches = ["yes", "haa", "ha", "han", "haan", "dikhao", "dikha", "ok", "okay", "sure", "ji"];
     if (exactMatches.includes(lowerContent)) {

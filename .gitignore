@@ -12,7 +12,3 @@ attached_assets/ai-chatbot-b8586-firebase-adminsdk-fbsvc-48a831bb96.json
 .env
 # Local Netlify folder
 .netlify
-
-# Vercel
-.vercel
-.next
