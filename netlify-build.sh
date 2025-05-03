@@ -9,10 +9,14 @@ echo "Starting Netlify build process..."
 echo "Installing dependencies..."
 NODE_ENV=development npm install
 
-# 2. Create dist directory
+# 2. Install specific dependencies for Netlify functions
+echo "Installing dependencies for Netlify functions..."
+npm install --no-save node-fetch@2.6.7
+
+# 3. Create dist directory
 mkdir -p dist
 
-# 3. Build the client application properly
+# 4. Build the client application properly
 echo "Building client application..."
 if [ -f "vite.config.ts" ]; then
   echo "Building with Vite..."
@@ -41,63 +45,28 @@ else
   fi
 fi
 
-# 4. Make sure the dist directory has something in it
+# 5. Make sure the dist directory has something in it
 if [ ! "$(ls -A dist)" ]; then
   echo "Warning: dist directory is empty, creating a simple index.html"
   cp fallback-index.html dist/index.html || echo "Creating minimal index.html"
   echo "<html><body><h1>Saathi Chat App</h1><p>Backend deployed successfully</p></body></html>" > dist/index.html
 fi
 
-# 5. Prepare netlify functions directory
+# 6. Prepare netlify functions directory
 mkdir -p netlify/functions-build
 
-# 6. Bundle and prepare the API function for Netlify
-echo "Building API functions..."
+# 7. Bundle the functions with error handling
+echo "Building functions..."
 if [ -d "netlify/functions" ]; then
-  echo "Setting up Netlify function dependencies..."
-  
-  # Ensure the functions-build directory exists
-  mkdir -p netlify/functions-build
-  
-  # Copy server services needed by the function
-  mkdir -p netlify/functions-build/server/services
-  cp server/services/llm.ts netlify/functions-build/server/services/ || echo "Warning: Could not copy LLM service"
-  
-  # Copy any constants needed
-  mkdir -p netlify/functions-build/lib
-  
-  if [ -f "server/lib/constants.ts" ]; then
-    cp server/lib/constants.ts netlify/functions-build/lib/ || echo "Warning: Could not copy constants"
-  elif [ -f "client/src/lib/constants.ts" ]; then
-    cp client/src/lib/constants.ts netlify/functions-build/lib/ || echo "Warning: Could not copy constants from client"
-  else
-    echo "// Default system prompt" > netlify/functions-build/lib/constants.ts
-    echo "export const BOT_SYSTEM_PROMPT = 'You are a helpful assistant.';" >> netlify/functions-build/lib/constants.ts
-  fi
-  
-  # Copy API function
+  echo "Copying netlify functions..."
   cp -r netlify/functions/* netlify/functions-build/ || {
     echo "Function copy failed, creating placeholder function"
-    echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/api.js
+    echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/placeholder.js
   }
-  
-  # Create a package.json for the functions if needed
-  if [ ! -f "netlify/functions-build/package.json" ]; then
-    echo "Creating package.json for functions"
-    echo '{
-      "name": "netlify-functions",
-      "version": "1.0.0",
-      "private": true,
-      "dependencies": {
-        "@netlify/functions": "^1.0.0",
-        "node-fetch": "^2.6.7"
-      }
-    }' > netlify/functions-build/package.json
-  fi
 else
   echo "Warning: netlify/functions directory not found, creating placeholder function"
   mkdir -p netlify/functions-build
-  echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/api.js
+  echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/placeholder.js
 fi
 
 echo "Build completed successfully!" 

@@ -7,12 +7,32 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Check if we're in a production Netlify environment
+const isNetlify = window.location.hostname.includes('netlify.app');
+
+// Adjust API URLs for Netlify environment
+function getApiUrl(url: string): string {
+  if (isNetlify) {
+    // For Netlify deployment, route to serverless functions
+    if (url === '/api/messages') {
+      return '/.netlify/functions/api-messages';
+    }
+    // Add more API routes as needed
+    return url.replace(/^\/api\/(.*)/, '/.netlify/functions/api-$1');
+  }
+  // For local development, use the original URLs
+  return url;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const apiUrl = getApiUrl(url);
+  console.log(`API Request: ${method} ${apiUrl}`, data);
+  
+  const res = await fetch(apiUrl, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -29,7 +49,10 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
+    const urlKey = queryKey[0] as string;
+    const apiUrl = getApiUrl(urlKey);
+    
+    const res = await fetch(apiUrl, {
       credentials: "include",
     });
 
