@@ -1,202 +1,200 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { storage } from '../server/storage';
-import { z } from 'zod';
-import { generateResponse } from '../server/services/llm';
+
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+// Simple in-memory storage
+const messages: any[] = [];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
+  // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Handle OPTIONS request for CORS preflight
+  // Handle OPTIONS for CORS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+
+  // POST /api/messages - Send a message
+  if (req.method === 'POST') {
+    try {
+      console.log("POST /api/messages request body:", JSON.stringify(req.body));
+      const { content, companionId = 'priya', language = 'hindi', messageCount = 0, isAuthenticated = false } = req.body;
+      
+      if (!content) {
+        return res.status(400).json({ message: 'Content is required' });
+      }
+
+      // Create user message
+      const userMessage = {
+        id: Date.now(),
+        content,
+        role: 'user',
+        companionId,
+        timestamp: new Date(),
+        photoUrl: null,
+        isPremium: null,
+        contextInfo: null
+      };
+      
+      // Add to messages
+      messages.push(userMessage);
+      
+      // Check for premium photo offer (4th message for authenticated users)
+      if (isAuthenticated && messageCount >= 3 && messageCount % 4 === 0) {
+        const botMessage = {
+          id: Date.now() + 1,
+          content: 'Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?',
+          role: 'assistant',
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: true,
+          contextInfo: 'premium_offer'
+        };
+        
+        messages.push(botMessage);
+        return res.status(201).json({ userMessage, botMessage });
+      }
+      
+      // Generate response with Groq using fetch
+      try {
+        if (!GROQ_API_KEY) {
+          throw new Error('GROQ_API_KEY not configured');
+        }
+        
+        // Choose prompt based on companion
+        let companionPrompt = "";
+        switch (companionId) {
+          case "priya":
+            companionPrompt = "You are Priya, a 25-year-old Indian woman who is friendly, caring, and playful. You work as a fashion designer in Mumbai.";
+            break;
+          case "ananya":
+            companionPrompt = "You are Ananya, a 23-year-old college student who is intellectual, empathetic, and slightly shy. You enjoy deep conversations.";
+            break;
+          case "meera":
+            companionPrompt = "You are Meera, a 28-year-old yoga instructor who is calm, philosophical, and spiritual. You often share wisdom about life.";
+            break;
+          default:
+            companionPrompt = "You are Priya, a 25-year-old Indian woman who is friendly, caring, and playful.";
+        }
+        
+        // Language instruction
+        const languageInstruction = language === 'hindi' 
+          ? "Respond with AT LEAST 95% Hindi content written in Roman script (English letters). Use casual, everyday Hindi as spoken, not formal Hindi."
+          : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters).";
+        
+        // Get chat history
+        const chatHistory = messages
+          .filter(m => m.companionId === companionId)
+          .slice(-10) // Last 10 messages for context
+          .map(m => ({
+            role: m.role,
+            content: m.content
+          }));
+        
+        // Prepare messages for API request
+        const apiMessages = [
+          {
+            role: 'system',
+            content: `${companionPrompt}\n${languageInstruction}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
+          },
+          ...chatHistory
+        ];
+        
+        console.log("Calling Groq API with messages:", JSON.stringify(apiMessages));
+            
+        // Call Groq API
+        const response = await fetch(GROQ_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            messages: apiMessages,
+            temperature: 0.7,
+            max_tokens: 500
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Groq API error:", response.status, errorText);
+          throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        const responseContent = data.choices[0]?.message?.content || "Sorry, I couldn't process your message.";
+        
+        // Create bot response
+        const botMessage = {
+          id: Date.now() + 1,
+          content: responseContent,
+          role: 'assistant',
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: null
+        };
+        
+        // Add to messages
+        messages.push(botMessage);
+        
+        // Return both messages
+        return res.status(201).json({ userMessage, botMessage });
+        
+      } catch (error) {
+        console.error('Error generating response:', error);
+        
+        const botMessage = {
+          id: Date.now() + 1,
+          content: "Sorry, I couldn't process your message. Please try again later.",
+          role: 'assistant',
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: null
+        };
+        
+        return res.status(201).json({ userMessage, botMessage });
+      }
+      
+    } catch (error) {
+      console.error('Error handling message:', error);
+      return res.status(500).json({ 
+        message: 'Error processing message',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
   
-  // GET /api/messages
+  // GET /api/messages - Get all messages
   if (req.method === 'GET') {
     try {
-      const companionId = req.query.companionId as string | undefined;
-      const messages = await storage.getMessages(companionId);
-      return res.status(200).json(messages);
+      const companionId = req.query.companionId as string;
+      const filteredMessages = companionId 
+        ? messages.filter(m => m.companionId === companionId)
+        : messages;
+        
+      return res.status(200).json(filteredMessages);
     } catch (error) {
       console.error('Error fetching messages:', error);
       return res.status(500).json({ message: 'Failed to fetch messages' });
     }
   }
   
-  // POST /api/messages
-  if (req.method === 'POST') {
-    console.log('POST /api/messages req.body:', JSON.stringify(req.body));
-    try {
-      // Validate request body with extended schema for premium photos
-      const messageSchema = z.object({
-        content: z.string().min(1),
-        language: z.enum(['hindi', 'english']).default('hindi'),
-        companionId: z.string().default('priya'),
-        // Optional photo fields for premium messages
-        photoUrl: z.string().optional(),
-        isPremium: z.boolean().optional(),
-        skipUserMessage: z.boolean().optional(),
-        role: z.enum(['user', 'assistant']).optional(),
-        messageCount: z.number().optional(),
-        isAuthenticated: z.boolean().optional(),
-        recentPhotoContext: z.any().optional()
-      });
-      
-      const validatedData = messageSchema.parse(req.body);
-      
-      // Premium photo offer check
-      const messageCount = validatedData.messageCount || 0;
-      const isAuthenticated = validatedData.isAuthenticated || false;
-      
-      if (isAuthenticated && messageCount >= 3 && messageCount % 4 === 0) {
-        console.log('Premium photo offer triggered!');
-        // This is a premium photo offer message
-        const photoOfferMessage = `Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?`;
-        
-        // Save the premium photo offer message
-        const botMessage = await storage.createMessage({
-          content: photoOfferMessage,
-          role: 'assistant',
-          companionId: validatedData.companionId,
-          isPremium: true,
-          contextInfo: "premium_offer"
-        });
-        
-        // Only create a user message if not explicitly skipped
-        let userMessage;
-        if (!validatedData.skipUserMessage) {
-          userMessage = await storage.createMessage({
-            content: validatedData.content,
-            role: 'user',
-            companionId: validatedData.companionId,
-            photoUrl: validatedData.photoUrl,
-            isPremium: validatedData.isPremium
-          });
-        }
-        // Return both messages
-        return res.status(201).json({ userMessage, botMessage });
-      }
-      
-      // Check if this is a photo message (premium or regular)
-      const isPhotoMessage = !!validatedData.photoUrl;
-      
-      // Only create a user message if not explicitly skipped
-      let userMessage;
-      if (!validatedData.skipUserMessage) {
-        userMessage = await storage.createMessage({
-          content: validatedData.content,
-          role: 'user',
-          companionId: validatedData.companionId,
-          photoUrl: validatedData.photoUrl,
-          isPremium: validatedData.isPremium
-        });
-      }
-      
-      // If this is just saving a photo message (for premium photos), skip the LLM response
-      if (isPhotoMessage && validatedData.isPremium) {
-        console.log("Processing premium photo message with URL:", validatedData.photoUrl);
-        
-        // For premium photos, we directly create the bot response with the photo
-        const botMessage = await storage.createMessage({
-          content: validatedData.content,
-          role: validatedData.role || 'assistant',
-          companionId: validatedData.companionId,
-          photoUrl: validatedData.photoUrl,
-          isPremium: validatedData.isPremium,
-          contextInfo: "premium_photo_share"
-        });
-        
-        // Return both messages
-        return res.status(201).json({ userMessage, botMessage });
-      }
-      
-      // If a role is explicitly provided and it's 'assistant', create the message directly
-      if (validatedData.role === 'assistant') {
-        const botMessage = await storage.createMessage({
-          content: validatedData.content,
-          role: 'assistant',
-          companionId: validatedData.companionId,
-          photoUrl: validatedData.photoUrl,
-          isPremium: validatedData.isPremium
-        });
-        
-        return res.status(201).json({ userMessage, botMessage });
-      }
-      
-      // Normal message flow (non-photo message)
-      try {
-        // Get conversation history for this specific companion
-        const allMessages = await storage.getMessages();
-        // Filter messages for this companion
-        const companionMessages = allMessages.filter(
-          msg => !msg.companionId || msg.companionId === validatedData.companionId
-        );
-        
-        const conversationHistory = companionMessages.map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content
-        }));
-        
-        // Generate AI response
-        const responseContent = await generateResponse(
-          validatedData.content,
-          conversationHistory,
-          validatedData.language,
-          { companionId: validatedData.companionId }
-        );
-        
-        // Save the AI response with companion ID
-        const botMessage = await storage.createMessage({
-          content: responseContent,
-          role: 'assistant',
-          companionId: validatedData.companionId
-        });
-        
-        // Return both messages
-        return res.status(201).json({ userMessage, botMessage });
-      } catch (error) {
-        console.error('Error in message processing:', error);
-        
-        // If it's a rate limit error, send a friendly message
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        if (errorMessage.toLowerCase().includes('rate limit')) {
-          const botMessage = await storage.createMessage({
-            content: "I'm getting too many messages right now. Can you please wait a moment and try again?",
-            role: 'assistant',
-            companionId: validatedData.companionId
-          });
-          return res.status(201).json({ userMessage, botMessage });
-        }
-        
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error creating message:', error);
-      
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: 'Invalid request data', 
-          errors: error.errors 
-        });
-      }
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      return res.status(500).json({ 
-        message: 'Failed to process message',
-        error: errorMessage
-      });
-    }
-  }
-  
-  // DELETE /api/messages
+  // DELETE /api/messages - Clear messages
   if (req.method === 'DELETE') {
     try {
-      await storage.clearMessages();
+      // Clear all messages
+      messages.length = 0;
       return res.status(200).json({ message: 'All messages cleared' });
     } catch (error) {
       console.error('Error clearing messages:', error);
@@ -204,6 +202,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
   
-  // If none of the methods match
+  // Method not allowed
   return res.status(405).json({ message: 'Method not allowed' });
 } 
