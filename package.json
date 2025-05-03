@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "if [ \"$VERCEL\" = \"1\" ]; then npm run vercel-build; else vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && netlify-lambda build netlify/functions; fi",
+    "build": "if [ \"$VERCEL\" = \"1\" ]; then npm run vercel-build; else vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && netlify-lambda build netlify/functions --config ./netlify-lambda-config.js; fi",
     "vercel-build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
