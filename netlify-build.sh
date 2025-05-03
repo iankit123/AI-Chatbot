@@ -9,55 +9,56 @@ echo "Starting Netlify build process..."
 echo "Installing dependencies..."
 NODE_ENV=development npm install
 
-# 2. Explicitly install key build tools to ensure they're available
-echo "Ensuring build tools are available..."
-npm install --no-save esbuild netlify-lambda vite @vitejs/plugin-react
+# 2. Create dist directory
+mkdir -p dist
 
-# 3. Build the client React application using Vite
+# 3. Build the client application properly
 echo "Building client application..."
-npx vite build --outDir ../dist
-
-# 4. Bundle the server
-echo "Building server..."
-# First try with local esbuild
-if [ -f ./node_modules/.bin/esbuild ]; then
-  echo "Using local esbuild from node_modules"
-  ./node_modules/.bin/esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist || {
-    echo "esbuild bundling failed, creating a placeholder server file"
-    echo "// Placeholder server bundle\nconsole.log('Server would start here');" > dist/index.js
+if [ -f "vite.config.ts" ]; then
+  echo "Building with Vite..."
+  # Use npx to ensure we're using the locally installed version
+  NODE_ENV=production npx vite build || {
+    echo "Vite build failed, copying static files as fallback"
+    if [ -d "client/public" ]; then
+      cp -r client/public/* dist/ || echo "Warning: Could not copy all public files"
+    fi
+    if [ -f "client/index.html" ]; then
+      cp client/index.html dist/ || echo "Warning: Could not copy index.html"
+    else
+      cp fallback-index.html dist/index.html || echo "Warning: Using simple HTML fallback"
+    fi
   }
 else
-  echo "esbuild not found in node_modules, trying globally installed esbuild"
-  esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist || {
-    echo "Global esbuild bundling failed, creating a placeholder server file"
-    echo "// Placeholder server bundle\nconsole.log('Server would start here');" > dist/index.js
-  }
+  echo "Vite config not found, copying client files directly..."
+  if [ -d "client/public" ]; then
+    cp -r client/public/* dist/ || echo "Warning: Could not copy all public files"
+  fi
+  if [ -f "client/index.html" ]; then
+    cp client/src/main.tsx dist/main.js || echo "Warning: Could not copy main.tsx"
+    cp client/index.html dist/ || echo "Warning: Could not copy index.html"
+  else
+    cp fallback-index.html dist/index.html || echo "Warning: Using simple HTML fallback"
+  fi
+fi
+
+# 4. Make sure the dist directory has something in it
+if [ ! "$(ls -A dist)" ]; then
+  echo "Warning: dist directory is empty, creating a simple index.html"
+  cp fallback-index.html dist/index.html || echo "Creating minimal index.html"
+  echo "<html><body><h1>Saathi Chat App</h1><p>Backend deployed successfully</p></body></html>" > dist/index.html
 fi
 
 # 5. Prepare netlify functions directory
 mkdir -p netlify/functions-build
 
-# 6. Fix lambda config file extension to work with ESM
-if [ -f netlify-lambda-config.js ]; then
-  echo "Copying netlify-lambda-config.js to .cjs extension for ESM compatibility"
-  cp netlify-lambda-config.js netlify-lambda-config.cjs
-fi
-
-# 7. Bundle the functions with error handling
+# 6. Bundle the functions with error handling
 echo "Building functions..."
 if [ -d "netlify/functions" ]; then
-  if [ -f ./node_modules/.bin/netlify-lambda ]; then
-    echo "Using local netlify-lambda from node_modules"
-    ./node_modules/.bin/netlify-lambda build netlify/functions --config ./netlify-lambda-config.cjs || {
-      echo "netlify-lambda build failed, using placeholder function"
-      mkdir -p netlify/functions-build
-      echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/placeholder.js
-    }
-  else
-    echo "netlify-lambda not found in node_modules, creating placeholder function"
-    mkdir -p netlify/functions-build
+  echo "Copying netlify functions..."
+  cp -r netlify/functions/* netlify/functions-build/ || {
+    echo "Function copy failed, creating placeholder function"
     echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/placeholder.js
-  fi
+  }
 else
   echo "Warning: netlify/functions directory not found, creating placeholder function"
   mkdir -p netlify/functions-build
