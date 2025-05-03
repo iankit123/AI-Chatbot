@@ -7,7 +7,7 @@ import React, {
   ReactNode,
   useRef,
 } from "react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/queryClient";
 import { Message } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -142,8 +142,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           setBotAvatar(companion.avatar);
             setCompanionId(companion.id);
             
-            // Reset messages when companion changes
-            setMessages([]);
+          // Reset messages when companion changes
+          setMessages([]);
             
             console.log("[ChatContext] Companion updated successfully to:", companion.name);
         }
@@ -309,7 +309,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       console.log("[ChatContext] Duplicate message detected, ignoring:", trimmedContent);
       return;
     }
-
+    
     // Prevent concurrent processing
     if (isProcessingRef.current) {
       console.log("[ChatContext] Already processing a message, ignoring:", trimmedContent);
@@ -519,7 +519,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
             
             // Just set the current photo but don't show dialog automatically
-          setCurrentPhoto(premiumPhotoUrl);
+            setCurrentPhoto(premiumPhotoUrl);
             console.log("[ChatContext] Setting premium photo to:", premiumPhotoUrl);
             
             // Reset the offer flag

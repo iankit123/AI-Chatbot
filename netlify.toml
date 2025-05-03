@@ -1,7 +1,7 @@
 [build]
-  command = "./netlify-build.sh"
+  command = "npm run build"
   publish = "dist"
-  functions = "netlify/functions-build"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "18"
@@ -10,9 +10,8 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/placeholder"
+  to = "/.netlify/functions/:splat"
   status = 200
-  force = true
 
 [[redirects]]
   from = "/*"

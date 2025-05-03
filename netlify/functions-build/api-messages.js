@@ -1,14 +1,33 @@
 // Netlify serverless function for handling messages
 const fetch = require('node-fetch');
 
+// Debug helper to see all environment variables available
+const getDebugInfo = () => {
+  try {
+    // Return a subset of env vars for debugging (avoiding secrets)
+    return {
+      nodeEnv: process.env.NODE_ENV,
+      netlifyDev: process.env.NETLIFY_DEV,
+      hasGroqKey: !!process.env.GROQ_API_KEY,
+      context: process.env.CONTEXT,
+      deployPrimeUrl: process.env.DEPLOY_PRIME_URL,
+      netlifyEnv: process.env.NETLIFY
+    };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
 // Simplified implementation of generateResponse for Netlify Functions
 async function generateResponse(userMessage, conversationHistory = [], language = 'hindi', contextOptions = {}) {
   try {
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
     const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
     
+    console.log('[Netlify Function] GROQ_API_KEY present:', !!GROQ_API_KEY);
+    
     if (!GROQ_API_KEY) {
-      console.error("GROQ_API_KEY not found in environment variables");
+      console.error("[Netlify Function] GROQ_API_KEY not found in environment variables");
       throw new Error("API key missing");
     }
     
@@ -61,6 +80,8 @@ async function generateResponse(userMessage, conversationHistory = [], language 
       { role: "user", content: userMessage },
     ];
     
+    console.log('[Netlify Function] Calling GROQ API with model: llama3-8b-8192');
+    
     // Make request to Groq API
     const response = await fetch(GROQ_API_URL, {
       method: "POST",
@@ -79,29 +100,38 @@ async function generateResponse(userMessage, conversationHistory = [], language 
     // Check response
     if (!response.ok) {
       const errorData = await response.text();
+      console.error('[Netlify Function] GROQ API Error:', response.status, errorData);
       throw new Error(`Groq API Error: ${response.status} - ${errorData}`);
     }
     
     // Parse response
     const data = await response.json();
+    console.log('[Netlify Function] GROQ API response received successfully');
     return data.choices[0].message.content;
     
   } catch (error) {
-    console.error("Error generating response:", error);
+    console.error("[Netlify Function] Error generating response:", error);
     throw new Error(`Failed to generate response: ${error.message || "Unknown error"}`);
   }
 }
 
 exports.handler = async (event, context) => {
+  console.log('[Netlify Function] API Messages function invoked', {
+    httpMethod: event.httpMethod,
+    path: event.path,
+    headers: Object.keys(event.headers),
+    envInfo: getDebugInfo()
+  });
+
   try {
-    console.log('API Messages function invoked');
     // Check method
     if (event.httpMethod === 'OPTIONS') {
+      console.log('[Netlify Function] Handling OPTIONS request');
       return {
         statusCode: 200,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
           'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS'
         },
         body: ''
@@ -110,19 +140,26 @@ exports.handler = async (event, context) => {
 
     // Handle POST request (sending messages)
     if (event.httpMethod === 'POST') {
+      console.log('[Netlify Function] Handling POST request');
       const body = JSON.parse(event.body);
-      console.log('Received message request:', body);
+      console.log('[Netlify Function] Received message request:', body);
 
       // Basic validation
       if (!body.content) {
+        console.log('[Netlify Function] Error: Content is required');
         return {
           statusCode: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify({ error: 'Content is required' })
         };
       }
 
       // Generate response using our simplified implementation
       try {
+        console.log('[Netlify Function] Generating response for message:', body.content);
         const responseContent = await generateResponse(
           body.content,
           [], // Empty history for now (simplification)
@@ -132,6 +169,8 @@ exports.handler = async (event, context) => {
             userName: ''
           }
         );
+
+        console.log('[Netlify Function] Response generated successfully');
 
         // Create response objects
         const userMessage = {
@@ -156,6 +195,7 @@ exports.handler = async (event, context) => {
           contextInfo: null
         };
 
+        console.log('[Netlify Function] Sending successful response');
         return {
           statusCode: 201,
           headers: {
@@ -165,12 +205,17 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ userMessage, botMessage })
         };
       } catch (error) {
-        console.error('Error generating response:', error);
+        console.error('[Netlify Function] Error generating response:', error);
         return {
           statusCode: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
           body: JSON.stringify({ 
             error: 'Failed to generate response',
-            details: error.message
+            details: error.message,
+            stack: error.stack
           })
         };
       }
@@ -178,6 +223,7 @@ exports.handler = async (event, context) => {
 
     // Handle GET request (getting messages)
     if (event.httpMethod === 'GET') {
+      console.log('[Netlify Function] Handling GET request');
       return {
         statusCode: 200,
         headers: {
@@ -190,6 +236,7 @@ exports.handler = async (event, context) => {
 
     // Handle DELETE request (clearing messages)
     if (event.httpMethod === 'DELETE') {
+      console.log('[Netlify Function] Handling DELETE request');
       return {
         statusCode: 200,
         headers: {
@@ -201,16 +248,29 @@ exports.handler = async (event, context) => {
     }
 
     // Default response for unsupported methods
+    console.log('[Netlify Function] Unsupported method:', event.httpMethod);
     return {
       statusCode: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({ error: 'Method not allowed' })
     };
 
   } catch (error) {
-    console.error('Error in API Messages function:', error);
+    console.error('[Netlify Function] Unhandled error in API Messages function:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error', details: error.message })
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ 
+        error: 'Internal server error', 
+        details: error.message,
+        stack: error.stack
+      })
     };
   }
 }; 
