@@ -51,101 +51,53 @@ fi
 # 5. Prepare netlify functions directory
 mkdir -p netlify/functions-build
 
-# 6. Create placeholder function for API
-echo "Creating API placeholder function..."
-cat > netlify/functions-build/placeholder.js << 'EOL'
-// API placeholder function that handles message requests
-exports.handler = async function(event, context) {
-  // Set CORS headers
-  const headers = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Content-Type": "application/json"
-  };
-
-  // Handle OPTIONS requests (CORS preflight)
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ message: "CORS preflight" })
-    };
+# 6. Bundle and prepare the API function for Netlify
+echo "Building API functions..."
+if [ -d "netlify/functions" ]; then
+  echo "Setting up Netlify function dependencies..."
+  
+  # Ensure the functions-build directory exists
+  mkdir -p netlify/functions-build
+  
+  # Copy server services needed by the function
+  mkdir -p netlify/functions-build/server/services
+  cp server/services/llm.ts netlify/functions-build/server/services/ || echo "Warning: Could not copy LLM service"
+  
+  # Copy any constants needed
+  mkdir -p netlify/functions-build/lib
+  
+  if [ -f "server/lib/constants.ts" ]; then
+    cp server/lib/constants.ts netlify/functions-build/lib/ || echo "Warning: Could not copy constants"
+  elif [ -f "client/src/lib/constants.ts" ]; then
+    cp client/src/lib/constants.ts netlify/functions-build/lib/ || echo "Warning: Could not copy constants from client"
+  else
+    echo "// Default system prompt" > netlify/functions-build/lib/constants.ts
+    echo "export const BOT_SYSTEM_PROMPT = 'You are a helpful assistant.';" >> netlify/functions-build/lib/constants.ts
+  fi
+  
+  # Copy API function
+  cp -r netlify/functions/* netlify/functions-build/ || {
+    echo "Function copy failed, creating placeholder function"
+    echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/api.js
   }
-
-  // Handle POST requests for /api/messages
-  if (event.httpMethod === "POST" && event.path.includes("/api/messages")) {
-    try {
-      // Parse the request body
-      const body = JSON.parse(event.body || "{}");
-      
-      // Generate a placeholder response
-      const botMessage = {
-        id: Math.floor(Math.random() * -1000000000),
-        content: "Hello! This is a placeholder response from the Netlify function. The main API server isn't connected yet, but your frontend is working correctly.",
-        role: "assistant",
-        companionId: body.companionId || "priya",
-        timestamp: new Date().toISOString(),
-        photoUrl: null,
-        isPremium: null,
-        contextInfo: null
-      };
-
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify({
-          botMessage,
-          userMessage: {
-            id: Math.floor(Math.random() * -1000000000),
-            content: body.content || "",
-            role: "user",
-            companionId: body.companionId || "priya",
-            timestamp: new Date().toISOString(),
-            photoUrl: null,
-            isPremium: null,
-            contextInfo: null
-          }
-        })
-      };
-    } catch (error) {
-      console.error("Error processing message:", error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          message: "Error processing message",
-          error: error.message
-        })
-      };
-    }
-  }
-
-  // Handle GET requests for messages
-  if (event.httpMethod === "GET" && event.path.includes("/api/messages")) {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify([])
-    };
-  }
-
-  // Handle DELETE requests for messages
-  if (event.httpMethod === "DELETE" && event.path.includes("/api/messages")) {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ message: "All messages cleared" })
-    };
-  }
-
-  // Default response for other routes
-  return {
-    statusCode: 404,
-    headers,
-    body: JSON.stringify({ message: "Not found" })
-  };
-}
-EOL
+  
+  # Create a package.json for the functions if needed
+  if [ ! -f "netlify/functions-build/package.json" ]; then
+    echo "Creating package.json for functions"
+    echo '{
+      "name": "netlify-functions",
+      "version": "1.0.0",
+      "private": true,
+      "dependencies": {
+        "@netlify/functions": "^1.0.0",
+        "node-fetch": "^2.6.7"
+      }
+    }' > netlify/functions-build/package.json
+  fi
+else
+  echo "Warning: netlify/functions directory not found, creating placeholder function"
+  mkdir -p netlify/functions-build
+  echo 'exports.handler = async function() { return { statusCode: 200, body: JSON.stringify({ message: "API placeholder" }) }; };' > netlify/functions-build/api.js
+fi
 
 echo "Build completed successfully!" 

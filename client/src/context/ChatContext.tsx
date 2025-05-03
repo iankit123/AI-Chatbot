@@ -7,7 +7,7 @@ import React, {
   ReactNode,
   useRef,
 } from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/api";
 import { Message } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -126,10 +126,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     const handleStorageChange = (e: StorageEvent | null) => {
       // If called directly without event, or if event is for selectedCompanion
       if (!e || e.key === 'selectedCompanion') {
-        try {
-          const savedCompanion = localStorage.getItem("selectedCompanion");
-          if (savedCompanion) {
-            const companion = JSON.parse(savedCompanion);
+      try {
+        const savedCompanion = localStorage.getItem("selectedCompanion");
+        if (savedCompanion) {
+          const companion = JSON.parse(savedCompanion);
             
             console.log("[ChatContext] Updating companion data:", {
               previous: { id: companionId, name: botName, avatar: botAvatar },
@@ -138,21 +138,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             
             // Important: Actually update all state values with the new data
             // This ensures the UI reflects the selected companion
-            setBotName(companion.name);
-            setBotAvatar(companion.avatar);
+          setBotName(companion.name);
+          setBotAvatar(companion.avatar);
             setCompanionId(companion.id);
             
             // Reset messages when companion changes
             setMessages([]);
             
             console.log("[ChatContext] Companion updated successfully to:", companion.name);
-          }
-        } catch (error) {
+        }
+      } catch (error) {
           console.error("[ChatContext] Error updating companion from localStorage:", error);
         }
       }
     };
-    
+
     // Create a more specific handler for the custom event  
     const handleCompanionSelected = () => {
       console.log("[ChatContext] Companion selection event received, updating companion");
@@ -200,24 +200,24 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           // Get the current user's ID
           const authUser = localStorage.getItem("authUser");
           if (!authUser) return;
-          
+
           const { uid } = JSON.parse(authUser);
           console.log("[ChatContext] Loading chat history for user:", uid, "with companion:", companionId);
-          
+
           // Load messages from Firebase
           const firebaseMessages = await getFirebaseMessages(uid, companionId);
-          if (firebaseMessages && firebaseMessages.length > 0) {
+            if (firebaseMessages && firebaseMessages.length > 0) {
             console.log("[ChatContext] Found previous chat history with", firebaseMessages.length, "messages");
             
             // Convert Firebase messages format to app Message format
             const convertedMessages: Message[] = firebaseMessages.map((msg: any) => ({
               id: msg.id || -Math.floor(Math.random() * 1000000000),
-              content: msg.content,
-              role: msg.role,
-              companionId: companionId,
-              timestamp: new Date(msg.timestamp),
-              photoUrl: msg.photoUrl || null,
-              isPremium: msg.isPremium || null,
+                content: msg.content,
+                role: msg.role,
+                companionId: companionId,
+                timestamp: new Date(msg.timestamp),
+                photoUrl: msg.photoUrl || null,
+                isPremium: msg.isPremium || null,
               contextInfo: msg.contextInfo || null,
             }));
             
@@ -229,9 +229,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             setMessageCount(count);
             localStorage.setItem(`messageCount_${companionId}`, count.toString());
             console.log("[ChatContext] Updated message count to", count, "based on chat history");
-          } else {
+            } else {
             console.log("[ChatContext] No previous chat history found, starting fresh");
-          }
+            }
         } catch (error) {
           console.error("[ChatContext] Error loading chat history:", error);
           // If error loading history, just continue with empty chat
@@ -274,7 +274,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Helper: check if user is authenticated
   const isAuthenticated = () => {
     try {
-      const authUser = localStorage.getItem("authUser");
+    const authUser = localStorage.getItem("authUser");
       if (!authUser) return false;
       const parsed = JSON.parse(authUser);
       return !!parsed.uid;
@@ -303,19 +303,19 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     // Trim the content first
     const trimmedContent = content.trim();
     if (!trimmedContent) return;
-    
+
     // Prevent duplicate messages
     if (trimmedContent === lastProcessedMessageRef.current) {
       console.log("[ChatContext] Duplicate message detected, ignoring:", trimmedContent);
       return;
     }
-    
+
     // Prevent concurrent processing
     if (isProcessingRef.current) {
       console.log("[ChatContext] Already processing a message, ignoring:", trimmedContent);
       return;
     }
-    
+
     // Set processing lock and store this message
     isProcessingRef.current = true;
     lastProcessedMessageRef.current = trimmedContent;
@@ -519,7 +519,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
             
             // Just set the current photo but don't show dialog automatically
-            setCurrentPhoto(premiumPhotoUrl);
+          setCurrentPhoto(premiumPhotoUrl);
             console.log("[ChatContext] Setting premium photo to:", premiumPhotoUrl);
             
             // Reset the offer flag
@@ -602,7 +602,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       setIsTyping(false);
       return;
     }
-    
+
     // Rate limiting check
     const timeSinceLastCall = now - lastApiCallTimeRef.current;
     
@@ -637,7 +637,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Get the last message to check if there was a photo in the conversation context
       const lastMessages = [...messages].slice(-3); // Get up to 3 recent messages for context
       const lastPhotoMessage = lastMessages.find(msg => msg.photoUrl && msg.isPremium);
-      
+
       // Include this context in the API request
       const res = await apiRequest("POST", "/api/messages", {
         content,
@@ -652,13 +652,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           timeElapsed: Math.floor((Date.now() - lastPhotoMessage.timestamp.getTime()) / 1000) // seconds since photo was sent
         } : null,
       });
-      
+
       // Check for rate limiting or error responses
       if (!res.ok) {
         // If we get a 429 Too Many Requests
         if (res.status === 429) {
           setIsRateLimited(true);
-          
+
           // Add a system message about rate limiting
           const errorMsg: Message = {
             id: tempId - 1,
@@ -671,18 +671,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             contextInfo: null
           };
           setMessages((prev) => [...prev, errorMsg]);
-          
+
           // Auto-reset rate limit after 15 seconds
           setTimeout(() => setIsRateLimited(false), 15000);
           
           console.log("[ChatContext] Rate limit hit, cooling down for 15 seconds");
           setIsTyping(false);
           return;
-        }
+          }
         
         throw new Error(`API request failed with status ${res.status}`);
-      }
-      
+        }
+
       // Reset rate limit flag if successful
       setIsRateLimited(false);
       
@@ -696,8 +696,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         };
         
         setMessages((prev) => [...prev, botMessage]);
-        
-        // Save assistant message to Firebase
+
+            // Save assistant message to Firebase
         saveChatMessage(botMessage);
       }
     } catch (error) {
@@ -726,7 +726,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     const lowerContent = content.toLowerCase().trim();
     console.log(`[ChatContext] Checking if "${lowerContent}" is affirmative`);
-    
+
     // Exact match for common affirmative words
     const exactMatches = ["yes", "haa", "ha", "han", "haan", "dikhao", "dikha", "ok", "okay", "sure", "ji"];
     if (exactMatches.includes(lowerContent)) {
@@ -756,17 +756,17 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Clear chat
   const clearChat = async () => {
     // Clear messages from API
-    await apiRequest("DELETE", "/api/messages");
+      await apiRequest("DELETE", "/api/messages");
     
     // Clear messages from local state
-    setMessages([]);
-    
+      setMessages([]);
+
     // If not authenticated, reset message count to 0
     // For authenticated users, we'll keep the count in localStorage
     // so they can continue where they left off
     if (!isAuthenticated()) {
       setMessageCount(0);
-      localStorage.setItem(`messageCount_${companionId}`, "0");
+        localStorage.setItem(`messageCount_${companionId}`, "0");
       console.log("[ChatContext] Cleared chat and reset message count for non-authenticated user");
     } else {
       console.log("[ChatContext] Cleared chat for authenticated user - message count preserved");
