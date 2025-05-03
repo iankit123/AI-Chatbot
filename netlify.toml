@@ -1,5 +1,5 @@
 [build]
-  command = "CI=false npm install && npm run build"
+  command = "NETLIFY=true npm run netlify-build"
   publish = "dist"
   functions = "netlify/functions-build"
 
