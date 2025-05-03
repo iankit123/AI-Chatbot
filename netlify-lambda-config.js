@@ -1,4 +1,12 @@
+// CommonJS format for compatibility
 module.exports = {
-  // Change the output directory to fix the netlify-lambda error
-  publish: "netlify/functions-build"
+  // The functions directory where netlify-lambda will output built functions
+  publish: "netlify/functions-build",
+  // Timeout for functions (optional)
+  timeout: 10,
+  // Other options
+  config: {
+    // Specify babelrc if needed
+    babelrc: false
+  }
 }; 
