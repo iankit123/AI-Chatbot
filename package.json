@@ -7,7 +7,7 @@
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "if [ \"$VERCEL\" = \"1\" ]; then npm run vercel-build; elif [ \"$NETLIFY\" = \"true\" ]; then npm run netlify-build; else vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && netlify-lambda build netlify/functions --config ./netlify-lambda-config.js; fi",
     "vercel-build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "netlify-build": "npm install @vitejs/plugin-react --no-save && npx vite build --config vite.netlify.config.js && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && npx netlify-lambda build netlify/functions --config ./netlify-lambda-config.js",
+    "netlify-build": "npm install @vitejs/plugin-react --no-save && npx vite build --config vite.netlify.config.cjs && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && npx netlify-lambda build netlify/functions --config ./netlify-lambda-config.js",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push"
