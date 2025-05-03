@@ -5,6 +5,10 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const viteLogger = createLogger();
 
@@ -23,7 +27,7 @@ export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
-    allowedHosts: true,
+    allowedHosts: true as true,
   };
 
   const vite = await createViteServer({
@@ -68,18 +72,52 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
-
+  // First try to use the resolved dist path for client files
+  let distPath = path.resolve(__dirname, "../dist/client");
+  
+  // If that doesn't exist, try other possible locations
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+    distPath = path.resolve(__dirname, "../public");
+    
+    if (!fs.existsSync(distPath)) {
+      distPath = path.resolve(__dirname, "public");
+      
+      if (!fs.existsSync(distPath)) {
+        distPath = path.resolve(__dirname, "../dist");
+        
+        if (!fs.existsSync(distPath)) {
+          throw new Error(
+            `Could not find the build directory. Tried:
+             - ${path.resolve(__dirname, "../dist/client")}
+             - ${path.resolve(__dirname, "../public")}
+             - ${path.resolve(__dirname, "public")}
+             - ${path.resolve(__dirname, "../dist")}
+             Make sure to build the client first.`
+          );
+        }
+      }
+    }
   }
-
+  
+  log(`Serving static files from: ${distPath}`);
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // Serve index.html for all routes for client-side routing
+  app.get("*", (req, res) => {
+    log(`Received request for: ${req.path}`);
+    if (req.path.startsWith('/api')) {
+      // Don't serve index.html for API routes
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    
+    const indexPath = path.join(distPath, "index.html");
+    log(`Serving index.html from: ${indexPath}`);
+    
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      log(`Warning: index.html not found at ${indexPath}`);
+      res.status(404).send('Not found: index.html is missing from build files');
+    }
   });
 }

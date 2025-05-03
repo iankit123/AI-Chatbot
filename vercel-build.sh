@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Debug info
+echo "Current directory: $(pwd)"
+echo "Node version: $(node -v)"
+echo "NPM version: $(npm -v)"
+
 # Install esbuild globally if not present
 npm install --no-save esbuild
 
@@ -16,4 +21,16 @@ if ! ./node_modules/.bin/esbuild server/index.ts --platform=node --packages=exte
   NODE_ENV=development node esbuild.mjs
 fi
 
-echo "Build completed!" 
+# Ensure index.html is in the dist folder at the root level
+if [ ! -f "dist/index.html" ]; then
+  echo "Copying index.html to dist folder..."
+  cp dist/client/index.html dist/index.html
+fi
+
+# Ensure proper structure for Vercel
+echo "Setting up files for Vercel deployment..."
+mkdir -p dist/public
+cp -r dist/client/* dist/public/ 2>/dev/null || :
+
+echo "Build completed!"
+ls -la dist 
