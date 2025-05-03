@@ -1,4 +1,4 @@
-import { useChat } from '@/hooks/useChat';
+import { useChat } from '@/context/ChatContext';
 import { useLocation } from 'wouter';
 
 export function Header() {

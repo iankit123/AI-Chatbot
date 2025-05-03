@@ -9,36 +9,72 @@ interface ChatMessageProps {
   botAvatar: string;
 }
 
+const DEBUG = false;
+
+const debug = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+
 export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   const isBot = message.role === "assistant";
   const { botName } = useChat();
 
+  debug("=== ChatMessage Render ===", {
+    content: message.content.slice(0, 30) + "...",
+    role: message.role,
+    hasPhoto: !!message.photoUrl,
+    isPremium: message.isPremium
+  });
+
   // Check if message contains a photo URL either in content or as a photoUrl field
   const hasImage = useMemo(() => {
-    // Check for photoUrl field first (for premium photos)
-    if (message.photoUrl) return true;
+    if (message.photoUrl) {
+      debug("Photo URL found:", message.photoUrl);
+      return true;
+    }
     
-    // Otherwise, detect if message contains an image URL pattern
     const imageUrlRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
-    return imageUrlRegex.test(message.content);
+    const hasImageInContent = imageUrlRegex.test(message.content);
+    if (hasImageInContent) {
+      debug("Image URL found in content");
+    }
+    return hasImageInContent;
   }, [message.content, message.photoUrl]);
 
   // Extract image URL from message (from photoUrl field or content)
   const imageUrl = useMemo(() => {
-    // Prefer the photoUrl field if available (for premium photos)
-    if (message.photoUrl) return message.photoUrl;
+    if (message.photoUrl) {
+      debug("Using photoUrl field");
+      return message.photoUrl;
+    }
     
-    // Otherwise extract from content
     if (!hasImage) return null;
+    
     const imageUrlRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
     const match = message.content.match(imageUrlRegex);
-    return match ? match[0] : null;
+    const extractedUrl = match ? match[0] : null;
+    if (extractedUrl) {
+      debug("Extracted URL from content");
+    }
+    return extractedUrl;
   }, [message.content, hasImage, message.photoUrl]);
 
   // Check if this is a premium photo
   const isPremiumPhoto = useMemo(() => {
-    return !!message.isPremium;
+    const isPremium = !!message.isPremium;
+    if (isPremium) {
+      debug("Premium photo detected");
+    }
+    return isPremium;
   }, [message.isPremium]);
+
+  debug("Final render state:", {
+    hasImage,
+    imageUrl: imageUrl ? "present" : null,
+    isPremiumPhoto
+  });
 
   // Process the message content without highlighting
   const processedContent = useMemo(() => {

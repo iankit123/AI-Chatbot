@@ -1,10 +1,19 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, "../public")));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -21,12 +30,33 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      
+      // Only log essential parts of the response
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+        if (path === "/api/messages") {
+          // For messages, only log the latest message content and role
+          const messages = [];
+          if (capturedJsonResponse.userMessage) {
+            messages.push({
+              role: capturedJsonResponse.userMessage.role,
+              content: capturedJsonResponse.userMessage.content.slice(0, 30) + "...",
+              hasPhoto: !!capturedJsonResponse.userMessage.photoUrl,
+              isPremium: capturedJsonResponse.userMessage.isPremium
+            });
+          }
+          if (capturedJsonResponse.botMessage) {
+            messages.push({
+              role: capturedJsonResponse.botMessage.role,
+              content: capturedJsonResponse.botMessage.content.slice(0, 30) + "...",
+              hasPhoto: !!capturedJsonResponse.botMessage.photoUrl,
+              isPremium: capturedJsonResponse.botMessage.isPremium
+            });
+          }
+          logLine += ` :: ${JSON.stringify(messages)}`;
+        } else {
+          // For other endpoints, just indicate response size
+          logLine += ` :: ${Object.keys(capturedJsonResponse).length} keys`;
+        }
       }
 
       log(logLine);
@@ -59,7 +89,7 @@ app.use((req, res, next) => {
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 3000;
+  const port = 5000;
   server.listen(port, () => {
     log(`serving on port ${port}`);
   });

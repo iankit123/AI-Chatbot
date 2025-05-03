@@ -23,18 +23,15 @@ interface AuthDialogProps {
 }
 
 export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogProps) {
-  // When dialog is closed without authentication, ensure we reset the message count to 2
-  // This ensures the user can always see the input field
+  // When dialog is closed without authentication, we need to preserve the message count
+  // to ensure the dialog reappears on the next message attempt
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      // If closing the dialog, ensure message count is reset to 2 in localStorage
-      try {
-        const savedCompanion = localStorage.getItem('selectedCompanion');
-        const companionId = savedCompanion ? JSON.parse(savedCompanion).id : 'priya';
-        localStorage.setItem(`messageCount_${companionId}`, '2');
-      } catch (error) {
-        console.error('Error resetting message count:', error);
-      }
+      // When closing the dialog, log that it was dismissed
+      console.log('Auth dialog dismissed by user, will reappear on next message');
+      
+      // Optionally, we could set a flag in localStorage to track that this happened
+      localStorage.setItem('auth_dialog_dismissed', 'true');
     }
     onOpenChange(newOpen);
   };

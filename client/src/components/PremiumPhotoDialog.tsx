@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -9,8 +9,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { database } from '@/lib/firebase';
+import { database, logPaymentRequest } from '@/lib/firebase';
 import { ref, push, set } from 'firebase/database';
+import { auth } from '@/lib/firebase';
 import { Lock } from 'lucide-react';
 
 interface PremiumPhotoDialogProps {
@@ -27,7 +28,18 @@ export function PremiumPhotoDialog({
   blurredImageUrl
 }: PremiumPhotoDialogProps) {
   const [processing, setProcessing] = useState(false);
+  const [dialogKey, setDialogKey] = useState(0); // Add a key to force re-render
   const { toast } = useToast();
+  
+  // Reset dialog when it opens
+  useEffect(() => {
+    if (open) {
+      // Create a new dialog instance by incrementing the key
+      setDialogKey(prev => prev + 1);
+      // Reset processing state when dialog opens
+      setProcessing(false);
+    }
+  }, [open]);
   
   const handlePayment = async () => {
     setProcessing(true);
@@ -41,33 +53,45 @@ export function PremiumPhotoDialog({
       imageUrl: blurredImageUrl
     };
     
-    // Simulate payment processing
+    // First record the payment attempt immediately
+    try {
+      // Store the request in localStorage
+      const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+      paymentRequests.push(requestData);
+      localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
+      
+      // Log payment request to Firebase using our new function
+      const authUser = localStorage.getItem('authUser');
+      if (authUser) {
+        try {
+          const user = JSON.parse(authUser);
+          const userEmail = user.email || 'unknown@example.com';
+          
+          // IMPORTANT: Log with our dedicated function for consistency
+          await logPaymentRequest(
+            user.uid, 
+            userEmail, 
+            'premium_photo', 
+            {
+              companionId: companionName.toLowerCase(),
+              imageUrl: blurredImageUrl
+            }
+          );
+          console.log("Premium photo payment request successfully logged to Firebase");
+        } catch (firebaseError) {
+          console.error('Error logging payment request to Firebase:', firebaseError);
+          // Continue with local storage only
+        }
+      } else {
+        console.log("User not authenticated, no Firebase logging for premium photo payment");
+      }
+    } catch (error) {
+      console.error('Error saving payment request:', error);
+    }
+    
+    // Then simulate payment processing
     setTimeout(() => {
       setProcessing(false);
-      
-      // Record the payment attempt
-      try {
-        // Store the request in localStorage
-        const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
-        paymentRequests.push(requestData);
-        localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
-        
-        // Also save to Firebase if user is authenticated
-        const authUser = localStorage.getItem('authUser');
-        if (authUser) {
-          try {
-            const user = JSON.parse(authUser);
-            const paymentsRef = ref(database, `payments/${user.uid}`);
-            const newPaymentRef = push(paymentsRef);
-            set(newPaymentRef, requestData);
-          } catch (firebaseError) {
-            console.error('Error saving to Firebase:', firebaseError);
-            // Continue with local storage only
-          }
-        }
-      } catch (error) {
-        console.error('Error saving payment request:', error);
-      }
       
       // Show technical issue message
       toast({
@@ -82,7 +106,31 @@ export function PremiumPhotoDialog({
     }, 2000);
   };
   
-  const handleDecline = () => {
+  const handleDecline = async () => {
+    // Log the decline action in Firebase
+    try {
+      const authUser = localStorage.getItem('authUser');
+      if (authUser) {
+        const user = JSON.parse(authUser);
+        const userEmail = user.email || 'unknown@example.com';
+        
+        // Log with our dedicated function
+        await logPaymentRequest(
+          user.uid, 
+          userEmail, 
+          'premium_photo', 
+          {
+            companionId: companionName.toLowerCase(),
+            imageUrl: blurredImageUrl,
+            status: 'declined' // Mark as declined
+          }
+        );
+        console.log("Premium photo decline logged to Firebase");
+      }
+    } catch (error) {
+      console.error('Error logging premium photo decline:', error);
+    }
+    
     // Just close the dialog
     onOpenChange(false);
     
@@ -94,9 +142,12 @@ export function PremiumPhotoDialog({
     });
   };
   
+  // If not open, don't render anything to ensure a fresh instance each time
+  if (!open) return null;
+  
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={open} onOpenChange={onOpenChange} key={dialogKey}>
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto premium-photo-dialog-content">
         <DialogHeader>
           <DialogTitle className="text-xl text-center">
             {companionName} ki premium photo
@@ -106,7 +157,7 @@ export function PremiumPhotoDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="py-6 space-y-4">
+        <div className="py-4 space-y-4">
           {/* Blurred photo preview */}
           <div className="relative w-full aspect-square overflow-hidden rounded-lg">
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-10">

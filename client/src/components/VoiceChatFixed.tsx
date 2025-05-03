@@ -1,4 +1,5 @@
 import { useChat } from "@/context/ChatContext";
+import { logPaymentRequest } from "@/lib/firebase";
 
 export function VoiceChatFixed() {
   const { botName } = useChat();
@@ -19,6 +20,28 @@ export function VoiceChatFixed() {
       );
       paymentRequests.push(requestData);
       localStorage.setItem("paymentRequests", JSON.stringify(paymentRequests));
+
+      // Also log to Firebase if user is authenticated
+      const authUser = localStorage.getItem("authUser");
+      if (authUser) {
+        try {
+          const user = JSON.parse(authUser);
+          const userEmail = user.email || 'unknown@example.com';
+          
+          // Log with our dedicated function for consistency
+          logPaymentRequest(
+            user.uid, 
+            userEmail, 
+            'voice_chat', 
+            {
+              companionId: botName.toLowerCase(),
+              amount: 99
+            }
+          );
+        } catch (firebaseError) {
+          console.error('Error logging payment request to Firebase:', firebaseError);
+        }
+      }
 
       // Show message
       alert("Request recorded! You will be contacted soon.");

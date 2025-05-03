@@ -10,6 +10,7 @@ export const messages = pgTable("messages", {
   companionId: text("companion_id"),  // Optional, to support older messages without a companion ID
   photoUrl: text("photo_url"),        // Optional, for messages with attached photos
   isPremium: boolean("is_premium"),   // Flag for premium photos (requiring payment)
+  contextInfo: text("context_info"),  // Optional, for including extra context for the LLM
 });
 
 export const conversations = pgTable("conversations", {
@@ -25,6 +26,7 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
 }).extend({
   photoUrl: z.string().optional(),
   isPremium: z.boolean().optional(),
+  contextInfo: z.string().optional(),
   language: z.enum(['hindi', 'english']).optional(),
 });
 

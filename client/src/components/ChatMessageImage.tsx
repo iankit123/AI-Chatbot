@@ -10,48 +10,89 @@ interface ChatMessageImageProps {
 
 export function ChatMessageImage({ imageUrl, companionName, isBlurred = true }: ChatMessageImageProps) {
   const [imageError, setImageError] = useState(false);
-  const { setShowPhotoDialog, setCurrentPhoto } = useChat();
+  const { setShowPaymentDialog, setCurrentPhoto } = useChat();
+  
+  console.log("=== ChatMessageImage Debug ===");
+  console.log("Props:", {
+    imageUrl,
+    companionName,
+    isBlurred
+  });
   
   // Verify the image URL before showing
   useEffect(() => {
+    console.log("Starting image verification for:", imageUrl);
+    
     if (!imageUrl || imageUrl === 'undefined') {
+      console.log("Invalid image URL detected");
       setImageError(true);
       return;
     }
+
+    // Ensure URL starts with / for relative paths
+    const normalizedUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
     
     // Try to load the image
     const img = new Image();
-    img.onload = () => setImageError(false);
-    img.onerror = () => {
-      console.error("Error loading image:", imageUrl);
-      setImageError(true);
+    img.onload = () => {
+      console.log("Image loaded successfully:", normalizedUrl);
+      setImageError(false);
     };
-    img.src = imageUrl;
+    img.onerror = () => {
+      console.error("Error loading image:", normalizedUrl);
+      // Try fallback image path if it's a premium photo
+      if (isBlurred && normalizedUrl.includes('/premium/')) {
+        const fallbackUrl = '/images/companions/default-premium.jpg';
+        console.log("Trying fallback image:", fallbackUrl);
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => {
+          console.log("Fallback image loaded successfully");
+          setImageError(false);
+        };
+        fallbackImg.onerror = () => {
+          console.error("Fallback image also failed to load");
+          setImageError(true);
+        };
+        fallbackImg.src = fallbackUrl;
+      } else {
+        setImageError(true);
+      }
+    };
+    img.src = normalizedUrl;
+    console.log("Image load attempt initiated");
     
     // During development, show images regardless of loading status
     if (process.env.NODE_ENV === 'development') {
+      console.log("Development mode: forcing image to show");
       setImageError(false);
     }
-  }, [imageUrl]);
+  }, [imageUrl, isBlurred]);
   
   // Handle image click to open premium dialog
   const handleImageClick = () => {
     if (isBlurred) {
-      // Don't set clicked state to keep showing the lock icon
-      console.log("Opening premium dialog for image:", imageUrl);
+      console.log("Premium image clicked, preparing to show dialog");
+      console.log("Setting current photo:", imageUrl);
       setCurrentPhoto(imageUrl);
       
-      // Show payment dialog
-      setTimeout(() => {
-        setShowPhotoDialog(true);
-      }, 300);
+      // Show payment dialog immediately
+      setShowPaymentDialog(true);
+      console.log("Opening premium photo payment dialog");
     }
   };
   
   // Don't render if image URL is invalid
   if (imageError && process.env.NODE_ENV !== 'development') {
+    console.log("Image error detected, not rendering");
     return null;
   }
+  
+  console.log("Rendering image component with state:", {
+    imageError,
+    isBlurred,
+    isDevelopment: process.env.NODE_ENV === 'development'
+  });
+  console.log("=== End ChatMessageImage Debug ===");
   
   return (
     <div className="relative rounded-lg overflow-hidden max-w-[240px]">

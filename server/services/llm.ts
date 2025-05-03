@@ -3,6 +3,7 @@ import { BOT_SYSTEM_PROMPT } from "@/lib/constants";
 
 // Groq API configuration
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+console.log("GROQ_API_KEY loaded:", GROQ_API_KEY ? "Present" : "Missing");
 if (!GROQ_API_KEY) {
   console.error("GROQ_API_KEY not found in environment variables");
 }

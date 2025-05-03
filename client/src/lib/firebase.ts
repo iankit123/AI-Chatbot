@@ -185,6 +185,53 @@ export const saveMessage = async (userId: string, companionId: string, message: 
   }
 };
 
+// New function to save both user and assistant messages with additional metadata
+export const saveChatMessage = async (message: any) => {
+  try {
+    // Check if user is authenticated
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log('User not authenticated, not saving chat message to Firebase');
+      return null;
+    }
+    
+    const userId = currentUser.uid;
+    const userEmail = currentUser.email || 'unknown@example.com';
+    const companionId = message.companionId || 'unknown';
+    
+    // Create a more structured message object with additional metadata
+    const messageData = {
+      content: message.content,
+      role: message.role,
+      timestamp: message.timestamp ? message.timestamp.toISOString() : new Date().toISOString(),
+      userEmail: userEmail,
+      isPremium: message.isPremium || false,
+      photoUrl: message.photoUrl || null,
+      // Add any other relevant fields
+    };
+    
+    // Save to user-specific chat collection
+    const chatRef = ref(database, `chats/${userId}/${companionId}/messages`);
+    const newMessageRef = push(chatRef);
+    await set(newMessageRef, messageData);
+    
+    // Also save to global chats collection for analytics
+    const globalChatRef = ref(database, `allChats`);
+    const newGlobalMessageRef = push(globalChatRef);
+    await set(newGlobalMessageRef, {
+      ...messageData,
+      userId: userId,
+      companionId: companionId
+    });
+    
+    console.log(`Chat message saved to Firebase: ${message.role} message`);
+    return newMessageRef.key;
+  } catch (error) {
+    console.error("Error saving chat message to Firebase: ", error);
+    return null; // Don't throw, just return null to prevent app disruption
+  }
+};
+
 export const getMessages = async (userId: string, companionId: string) => {
   try {
     const chatRef = ref(database, `chats/${userId}/${companionId}/messages`);
@@ -304,6 +351,49 @@ export const getMessageCount = async (userId: string, companionId: string) => {
     return 0;
   } catch (error) {
     console.error("Error getting message count: ", error);
+    throw error;
+  }
+};
+
+// Log payment requests to Firebase for tracking purposes
+export const logPaymentRequest = async (userId: string, userEmail: string, paymentType: 'premium_photo' | 'voice_chat', metadata: any = {}) => {
+  try {
+    if (!userId) {
+      console.error('Cannot log payment request: userId is required');
+      return null;
+    }
+
+    // Create a reference to the payment requests for this user
+    const paymentRequestsRef = ref(database, `users/${userId}/paymentRequests`);
+    const newRequestRef = push(paymentRequestsRef);
+    
+    await set(newRequestRef, {
+      timestamp: new Date().toISOString(),
+      userEmail: userEmail,
+      paymentType: paymentType,
+      amount: 20, // Amount in Rupees
+      status: 'requested',
+      ...metadata
+    });
+    
+    // Also log globally for easier querying
+    const globalRequestsRef = ref(database, `paymentRequests`);
+    const newGlobalRequestRef = push(globalRequestsRef);
+    
+    await set(newGlobalRequestRef, {
+      timestamp: new Date().toISOString(),
+      userId: userId,
+      userEmail: userEmail,
+      paymentType: paymentType,
+      amount: 20, // Amount in Rupees
+      status: 'requested',
+      ...metadata
+    });
+    
+    console.log(`Payment request logged: ${paymentType} from ${userEmail}`);
+    return newRequestRef.key;
+  } catch (error) {
+    console.error("Error logging payment request: ", error);
     throw error;
   }
 };

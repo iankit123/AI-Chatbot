@@ -9,6 +9,7 @@ interface CompanionProfile {
   description: string;
   descriptionHindi: string;
   imageUrl: string;
+  status: "online" | "offline";
 }
 
 const companions: CompanionProfile[] = [
@@ -18,7 +19,8 @@ const companions: CompanionProfile[] = [
     age: 24,
     description: "Friendly and caring, loves deep conversations",
     descriptionHindi: "दोस्ताना और देखभाल करने वाली, गहरी बातचीत पसंद है",
-    imageUrl: "/images/priya.png"
+    imageUrl: "/images/priya.png",
+    status: "online"
   },
   {
     id: "ananya",
@@ -26,7 +28,8 @@ const companions: CompanionProfile[] = [
     age: 26,
     description: "Playful and flirty, always ready to listen",
     descriptionHindi: "मस्तीभरी और थोड़ी फ्लर्टी, हमेशा सुनने के लिए तैयार",
-    imageUrl: "/images/ananya.png"
+    imageUrl: "/images/ananya.png",
+    status: "online"
   },
   {
     id: "meera",
@@ -34,7 +37,26 @@ const companions: CompanionProfile[] = [
     age: 23,
     description: "Sweet and understanding, loves to talk about life",
     descriptionHindi: "मीठी और समझदार, जीवन के बारे में बात करना पसंद है",
-    imageUrl: "/images/meera.png"
+    imageUrl: "/images/meera.png",
+    status: "online"
+  },
+  {
+    id: "riya",
+    name: "Riya",
+    age: 25,
+    description: "Creative and thoughtful, enjoys deep conversations",
+    descriptionHindi: "रचनात्मक और विचारशील, गहरी बातचीत में आनंद लेती है",
+    imageUrl: "/images/riya.jpg", // Reusing image for now
+    status: "offline"
+  },
+  {
+    id: "neha",
+    name: "Neha",
+    age: 22,
+    description: "Cheerful and supportive, great listener",
+    descriptionHindi: "खुशमिजाज और सहायक, अच्छी श्रोता",
+    imageUrl: "/images/neha.jpg", // Reusing image for now
+    status: "offline"
   }
 ];
 
@@ -74,7 +96,9 @@ export default function LandingPage() {
   }, []);
 
   const handleSelectCompanion = (companion: CompanionProfile) => {
-    // Create companion object
+    console.log(`[LandingPage] User selected ${companion.name} (${companion.id})`);
+    
+    // Create companion object with complete data
     const companionData = {
       id: companion.id,
       name: companion.name,
@@ -83,16 +107,22 @@ export default function LandingPage() {
     
     // Save directly to localStorage
     localStorage.setItem('selectedCompanion', JSON.stringify(companionData));
+    console.log(`[LandingPage] Saved to localStorage:`, companionData);
     
     // Update local state
     setSelectedId(companion.id);
     setSelectedName(companion.name);
     
-    // Dispatch a storage event for other components to react to
-    window.dispatchEvent(new Event('storage'));
+    // Dispatch a custom event for other components to react to
+    // This is more reliable for same-window updates
+    console.log(`[LandingPage] Dispatching companion-selected event`);
+    window.dispatchEvent(new Event('companion-selected'));
     
-    // Navigate to chat
-    setLocation("/chat");
+    // Small delay to ensure event is processed before navigation
+    setTimeout(() => {
+      console.log(`[LandingPage] Navigating to chat with ${companion.name}`);
+      setLocation("/chat");
+    }, 100);
   };
 
   return (
@@ -101,7 +131,35 @@ export default function LandingPage() {
       <nav className="fixed w-full top-0 bg-white shadow-sm z-50 px-4 py-3 flex justify-between items-center">
         <div className="text-2xl font-['Pacifico'] gradient-text">Saathi</div>
         <button 
-          onClick={() => setLocation("/chat")}
+          onClick={() => {
+            // Use currently selected companion instead of always defaulting to first companion
+            const companionToUse = companions.find(c => c.id === selectedId && c.status === "online") || companions[0];
+            console.log(`[LandingPage] 'Try for Free' using companion:`, companionToUse);
+            
+            const companionData = {
+              id: companionToUse.id,
+              name: companionToUse.name,
+              avatar: companionToUse.imageUrl
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('selectedCompanion', JSON.stringify(companionData));
+            console.log(`[LandingPage] Saved to localStorage:`, companionData);
+            
+            // Update local state for consistency
+            setSelectedId(companionToUse.id);
+            setSelectedName(companionToUse.name);
+            
+            // Dispatch custom event for other components
+            console.log(`[LandingPage] Dispatching companion-selected event`);
+            window.dispatchEvent(new Event('companion-selected'));
+            
+            // Small delay to ensure event is processed before navigation
+            setTimeout(() => {
+              console.log(`[LandingPage] Navigating to chat with ${companionToUse.name}`);
+              setLocation("/chat");
+            }, 100);
+          }}
           className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-2 rounded-full font-medium text-sm cursor-pointer shadow-md hover:shadow-lg transition-all duration-300">
           Try for Free
         </button>
@@ -132,12 +190,12 @@ export default function LandingPage() {
                   <img
                     src={companion.imageUrl}
                     alt={companion.name}
-                    className="w-full h-full object-cover object-center"
+                    className={`w-full h-full object-cover object-center ${companion.status === "offline" ? "grayscale opacity-75" : ""}`}
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                      <span className="text-white text-xs">Online Now</span>
+                      <div className={`w-3 h-3 rounded-full ${companion.status === "online" ? "bg-green-500" : "bg-gray-400"} mr-2`}></div>
+                      <span className="text-white text-xs">{companion.status === "online" ? "Online Now" : "Offline"}</span>
                     </div>
                   </div>
                 </div>
@@ -161,12 +219,21 @@ export default function LandingPage() {
                       English
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleSelectCompanion(companion)}
-                    className="w-full mt-4 bg-white border border-primary text-primary py-2 rounded-full font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-all duration-300 shadow-sm hover:shadow-md"
-                  >
-                    Chat Now
-                  </button>
+                  {companion.status === "online" ? (
+                    <button
+                      onClick={() => handleSelectCompanion(companion)}
+                      className="w-full mt-4 bg-white border border-primary text-primary py-2 rounded-full font-medium text-sm cursor-pointer hover:bg-primary hover:text-white transition-all duration-300 shadow-sm hover:shadow-md"
+                    >
+                      Chat Now
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="w-full mt-4 bg-gray-100 border border-gray-300 text-gray-400 py-2 rounded-full font-medium text-sm cursor-not-allowed"
+                    >
+                      Currently Unavailable
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -247,7 +314,24 @@ export default function LandingPage() {
           </div>
 
           <button
-            onClick={() => setLocation("/chat")}
+            onClick={() => {
+              // Use currently selected companion (from UI selection or default)
+              const companionToUse = companions.find(c => c.id === selectedId && c.status === "online") || companions[0];
+              const companionData = {
+                id: companionToUse.id,
+                name: companionToUse.name,
+                avatar: companionToUse.imageUrl
+              };
+              localStorage.setItem('selectedCompanion', JSON.stringify(companionData));
+              
+              // Use both events for maximum compatibility
+              window.dispatchEvent(new Event('companion-selected'));
+              window.dispatchEvent(new Event('storage'));
+              
+              console.log(`Selected companion for CTA: ${companionToUse.name}`);
+              
+              setLocation("/chat");
+            }}
             className="cta-button mt-6 text-base cursor-pointer"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">

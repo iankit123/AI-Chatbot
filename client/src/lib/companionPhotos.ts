@@ -15,7 +15,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "priya1",
       companionId: "priya",
-      url: "/images/premium/priya.jpg",
+      url: "/images/premium/priya.png",
       description: "Me in a green saree at my cousin's wedding last month",
       prompt:
         "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
@@ -25,7 +25,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "priya2",
       companionId: "priya",
-      url: "/images/premium/priya4.jpg",
+      url: "/images/premium/priya.png",
       description: "My new pink dress I bought for my birthday",
       prompt:
         "I just bought a new pink dress for my birthday next week. Want to see how it looks?",
@@ -35,7 +35,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "priya3",
       companionId: "priya",
-      url: "/images/premium/priya5.png",
+      url: "/images/premium/priya.png",
       description: "Just woke up, feeling a bit lazy today",
       prompt:
         "I just woke up and feeling a bit lazy today. Want to see how I look in the morning without makeup? 😊",
@@ -49,7 +49,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "ananya1",
       companionId: "ananya",
-      url: "/images/premium/ananya.jpg",
+      url: "/images/premium/ananya.png",
       description: "Me in a traditional outfit at a festival",
       prompt:
         "Would you like to see a photo from the festival I attended last month? I wore my favorite traditional outfit!",
@@ -61,7 +61,7 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "meera1",
       companionId: "meera",
-      url: "/images/premium/meera.jpg",
+      url: "/images/premium/meera.png",
       description: "Me at a friend's wedding last weekend",
       prompt:
         "Would you like to see a photo from my friend's wedding last weekend? I wore a beautiful outfit!",

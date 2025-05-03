@@ -1,17 +1,35 @@
-import {
+import React, {
   createContext,
   useContext,
   useState,
   useCallback,
   useEffect,
   ReactNode,
+  useRef,
 } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { Message } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { getRandomPhoto, getRandomPhotoPrompt } from "@/lib/companionPhotos";
-// Firebase functions are dynamically imported when needed to avoid circular dependencies
+import { getRandomPhotoPrompt } from "@/lib/companionPhotos";
+import { saveChatMessage, getFirebaseMessages, auth } from "@/lib/firebase";
+
+const AFFIRMATIVE_WORDS = [
+  "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
+];
+
+const PREMIUM_PHOTOS: Record<string, string[]> = {
+  priya: [
+    "/images/premium/priya.jpg",
+    "/images/premium/priya4.jpg",
+    "/images/premium/priya5.png"
+  ],
+  ananya: ["/images/premium/ananya.jpg"],
+  meera: ["/images/premium/meera.jpg"],
+  // Add offline companions
+  riya: ["/images/premium/riya.jpg"],
+  neha: ["/images/premium/neha.jpg"]
+};
 
 interface ChatContextType {
   messages: Message[];
@@ -22,15 +40,21 @@ interface ChatContextType {
   messageCount: number;
   showProfileDialog: boolean;
   showAuthDialog: boolean;
-  showPhotoDialog: boolean;
+  showPremiumTease: boolean;
+  showPremiumPhoto: boolean;
+  showPaymentDialog: boolean;
   currentPhoto: string | null;
   setShowProfileDialog: (show: boolean) => void;
   setShowAuthDialog: (show: boolean) => void;
-  setShowPhotoDialog: (show: boolean) => void;
+  setShowPremiumTease: (show: boolean) => void;
+  setShowPremiumPhoto: (show: boolean) => void;
+  setShowPaymentDialog: (show: boolean) => void;
   setCurrentPhoto: (url: string | null) => void;
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   toggleLanguage: () => void;
+  userProfile: { name: string; age: string } | null;
+  setUserProfile: (profile: { name: string; age: string }) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -50,719 +74,714 @@ interface ChatProviderProps {
 export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<"hindi" | "english">(
-    "hindi",
-  );
+  const [currentLanguage, setCurrentLanguage] = useState<"hindi" | "english">("hindi");
   const [messageCount, setMessageCount] = useState(0);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  const [showPhotoDialog, setShowPhotoDialog] = useState(false);
-
-  // Initial setup - runs once when component mounts
-  useEffect(() => {
-    // Get current companion ID
-    const companionId = localStorage.getItem("selectedCompanion")
-      ? JSON.parse(localStorage.getItem("selectedCompanion")!).id
-      : "priya";
-
-    // Check if this is the first time loading the page in this session
-    const sessionInitialized = sessionStorage.getItem("chatSessionInitialized");
-
-    // Force reset message count to 0 on initial page load
-    localStorage.setItem(`messageCount_${companionId}`, "0");
-    setMessageCount(0);
-
-    // For non-logged in users, clear chat history ONLY on first page load
-    const authUser = localStorage.getItem("authUser");
-    if (!authUser && !sessionInitialized) {
-      // Clear messages from localStorage
-      localStorage.removeItem(`messages_${companionId}`);
-
-      // Clear messages from state
-      setMessages([]);
-
-      // Clear messages from API
-      apiRequest("DELETE", "/api/messages").catch((err) => {
-        console.error("Error clearing messages on page load:", err);
-      });
-
-      console.log(
-        "Initial page load - cleared chat history for non-logged in user",
-      );
-
-      // Mark this session as initialized so we don't clear again on soft refreshes
-      sessionStorage.setItem("chatSessionInitialized", "true");
-    } else {
-      console.log("Session already initialized, not clearing chat");
-    }
-
-    console.log("Page initialized - reset message count to 0");
-
-    // This will only run once on component mount
-  }, []);
+  const [showPremiumTease, setShowPremiumTease] = useState(false);
+  const [showPremiumPhoto, setShowPremiumPhoto] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; age: string } | null>(null);
   const { toast } = useToast();
-
-  // Initialize from localStorage directly instead of using ChatSettingsContext
+  const premiumOfferMadeRef = useRef(false);
+  
+  // Add rate limiting variables
+  const lastApiCallTimeRef = useRef<number>(0);
+  const MIN_API_CALL_INTERVAL = 3000; // 3 seconds between API calls
+  const MAX_MESSAGES_PER_MINUTE = 10; // Maximum number of messages in a 60-second window
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const messageTimestampsRef = useRef<number[]>([]);
+  
+  // Add message processing lock and last message tracking to prevent duplicates
+  const isProcessingRef = useRef(false);
+  const lastProcessedMessageRef = useRef<string>("");
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Bot info from localStorage
   const [botName, setBotName] = useState(() => {
     try {
-      const savedCompanion = localStorage.getItem("selectedCompanion");
-      if (savedCompanion) {
-        const companion = JSON.parse(savedCompanion);
-        return companion.name;
-      }
+      const saved = localStorage.getItem("selectedCompanion");
+      if (saved) return JSON.parse(saved).name;
       return "Priya";
-    } catch (error) {
-      console.error("Error loading companion name:", error);
-      return "Priya";
-    }
+    } catch { return "Priya"; }
   });
-
   const [botAvatar, setBotAvatar] = useState(() => {
     try {
-      const savedCompanion = localStorage.getItem("selectedCompanion");
-      if (savedCompanion) {
-        const companion = JSON.parse(savedCompanion);
-        return companion.avatar;
-      }
+      const saved = localStorage.getItem("selectedCompanion");
+      if (saved) return JSON.parse(saved).avatar;
       return "/images/priya.png";
-    } catch (error) {
-      console.error("Error loading companion avatar:", error);
-      return "/images/priya.png";
-    }
+    } catch { return "/images/priya.png"; }
+  });
+  const [companionId, setCompanionId] = useState(() => {
+    try {
+      const saved = localStorage.getItem("selectedCompanion");
+      if (saved) return JSON.parse(saved).id;
+      return "priya";
+    } catch { return "priya"; }
   });
 
-  // We now use stableGetCompanionId instead of this function
-
-  // Listen for localStorage changes
+  // Listen for changes to selectedCompanion in localStorage
   useEffect(() => {
-    const handleStorageChange = () => {
-      try {
-        const savedCompanion = localStorage.getItem("selectedCompanion");
-        if (savedCompanion) {
-          const companion = JSON.parse(savedCompanion);
-          setBotName(companion.name);
-          setBotAvatar(companion.avatar);
-          // Reset messages when companion changes
-          setMessages([]);
+    const handleStorageChange = (e: StorageEvent | null) => {
+      // If called directly without event, or if event is for selectedCompanion
+      if (!e || e.key === 'selectedCompanion') {
+        try {
+          const savedCompanion = localStorage.getItem("selectedCompanion");
+          if (savedCompanion) {
+            const companion = JSON.parse(savedCompanion);
+            
+            console.log("[ChatContext] Updating companion data:", {
+              previous: { id: companionId, name: botName, avatar: botAvatar },
+              new: companion
+            });
+            
+            // Important: Actually update all state values with the new data
+            // This ensures the UI reflects the selected companion
+            setBotName(companion.name);
+            setBotAvatar(companion.avatar);
+            setCompanionId(companion.id);
+            
+            // Reset messages when companion changes
+            setMessages([]);
+            
+            console.log("[ChatContext] Companion updated successfully to:", companion.name);
+          }
+        } catch (error) {
+          console.error("[ChatContext] Error updating companion from localStorage:", error);
         }
-      } catch (error) {
-        console.error("Error handling storage change:", error);
       }
     };
+    
+    // Create a more specific handler for the custom event  
+    const handleCompanionSelected = () => {
+      console.log("[ChatContext] Companion selection event received, updating companion");
+      handleStorageChange(null);
+    };
+    
+    // Listen for storage events (from other tabs/windows)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen for custom event (from same window)
+    window.addEventListener('companion-selected', handleCompanionSelected);
+    
+    // Also run once to ensure we have the latest data
+    handleStorageChange(null);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('companion-selected', handleCompanionSelected);
+    };
+  }, [companionId, botName, botAvatar]);
 
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
-  // Use a stable function reference for getCompanionId
-  const stableGetCompanionId = useCallback(() => {
-    try {
-      const savedCompanion = localStorage.getItem("selectedCompanion");
-      if (savedCompanion) {
-        const companion = JSON.parse(savedCompanion);
-        return companion.id;
-      }
-      return "priya";
-    } catch (error) {
-      console.error("Error getting companion ID:", error);
-      return "priya";
+  // On mount, load user profile if exists
+  useEffect(() => {
+    const profile = localStorage.getItem("guestProfile");
+    if (profile) {
+      setUserProfile(JSON.parse(profile));
+      console.log("[ChatContext] Loaded userProfile from localStorage:", JSON.parse(profile));
+    } else {
+      console.log("[ChatContext] No userProfile found in localStorage on mount");
     }
   }, []);
 
-  const fetchMessages = useCallback(async () => {
-    try {
-      // Check if user is authenticated
-      const authUser = localStorage.getItem("authUser");
-      const companionId = stableGetCompanionId();
+  // On mount, load message count
+  useEffect(() => {
+    const savedCount = localStorage.getItem(`messageCount_${companionId}`);
+    setMessageCount(savedCount ? parseInt(savedCount, 10) : 0);
+  }, [companionId]);
 
-      // Get messages specific to the current companion from API
-      const res = await fetch(`/api/messages?companionId=${companionId}`);
-      if (!res.ok) throw new Error("Failed to fetch messages");
-      const data = await res.json();
-
-      if (authUser) {
-        // For authenticated users, try to restore from Firebase first, then localStorage
+  // Load previous chat history for authenticated users
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      // Only attempt to load chat history if user is authenticated
+      if (isAuthenticated()) {
         try {
-          // Parse the user data to get the user ID
-          const userData = JSON.parse(authUser);
-          const userId = userData.uid;
-
-          try {
-            // Try to get messages from Firebase for this user and companion
-            console.log(
-              "Fetching Firebase messages for user:",
-              userId,
-              "companion:",
-              companionId,
-            );
-
-            // Import here to avoid circular dependency
-            const { getFirebaseMessages } = await import("@/lib/firebase");
-            const firebaseMessages = await getFirebaseMessages(
-              userId,
-              companionId,
-            );
-
-            if (firebaseMessages && firebaseMessages.length > 0) {
-              // Format Firebase messages to match our API structure
-              const formattedMessages = firebaseMessages.map((msg, index) => ({
-                id: index + 1, // Generate sequential IDs
-                content: msg.content,
-                role: msg.role,
-                companionId: companionId,
-                timestamp: new Date(msg.timestamp),
-                photoUrl: msg.photoUrl || null,
-                isPremium: msg.isPremium || null,
-              }));
-
-              console.log(
-                "Restored",
-                formattedMessages.length,
-                "messages from Firebase",
-              );
-              setMessages(formattedMessages);
-              return; // Exit if we successfully loaded from Firebase
-            } else {
-              console.log("No Firebase messages found, checking localStorage");
-            }
-          } catch (firebaseError) {
-            console.error("Error fetching Firebase messages:", firebaseError);
+          // Get the current user's ID
+          const authUser = localStorage.getItem("authUser");
+          if (!authUser) return;
+          
+          const { uid } = JSON.parse(authUser);
+          console.log("[ChatContext] Loading chat history for user:", uid, "with companion:", companionId);
+          
+          // Load messages from Firebase
+          const firebaseMessages = await getFirebaseMessages(uid, companionId);
+          if (firebaseMessages && firebaseMessages.length > 0) {
+            console.log("[ChatContext] Found previous chat history with", firebaseMessages.length, "messages");
+            
+            // Convert Firebase messages format to app Message format
+            const convertedMessages: Message[] = firebaseMessages.map((msg: any) => ({
+              id: msg.id || -Math.floor(Math.random() * 1000000000),
+              content: msg.content,
+              role: msg.role,
+              companionId: companionId,
+              timestamp: new Date(msg.timestamp),
+              photoUrl: msg.photoUrl || null,
+              isPremium: msg.isPremium || null,
+              contextInfo: msg.contextInfo || null,
+            }));
+            
+            // Set the messages in state
+            setMessages(convertedMessages);
+            
+            // Update message count based on history
+            const count = convertedMessages.filter(msg => msg.role === "user").length;
+            setMessageCount(count);
+            localStorage.setItem(`messageCount_${companionId}`, count.toString());
+            console.log("[ChatContext] Updated message count to", count, "based on chat history");
+          } else {
+            console.log("[ChatContext] No previous chat history found, starting fresh");
           }
-
-          // Try localStorage as fallback
-          const localStorageKey = `messages_${companionId}`;
-          const savedMessages = localStorage.getItem(localStorageKey);
-
-          if (savedMessages && data.length === 0) {
-            try {
-              const parsedMessages = JSON.parse(savedMessages);
-              if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-                setMessages(parsedMessages);
-                console.log(
-                  "Restored messages from localStorage for authenticated user",
-                );
-                return; // Exit if we successfully loaded from localStorage
-              }
-            } catch (parseError) {
-              console.error(
-                "Error parsing saved messages from localStorage:",
-                parseError,
-              );
-              // Clear the corrupted localStorage data
-              localStorage.removeItem(localStorageKey);
-            }
-          }
-
-          // If we reach here, use API data as last resort
-          setMessages(data);
         } catch (error) {
-          console.error("Error retrieving user messages:", error);
-          setMessages(data); // Fallback to API data
+          console.error("[ChatContext] Error loading chat history:", error);
+          // If error loading history, just continue with empty chat
         }
       } else {
-        // For non-authenticated users, keep chat history within the session
-        // but don't load from previous sessions
-        const sessionInitialized = sessionStorage.getItem(
-          "chatSessionInitialized",
-        );
+        console.log("[ChatContext] User not authenticated, not loading chat history");
+      }
+    };
+    
+    // Load chat history when component mounts or companion changes
+    loadChatHistory();
+  }, [companionId]);
 
-        if (!sessionInitialized) {
-          console.log(
-            "First session: initializing chat for non-logged in user",
-          );
-
-          // Clear any existing messages to start fresh
-          if (data.length > 0) {
-            console.log("Clearing existing messages for new session");
-            await apiRequest("DELETE", "/api/messages");
-            setMessages([]);
-          }
-
-          // Mark this session as initialized to preserve messages during the session
-          sessionStorage.setItem("chatSessionInitialized", "true");
-          console.log(
-            "Session marked as initialized, chat history will persist during this session",
-          );
-        } else {
-          // In an active session, use the API data
-          console.log(
-            "Active session: loading",
-            data.length,
-            "messages from API",
-          );
-          setMessages(data);
+  // Track authentication state changes
+  useEffect(() => {
+    // Setup a listener for changes to localStorage authUser
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'authUser') {
+        // User just logged in or out
+        if (e.newValue && !e.oldValue) {
+          console.log("[ChatContext] User logged in, resetting message count");
+          // Reset message count after login
+          setMessageCount(0);
+          localStorage.setItem(`messageCount_${companionId}`, "0");
         }
       }
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load messages. Please try again.",
-        variant: "destructive",
-      });
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also run once on mount to check if user just logged in
+    const authState = isAuthenticated();
+    console.log("[ChatContext] Initial auth state:", authState);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [companionId]);
+
+  // Helper: check if user is authenticated
+  const isAuthenticated = () => {
+    try {
+      const authUser = localStorage.getItem("authUser");
+      if (!authUser) return false;
+      const parsed = JSON.parse(authUser);
+      return !!parsed.uid;
+    } catch {
+      return false;
     }
-  }, [toast, stableGetCompanionId]);
+  };
 
-  // Initialize message count from localStorage
-  useEffect(() => {
-    const companionId = stableGetCompanionId();
-    const savedCount = localStorage.getItem(`messageCount_${companionId}`);
-    const authUser = localStorage.getItem("authUser");
+  // Helper: similarity check for comparing strings
+  const stringSimilarity = (a: string, b: string): number => {
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    const matchCount = aLower.split(' ').filter(word => bLower.includes(word)).length;
+    return matchCount / aLower.split(' ').length;
+  };
 
-    console.log("Initializing message count, savedCount:", savedCount);
+  // Helper: check if a user's message is asking for a photo
+  const isAskingForPhoto = (content: string): boolean => {
+    const lowerContent = content.toLowerCase();
+    const photoKeywords = ['photo', 'picture', 'pic', 'image', 'photo', 'tasveer', 'foto', 'selfie', 'dekhna', 'share'];
+    return photoKeywords.some(word => lowerContent.includes(word));
+  };
 
-    // If user is not logged in and count is 3 or more, reset to 2
-    // This ensures the chat input stays visible but auth dialog appears on next attempt
-    if (!authUser && savedCount && parseInt(savedCount, 10) >= 3) {
-      setMessageCount(2);
-      localStorage.setItem(`messageCount_${companionId}`, "2");
-      console.log("User not logged in with high count, resetting to 2");
-    } else if (savedCount) {
-      const count = parseInt(savedCount, 10) || 0;
-      setMessageCount(count);
-      console.log("Setting message count from localStorage:", count);
-    } else {
-      // If no saved count, explicitly set to 0
-      setMessageCount(0);
-      localStorage.setItem(`messageCount_${companionId}`, "0");
-      console.log("No saved count, initializing to 0");
-    }
-
-    fetchMessages();
-  }, [fetchMessages, stableGetCompanionId]);
-
+  // Main sendMessage logic
   const sendMessage = async (content: string) => {
-    if (!content.trim()) return;
-
-    // Calculate potential new count (don't update state yet)
-    const potentialNewCount = messageCount + 1;
-
-    // Check if user needs to provide profile (first message)
-    if (potentialNewCount === 1 && !localStorage.getItem("guestProfile")) {
-      setShowProfileDialog(true);
+    // Trim the content first
+    const trimmedContent = content.trim();
+    if (!trimmedContent) return;
+    
+    // Prevent duplicate messages
+    if (trimmedContent === lastProcessedMessageRef.current) {
+      console.log("[ChatContext] Duplicate message detected, ignoring:", trimmedContent);
       return;
     }
-
-    // Check if free message limit reached (on 3rd message if not logged in)
-    // Importantly, we check for messageCount === 2 (which means this is the 3rd message attempt)
-    const authUser = localStorage.getItem("authUser");
-    console.log(
-      "Current message count:",
+    
+    // Prevent concurrent processing
+    if (isProcessingRef.current) {
+      console.log("[ChatContext] Already processing a message, ignoring:", trimmedContent);
+      return;
+    }
+    
+    // Set processing lock and store this message
+    isProcessingRef.current = true;
+    lastProcessedMessageRef.current = trimmedContent;
+    
+    // Clear any existing timeout
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+    }
+    
+    // Set a timeout to release the lock after 5 seconds even if something goes wrong
+    processingTimeoutRef.current = setTimeout(() => {
+      console.log("[ChatContext] Releasing message processing lock after timeout");
+      isProcessingRef.current = false;
+    }, 5000);
+    
+    console.log("[ChatContext] sendMessage called", {
+      content: trimmedContent,
       messageCount,
-      "Auth user exists:",
-      !!authUser,
-    );
+      isAuthenticated: isAuthenticated(),
+      userProfile,
+      premiumOfferMade: premiumOfferMadeRef.current,
+      isProcessing: isProcessingRef.current
+    });
+    
+    try {
+      // Check for rate limiting first
+      if (isRateLimited) {
+        toast({
+          title: "Please wait",
+          description: "You're sending messages too quickly. Please wait a moment.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!trimmedContent) return;
+  
+      // 1. Name/Age input on first message for non-signed-in users
+      if (!isAuthenticated() && messageCount === 0 && !userProfile) {
+        console.log("[ChatContext] Triggering setShowProfileDialog(true) for name/age input");
+        setShowProfileDialog(true);
+        return;
+      }
+  
+      // 2. Save profile if just filled
+      if (!isAuthenticated() && messageCount === 0 && userProfile) {
+        localStorage.setItem("guestProfile", JSON.stringify(userProfile));
+        setShowProfileDialog(false);
+        console.log("[ChatContext] Saved userProfile to localStorage and closed profile dialog:", userProfile);
+      }
+  
+      // 3. Normal chat up to 3rd message
+      if (!isAuthenticated() && messageCount < 3) {
+        console.log("[ChatContext] Normal chat branch (unsigned, <3 messages)");
+        await handleSend(trimmedContent);
+        setMessageCount((c) => {
+          const newCount = c + 1;
+          localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+          return newCount;
+        });
+        return;
+      }
+  
+      // 4. On 4th message (messageCount is 3, as it's 0-indexed), show login/signup popup for non-authenticated users
+      // For cases where messageCount is already high, use modulus to catch every 4th message
+      // Also check if user previously dismissed the dialog and should be prompted again
+      const wasDialogDismissed = localStorage.getItem('auth_dialog_dismissed') === 'true';
+      const isAuth4thMessage = !isAuthenticated() && (
+        (messageCount === 3) || 
+        (messageCount > 3 && messageCount % 4 === 3) ||
+        wasDialogDismissed
+      );
 
-    if (messageCount === 2 && !authUser) {
-      console.log("Showing auth dialog for 3rd message");
-      setShowAuthDialog(true);
+      console.log("[ChatContext] Auth dialog check:", {
+        isAuthenticated: isAuthenticated(),
+        messageCount,
+        wasDialogDismissed,
+        isFirstAuth4thMessage: messageCount === 3,
+        is4thMessageOrMultiple: messageCount > 3 && messageCount % 4 === 3,
+        shouldShowAuthDialog: isAuth4thMessage
+      });
+
+      if (isAuth4thMessage) {
+        console.log("[ChatContext] Triggering setShowAuthDialog(true) for login/signup");
+        // Clear the dismissed flag when showing the dialog again
+        localStorage.removeItem('auth_dialog_dismissed');
+        setShowAuthDialog(true);
+        return;
+      }
+      
+      // Check if this message is affirmative regardless of where in the flow we are
+      const isAffirmativeResponse = isAffirmative(trimmedContent);
+      console.log("[ChatContext] Affirmative response check:", {
+        content: trimmedContent,
+        isAffirmative: isAffirmativeResponse,
+        premiumOfferMade: premiumOfferMadeRef.current,
+        wordChecks: {
+          exactMatch: ["yes", "haa", "ha", "han", "haan", "dikhao", "dikha", "ok", "okay"].includes(trimmedContent.toLowerCase().trim()),
+          includesHaa: trimmedContent.toLowerCase().includes("haa"),
+          includesYes: trimmedContent.toLowerCase().includes("yes")
+        }
+      });
+
+      // 5. Premium offers on every 4th message (0, 4, 8, 12, etc.) for authenticated users
+      const shouldOfferPremium = isAuthenticated() && (messageCount % 4 === 0) && messageCount > 0;
+      console.log("[ChatContext] Premium offer check:", { 
+        isAuthenticated: isAuthenticated(),
+        messageCount,
+        remainder: messageCount % 4,
+        shouldOfferPremium,
+        premiumOfferMade: premiumOfferMadeRef.current 
+      });
+      
+      // Check if this is a user-initiated photo request
+      const isUserAskingForPhoto = isAskingForPhoto(trimmedContent);
+      console.log("[ChatContext] Is user asking for photo:", { content: trimmedContent, isUserAskingForPhoto });
+  
+      // 6. Detect affirmative response for premium photo first (regardless of premium offer)
+      // If the user is already asking for a photo directly OR responding affirmatively to a previous offer
+      if (isAuthenticated() && (premiumOfferMadeRef.current || isUserAskingForPhoto) && isAffirmativeResponse) {
+        console.log("[ChatContext] User replied affirmatively to premium offer or asked for photo");
+        const photos = PREMIUM_PHOTOS[companionId] || PREMIUM_PHOTOS.priya;
+        const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
+        
+        // Just set the current photo but don't show dialog automatically
+        // User will need to click on the photo to see the premium dialog
+        setCurrentPhoto(premiumPhotoUrl);
+        console.log("[ChatContext] Setting premium photo to:", premiumPhotoUrl);
+        
+        // Reset the offer flag so it doesn't trigger again without a new offer
+        premiumOfferMadeRef.current = false;
+        console.log("[ChatContext] Reset premiumOfferMade to false");
+        
+        // Add the premium photo as a chat message with more descriptive content
+        const premiumMsg: Message = {
+          id: -Math.floor(Math.random() * 1000000000),
+          content: "Ye meri kal ki photo hai. Kaisi lagi? 😊",
+          role: "assistant",
+          companionId: companionId || "priya",
+          timestamp: new Date(),
+          photoUrl: premiumPhotoUrl,
+          isPremium: true,
+          contextInfo: "premium_photo_share"
+        };
+        setMessages((prev) => [...prev, premiumMsg]);
+        return;
+      }
+  
+      // Only make premium offer if:
+      // 1. Should offer based on message count
+      // 2. No offer is already active
+      // 3. User isn't already asking for a photo (to avoid duplication)
+      if (shouldOfferPremium && !premiumOfferMadeRef.current && !isUserAskingForPhoto) {
+        console.log("[ChatContext] Triggering setShowPremiumTease(true) after login");
+        setShowPremiumTease(true);
+        premiumOfferMadeRef.current = true;
+        console.log("[ChatContext] Setting premiumOfferMade to true");
+        
+        // If the current message is already affirmative, we'll handle it specially
+        const messageIsAlreadyAffirmative = isAffirmativeResponse;
+
+        // Wait for server to send the premium message instead of sending our own
+        // This prevents duplicate premium offers (one from server, one from client)
+        setMessageCount((c) => {
+          const newCount = c + 1;
+          localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+          return newCount;
+        });
+        
+        // Only send the message if it's not already an affirmative response
+        // This prevents sending an extra message when the user agrees to see a photo
+        if (!messageIsAlreadyAffirmative) {
+          // Send regular message to server - it will respond with premium offer
+          await handleSend(trimmedContent);
+        } else {
+          // Add the user's message to the chat without calling the API
+          const tempId = -Math.floor(Math.random() * 1000000000);
+          const userMessage: Message = {
+            id: tempId,
+            content: trimmedContent,
+            role: "user",
+            companionId,
+            timestamp: new Date(),
+            photoUrl: null,
+            isPremium: null,
+            contextInfo: null
+          };
+          setMessages((prev) => [...prev, userMessage]);
+          
+          // Save user message to Firebase
+          saveChatMessage(userMessage);
+        }
+        
+        // Check if the message we just sent to trigger the premium offer was already affirmative
+        // If it was, directly show the premium photo without waiting for another message
+        if (isAffirmativeResponse) {
+          console.log("[ChatContext] Trigger message was already affirmative, showing premium photo immediately");
+          // Short timeout to let the premium offer message appear first
+          setTimeout(() => {
+            const photos = PREMIUM_PHOTOS[companionId] || PREMIUM_PHOTOS.priya;
+            const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
+            
+            // Just set the current photo but don't show dialog automatically
+            setCurrentPhoto(premiumPhotoUrl);
+            console.log("[ChatContext] Setting premium photo to:", premiumPhotoUrl);
+            
+            // Reset the offer flag
+            premiumOfferMadeRef.current = false;
+            console.log("[ChatContext] Reset premiumOfferMade to false");
+            
+            // Add the premium photo as a chat message with more descriptive content
+            const premiumMsg: Message = {
+              id: -Math.floor(Math.random() * 1000000000),
+              content: "Ye meri kal ki photo hai. Kaisi lagi?",
+              role: "assistant",
+              companionId: companionId || "priya",
+              timestamp: new Date(),
+              photoUrl: premiumPhotoUrl,
+              isPremium: true,
+              contextInfo: "premium_photo_share"
+            };
+            setMessages((prev) => [...prev, premiumMsg]);
+          }, 1000);
+        }
+        
+        return;
+      }
+  
+      // 7. Normal chat after login
+      console.log("[ChatContext] Normal chat branch (signed in or after premium flow)");
+      await handleSend(trimmedContent);
+      setMessageCount((c) => {
+        const newCount = c + 1;
+        localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+        return newCount;
+      });
+    } catch (error) {
+      console.error("[ChatContext] Error in sendMessage:", error);
+    } finally {
+      // Release the processing lock
+      isProcessingRef.current = false;
+      // Clear the timeout
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
+    }
+  };
+
+  // Helper: send message to server and update UI
+  const handleSend = async (content: string) => {
+    console.log("[ChatContext] handleSend called", { content });
+    setIsTyping(true);
+    
+    // Track message timestamps for rate limiting
+    const now = Date.now();
+    messageTimestampsRef.current.push(now);
+    
+    // Only keep timestamps from the last minute
+    messageTimestampsRef.current = messageTimestampsRef.current.filter(
+      timestamp => now - timestamp < 60000
+    );
+    
+    // Check if we've sent too many messages in the last minute
+    if (messageTimestampsRef.current.length > MAX_MESSAGES_PER_MINUTE) {
+      console.log(`[ChatContext] Too many messages in the last minute: ${messageTimestampsRef.current.length}`);
+      setIsRateLimited(true);
+      
+      // Add a system message about rate limiting
+      const errorMsg: Message = {
+        id: -Math.floor(Math.random() * 1000000000),
+        content: "Please slow down. You're sending too many messages too quickly.",
+        role: "assistant",
+        companionId,
+        timestamp: new Date(),
+        photoUrl: null,
+        isPremium: null,
+        contextInfo: null
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+      
+      // Auto-reset rate limit after 30 seconds
+      setTimeout(() => setIsRateLimited(false), 30000);
+      setIsTyping(false);
       return;
     }
-
-    // Only increment the message count if we're actually sending the message
-    setMessageCount(potentialNewCount);
-
-    // Create user message
-    const userMessage: Omit<Message, "id" | "timestamp"> = {
+    
+    // Rate limiting check
+    const timeSinceLastCall = now - lastApiCallTimeRef.current;
+    
+    if (timeSinceLastCall < MIN_API_CALL_INTERVAL) {
+      console.log(`[ChatContext] Rate limiting - waiting ${MIN_API_CALL_INTERVAL - timeSinceLastCall}ms before next call`);
+      // If we're sending too fast, add a delay
+      // Add a small jitter to prevent requests arriving exactly together
+      const jitter = Math.floor(Math.random() * 500); // 0-500ms random jitter
+      await new Promise(resolve => setTimeout(resolve, MIN_API_CALL_INTERVAL - timeSinceLastCall + jitter));
+    }
+    
+    // Update the last API call time
+    lastApiCallTimeRef.current = Date.now();
+    
+    const tempId = -Math.floor(Math.random() * 1000000000);
+    const userMessage: Message = {
+      id: tempId,
       content,
       role: "user",
-      companionId: stableGetCompanionId(),
+      companionId,
+      timestamp: new Date(),
       photoUrl: null,
       isPremium: null,
+      contextInfo: null
     };
-
+    setMessages((prev) => [...prev, userMessage]);
+    
+    // Save user message to Firebase
+    saveChatMessage(userMessage);
+    
     try {
-      // Add user message to UI immediately (optimistic update)
-      const tempMessage: Message = {
-        ...userMessage,
-        id: -1, // Will be replaced with actual id from server
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, tempMessage]);
-
-      // Show typing indicator while waiting for response
-      setIsTyping(true);
-
-      // Send message to server
+      // Get the last message to check if there was a photo in the conversation context
+      const lastMessages = [...messages].slice(-3); // Get up to 3 recent messages for context
+      const lastPhotoMessage = lastMessages.find(msg => msg.photoUrl && msg.isPremium);
+      
+      // Include this context in the API request
       const res = await apiRequest("POST", "/api/messages", {
         content,
         language: currentLanguage,
-        companionId: stableGetCompanionId(), // Pass companion ID to server
+        companionId,
+        messageCount: messageCount + 1,
+        isAuthenticated: isAuthenticated(),
+        recentPhotoContext: lastPhotoMessage ? {
+          photoSent: true,
+          photoUrl: lastPhotoMessage.photoUrl,
+          photoMessage: lastPhotoMessage.content,
+          timeElapsed: Math.floor((Date.now() - lastPhotoMessage.timestamp.getTime()) / 1000) // seconds since photo was sent
+        } : null,
       });
-
-      // Get response data
-      const data = await res.json();
-
-      // Check if we should offer a photo based on the message count and user response
-      const companionId = stableGetCompanionId();
-
-      // Special case: For signed-in users at message count 4, add the special photo offer message
-      // This is *after* the 4th message from the companion (so on the 8th message in the chat)
-      const authUser = localStorage.getItem("authUser");
-      if (authUser && potentialNewCount >= 4 && potentialNewCount % 4 === 0) {
-        try {
-          // Get user's name from profile if available
-          let userName = "";
-          const guestProfile = localStorage.getItem("guestProfile");
-          if (guestProfile) {
-            const profile = JSON.parse(guestProfile);
-            userName = profile.name || "";
-          }
-
-          // Special photo offer message
-          const photoOfferMessage = `${userName ? userName + ", " : ""}Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?`;
-
-          // Send special photo offer message
-          await apiRequest("POST", "/api/messages", {
-            content: photoOfferMessage,
-            language: currentLanguage,
-            companionId: companionId,
-          });
-
-          console.log("Sent premium photo offer message");
-
-          // After this message, we'll show a photo in the next user response
-          // Flag this in sessionStorage
-          sessionStorage.setItem("showPremiumPhotoNext", "true");
-
-          // Refresh messages to include the photo offer
-          await fetchMessages();
-        } catch (offerError) {
-          console.error("Error sending premium photo offer:", offerError);
-        }
-
-        return; // Don't process regular photo prompts in this case
-      }
-
-      // Regular photo prompt handling
-      // If we have a photo prompt at this message count
-      const photoPrompt = getRandomPhotoPrompt(companionId, potentialNewCount);
-
-      // If we have a photo prompt, inject it into the bot response
-      if (photoPrompt && !data.error) {
-        // Modify the response that will be sent to include the photo prompt
-        try {
-          // Send an additional message with the photo prompt
-          await apiRequest("POST", "/api/messages", {
-            content: photoPrompt,
-            language: currentLanguage,
-            companionId: companionId,
-          });
-
-          // Refresh messages to include the photo prompt
-          await fetchMessages();
-        } catch (promptError) {
-          console.error("Error sending photo prompt:", promptError);
-        }
-      }
-
-      // Check if we should show a premium photo (if user was prompted in previous message)
-      const showPremiumPhotoNext = sessionStorage.getItem(
-        "showPremiumPhotoNext",
-      );
-
-      // Check if user responded positively to premium photo offer
-      const userSaidYesToPhoto =
-        content.toLowerCase().includes("yes") ||
-        content.toLowerCase().includes("sure") ||
-        content.toLowerCase().includes("ok") ||
-        content.toLowerCase().includes("okay") ||
-        content.toLowerCase().includes("show") ||
-        content.toLowerCase().includes("send") ||
-        content.toLowerCase().includes("share") ||
-        content.toLowerCase().includes("photo") ||
-        content.toLowerCase().includes("picture") ||
-        content.toLowerCase().includes("haan") ||
-        content.toLowerCase().includes("ha") ||
-        content.toLowerCase().includes("dikhao");
-
-      // If previous message had premium photo offer and user said yes
-      if (showPremiumPhotoNext === "true" && userSaidYesToPhoto) {
-        try {
-          console.log(
-            "User accepted premium photo offer, showing premium photo",
-          );
-
-          // Clear the flag
-          sessionStorage.removeItem("showPremiumPhotoNext");
-
-          // Determine the companion folder path
-          const companionId = stableGetCompanionId();
+      
+      // Check for rate limiting or error responses
+      if (!res.ok) {
+        // If we get a 429 Too Many Requests
+        if (res.status === 429) {
+          setIsRateLimited(true);
           
-          // Get a random premium photo from the premium folder
-          // We have priya.jpg, priya4.jpg, priya5.png, ananya.jpg, meera.jpg
-          const premiumPhotos = {
-            priya: ["/images/premium/priya.jpg", "/images/premium/priya4.jpg", "/images/premium/priya5.png"],
-            ananya: ["/images/premium/ananya.jpg"],
-            meera: ["/images/premium/meera.jpg"]
+          // Add a system message about rate limiting
+          const errorMsg: Message = {
+            id: tempId - 1,
+            content: "I'm getting too many requests right now. Please wait a moment before sending more messages.",
+            role: "assistant",
+            companionId,
+            timestamp: new Date(),
+            photoUrl: null,
+            isPremium: null,
+            contextInfo: null
           };
+          setMessages((prev) => [...prev, errorMsg]);
           
-          // Select a random photo for this companion
-          const companionPhotos = premiumPhotos[companionId as keyof typeof premiumPhotos] || premiumPhotos.priya;
-          const randomIndex = Math.floor(Math.random() * companionPhotos.length);
-          const premiumPhotoUrl = companionPhotos[randomIndex];
-
-          console.log("Using premium photo URL:", premiumPhotoUrl);
-
-          // Set current photo to display in premium dialog
-          setCurrentPhoto(premiumPhotoUrl);
-
-          // Add bot response with premium photo attached
-          // Create a follow-up message with the photo, but skip creating a user message
-          const response = await apiRequest("POST", "/api/messages", {
-            content: "Ye meri kal ki photo hai. Kaisi lagi? 😊",
-            language: currentLanguage,
-            companionId: companionId,
-            photoUrl: premiumPhotoUrl, // Pass photo URL to include in message
-            isPremium: true, // Mark this as a premium photo message
-            skipUserMessage: true, // Important: don't create duplicate user message
-          });
-
-          console.log("Sent premium photo message response:", response);
-
-          // Fetch the updated messages to refresh the chat
-          await fetchMessages();
-
-          // We'll set the photo, but not auto-show the dialog
-          // User needs to click on the photo to see it in the premium dialog
-        } catch (error) {
-          console.error("Error handling premium photo:", error);
-
-          // Fallback to send a regular message if photo processing fails
-          try {
-            await apiRequest("POST", "/api/messages", {
-              content:
-                "Sorry, meri photo load nahi ho rahi hai. Technical issue hai. Baad me try karenge.",
-              language: currentLanguage,
-              companionId: companionId,
-            });
-
-            // Fetch the updated messages
-            await fetchMessages();
-          } catch (fallbackError) {
-            console.error("Error sending fallback message:", fallbackError);
-          }
+          // Auto-reset rate limit after 15 seconds
+          setTimeout(() => setIsRateLimited(false), 15000);
+          
+          console.log("[ChatContext] Rate limit hit, cooling down for 15 seconds");
+          setIsTyping(false);
+          return;
         }
-
-        return; // Skip regular photo handling
+        
+        throw new Error(`API request failed with status ${res.status}`);
       }
-
-      // Regular photo handling (non-premium)
-      // If the bot suggested a regular photo previously and the user confirmed
-      const userSaidYesToRegularPhoto =
-        content.toLowerCase().includes("yes") ||
-        content.toLowerCase().includes("sure") ||
-        content.toLowerCase().includes("ok") ||
-        content.toLowerCase().includes("okay") ||
-        content.toLowerCase().includes("show") ||
-        content.toLowerCase().includes("send") ||
-        content.toLowerCase().includes("share") ||
-        content.toLowerCase().includes("photo") ||
-        content.toLowerCase().includes("haa") ||
-        content.toLowerCase().includes("picture");
-
-      // Track if we need to show a photo
-      let shouldShowPhoto = false;
-      let photoUrl = null;
-
-      // Find if the last bot message contained a photo prompt
-      const lastMessages = messages.slice(-3);
-      const botSuggestedPhoto = lastMessages.some(
-        (msg) =>
-          msg.role === "assistant" &&
-          (msg.content.includes("picture") ||
-            msg.content.includes("photo") ||
-            msg.content.toLowerCase().includes("dekho")),
-      );
-
-      // Handle regular (non-premium) photo requests
-      if (
-        botSuggestedPhoto &&
-        userSaidYesToRegularPhoto &&
-        !showPremiumPhotoNext
-      ) {
-        // User said yes to a regular photo offer, show a photo
-        const randomPhoto = getRandomPhoto(companionId);
-        if (randomPhoto) {
-          shouldShowPhoto = true;
-          photoUrl = randomPhoto.url;
-          setCurrentPhoto(randomPhoto.url);
-
-          // Send the photo description as a follow-up message
-          setTimeout(async () => {
-            try {
-              await apiRequest("POST", "/api/messages", {
-                content: randomPhoto.response,
-                language: currentLanguage,
-                companionId: companionId,
-              });
-
-              // Fetch the updated messages
-              await fetchMessages();
-
-              // We won't auto-show the dialog anymore
-              // User will need to click on the photo to see it in the premium dialog
-            } catch (error) {
-              console.error("Error sending photo response:", error);
-            }
-          }, 1500);
-        }
+      
+      // Reset rate limit flag if successful
+      setIsRateLimited(false);
+      
+      const data = await res.json();
+      if (data.botMessage) {
+        const botMessage = {
+          ...data.botMessage,
+          id: tempId - 1,
+          companionId,
+          timestamp: new Date(),
+        };
+        
+        setMessages((prev) => [...prev, botMessage]);
+        
+        // Save assistant message to Firebase
+        saveChatMessage(botMessage);
       }
-
-      // Save to both localStorage and Firebase
-      try {
-        // Save the full messages array to localStorage
-        await fetchMessages(); // Get the latest messages first
-        const localStorageKey = `messages_${companionId}`;
-
-        // Store in localStorage with proper error handling
-        try {
-          if (Array.isArray(messages)) {
-            localStorage.setItem(localStorageKey, JSON.stringify(messages));
-            console.log("Saved messages to localStorage:", messages.length);
-          } else {
-            console.error(
-              "Cannot save messages to localStorage: messages is not an array",
-              messages,
-            );
-          }
-        } catch (storageError) {
-          console.error("Error saving messages to localStorage:", storageError);
-          // Clear potentially corrupt data
-          localStorage.removeItem(localStorageKey);
-        }
-
-        // Store message count as well
-        localStorage.setItem(
-          `messageCount_${companionId}`,
-          potentialNewCount.toString(),
-        );
-        console.log(
-          "Updated message count in localStorage:",
-          potentialNewCount,
-        );
-
-        // Save to Firebase if user is authenticated
-        const authUser = localStorage.getItem("authUser");
-        if (authUser) {
-          try {
-            // Import Firebase functions dynamically to avoid circular dependencies
-            const { saveMessage, updateMessageCount } = await import(
-              "@/lib/firebase"
-            );
-
-            // Handle both formats of authUser storage (string email or JSON object)
-            let userId;
-            try {
-              // Try parsing as JSON first (for Firebase auth)
-              const parsed = JSON.parse(authUser);
-              userId = parsed.uid;
-              console.log("Using Firebase auth user ID:", userId);
-            } catch (e) {
-              // If not JSON, use the device ID for consistent tracking
-              // Get or create device ID from localStorage
-              let deviceId = localStorage.getItem('deviceId');
-              if (!deviceId) {
-                deviceId = `device-${new Date().getTime()}-${Math.random().toString(36).substring(2, 9)}`;
-                localStorage.setItem('deviceId', deviceId);
-              }
-              userId = deviceId;
-              console.log("Using device ID for tracking:", userId);
-            }
-
-            // Save user message to Firebase
-            await saveMessage(userId, companionId, {
-              content,
-              role: "user",
-              timestamp: new Date().toISOString(),
-            });
-            console.log("Saved user message to Firebase");
-
-            // Save assistant message to Firebase
-            if (data.botMessage) {
-              await saveMessage(userId, companionId, {
-                content: data.botMessage.content,
-                role: "assistant",
-                timestamp: new Date().toISOString(),
-              });
-              console.log("Saved assistant message to Firebase");
-            }
-
-            // Update message count in Firebase
-            await updateMessageCount(userId, companionId);
-            console.log("Updated message count in Firebase");
-          } catch (firebaseError) {
-            console.error("Error saving to Firebase:", firebaseError);
-          }
-        } else {
-          console.log("User not authenticated, skipping Firebase save");
-        }
-      } catch (storageError) {
-        console.error("Error saving to storage:", storageError);
-      }
-
-      // Hide typing indicator
+    } catch (error) {
+      console.error("[ChatContext] Error sending message:", error);
+      // Add an error message to the chat
+      const errorMsg: Message = {
+        id: tempId - 1,
+        content: "Sorry, I couldn't process your message. Please try again later.",
+        role: "assistant",
+        companionId,
+        timestamp: new Date(),
+        photoUrl: null,
+        isPremium: null,
+        contextInfo: null
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
       setIsTyping(false);
-
-      // Replace optimistic messages with actual data
-      await fetchMessages();
-
-      // Invalidate cache to refresh messages
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setIsTyping(false);
-
-      // Display the actual error message from the API
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-
-      toast({
-        title: "API Connection Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
     }
   };
 
+  // Improve the isAffirmative function to be more precise and handle more variations
+  const isAffirmative = (content: string): boolean => {
+    if (!content) return false;
+    
+    const lowerContent = content.toLowerCase().trim();
+    console.log(`[ChatContext] Checking if "${lowerContent}" is affirmative`);
+    
+    // Exact match for common affirmative words
+    const exactMatches = ["yes", "haa", "ha", "han", "haan", "dikhao", "dikha", "ok", "okay", "sure", "ji"];
+    if (exactMatches.includes(lowerContent)) {
+      console.log(`[ChatContext] Exact match found for "${lowerContent}"`);
+      return true;
+    }
+    
+    // Check for includes of common variations
+    if (lowerContent.includes("yes") || 
+        lowerContent.includes("haa") || 
+        lowerContent.includes("dikhao") || 
+        lowerContent.includes("show") || 
+        lowerContent.includes("dekh")) {
+      console.log(`[ChatContext] Contains affirmative keyword: "${lowerContent}"`);
+      return true;
+    }
+    
+    // More complex matches that require word boundaries
+    const complexMatches = [
+      /\byes\b/, /\bhaa+\b/, /\bha\b/, /\bhan\b/, /\bhaan\b/, 
+      /\bdikhao\b/, /\bdikha\b/, /\bok\b/, /\bokay\b/, /\bsure\b/
+    ];
+    
+    return complexMatches.some(pattern => pattern.test(lowerContent));
+  };
+
+  // Clear chat
   const clearChat = async () => {
-    try {
-      // Clear from server
-      await apiRequest("DELETE", "/api/messages");
-      setMessages([]);
-
-      // Also clear from localStorage
-      try {
-        const companionId = stableGetCompanionId();
-        localStorage.removeItem(`messages_${companionId}`);
-        localStorage.setItem(`messageCount_${companionId}`, "0");
-        setMessageCount(0);
-        console.log("Cleared chat and reset message count to 0");
-      } catch (localError) {
-        console.error("Error clearing localStorage:", localError);
-      }
-
-      // Only show toast when manually clearing (not during navigation)
+    // Clear messages from API
+    await apiRequest("DELETE", "/api/messages");
+    
+    // Clear messages from local state
+    setMessages([]);
+    
+    // If not authenticated, reset message count to 0
+    // For authenticated users, we'll keep the count in localStorage
+    // so they can continue where they left off
+    if (!isAuthenticated()) {
+      setMessageCount(0);
+      localStorage.setItem(`messageCount_${companionId}`, "0");
+      console.log("[ChatContext] Cleared chat and reset message count for non-authenticated user");
+    } else {
+      console.log("[ChatContext] Cleared chat for authenticated user - message count preserved");
       toast({
-        title: "Success",
-        description: "Chat history cleared",
-        duration: 2000, // Reduce the display time to 2 seconds
-      });
-    } catch (error) {
-      console.error("Error clearing chat:", error);
-      toast({
-        title: "Error",
-        description: "Failed to clear chat. Please try again.",
-        variant: "destructive",
+        title: "Chat cleared",
+        description: "Your conversation has been cleared from this device, but will be restored next time.",
+        duration: 3000,
       });
     }
   };
 
-  const toggleLanguage = () => {
-    setCurrentLanguage((prev) => (prev === "hindi" ? "english" : "hindi"));
-  };
+  // Language toggle
+  const toggleLanguage = () => setCurrentLanguage(l => l === "hindi" ? "english" : "hindi");
+
+  // Payment dialog logic (UI should call setShowPaymentDialog(true) on photo click)
 
   return (
     <ChatContext.Provider
@@ -775,15 +794,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         messageCount,
         showProfileDialog,
         showAuthDialog,
-        showPhotoDialog,
+        showPremiumTease,
+        showPremiumPhoto,
+        showPaymentDialog,
         currentPhoto,
         setShowProfileDialog,
         setShowAuthDialog,
-        setShowPhotoDialog,
+        setShowPremiumTease,
+        setShowPremiumPhoto,
+        setShowPaymentDialog,
         setCurrentPhoto,
         sendMessage,
         clearChat,
         toggleLanguage,
+        userProfile,
+        setUserProfile,
       }}
     >
       {children}

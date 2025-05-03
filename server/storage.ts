@@ -16,13 +16,11 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private messages: Map<number, Message>;
   private conversations: Map<number, Conversation>;
-  private currentId: number;
   private currentConvId: number;
 
   constructor() {
     this.messages = new Map();
     this.conversations = new Map();
-    this.currentId = 1;
     this.currentConvId = 1;
     
     // Create initial conversation
@@ -50,7 +48,12 @@ export class MemStorage implements IStorage {
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const id = this.currentId++;
+    // Generate a unique ID using timestamp and a random number
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    // Use a more reliable ID generation that ensures positive numbers
+    const id = Math.abs((timestamp % 1000000) * 1000 + random);
+    
     const now = new Date();
     
     // Ensure companionId is always at least null, not undefined

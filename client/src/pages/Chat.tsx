@@ -5,10 +5,13 @@ import { ChatInput } from '@/components/ChatInput';
 import { UserProfileDialog } from '@/components/UserProfileDialog';
 import { AuthDialog } from '@/components/AuthDialog';
 import { ProfileDialog } from '@/components/ProfileDialog';
-import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
 import { VoiceChatFixed } from '@/components/VoiceChatFixed';
 import { useChat } from '@/context/ChatContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DevToolsResetButton } from '@/components/DevToolsResetButton';
+import { PaymentDialog } from '@/components/PaymentDialog';
+import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Chat() {
   const { 
@@ -17,12 +20,15 @@ export default function Chat() {
     setShowProfileDialog, 
     showAuthDialog, 
     setShowAuthDialog,
-    showPhotoDialog,
-    setShowPhotoDialog,
+    showPremiumPhoto,
+    setShowPremiumPhoto,
+    showPaymentDialog,
+    setShowPaymentDialog,
     currentPhoto
   } = useChat();
   
   const [showAppProfileDialog, setShowAppProfileDialog] = useState(false);
+  const { toast } = useToast();
 
   const handleProfileComplete = () => {
     // Close the profile dialog
@@ -36,13 +42,22 @@ export default function Chat() {
     // Update authentication status and close dialog
     setShowAuthDialog(false);
     
-    // Force a message reload to ensure we have the latest data
-    window.location.reload();
+    // Don't reload the page as it would reset the chat
+    // Instead, update the UI to reflect the authenticated state
+    toast({
+      title: "Successfully signed in",
+      description: "You now have full access to continue your conversation",
+      duration: 3000,
+    });
+    
+    console.log("[Chat] Auth completed, continuing conversation without reload");
   };
 
   return (
     <div className="flex flex-col h-screen max-h-screen overflow-hidden chat-page">
       <Header />
+      {/* DevTools: Reset Button for testing first-message flow */}
+      <DevToolsResetButton />
       
       <Tabs defaultValue="text" className="flex-1 flex flex-col">
         <TabsList className="grid w-full grid-cols-2 bg-white border-b shrink-0">
@@ -123,10 +138,16 @@ export default function Chat() {
         onOpenChange={setShowAppProfileDialog}
       />
       
+      {/* Payment Dialog for Premium Photos */}
+      <PaymentDialog
+        open={showPaymentDialog}
+        onOpenChange={setShowPaymentDialog}
+      />
+      
       {/* Premium Photo Dialog */}
       <PremiumPhotoDialog
-        open={showPhotoDialog}
-        onOpenChange={setShowPhotoDialog}
+        open={showPremiumPhoto}
+        onOpenChange={setShowPremiumPhoto}
         companionName={botName}
         blurredImageUrl={currentPhoto || '/images/companions/priya1.jpg'}
       />

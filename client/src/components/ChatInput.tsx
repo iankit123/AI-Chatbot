@@ -3,17 +3,17 @@ import { useChat } from '@/context/ChatContext';
 
 export function ChatInput() {
   const [message, setMessage] = useState('');
-  const { sendMessage, clearChat, currentLanguage } = useChat();
+  const { sendMessage, clearChat, currentLanguage, showAuthDialog } = useChat();
 
   const handleSend = async () => {
-    if (message.trim()) {
+    if (message.trim() && !showAuthDialog) {
       await sendMessage(message);
       setMessage('');
     }
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !showAuthDialog) {
       handleSend();
     }
   };
@@ -24,6 +24,7 @@ export function ChatInput() {
         <button 
           className="p-1.5 text-neutral-700 rounded-full hover:bg-neutral-100" 
           aria-label="Add emoji"
+          disabled={showAuthDialog}
         >
           <span className="material-icons text-sm">sentiment_satisfied_alt</span>
         </button>
@@ -36,6 +37,7 @@ export function ChatInput() {
             onKeyUp={handleKeyPress}
             className="w-full px-4 py-2 bg-transparent text-neutral-900 outline-none" 
             placeholder={currentLanguage === 'hindi' ? "Apna message yahan likho..." : "Type your message here..."}
+            disabled={showAuthDialog}
           />
         </div>
         
@@ -43,6 +45,7 @@ export function ChatInput() {
           onClick={handleSend}
           className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors"
           aria-label="Send message"
+          disabled={showAuthDialog}
         >
           <span className="material-icons text-sm">send</span>
         </button>
@@ -54,6 +57,7 @@ export function ChatInput() {
           <button 
             className="underline whitespace-nowrap"
             onClick={clearChat}
+            disabled={showAuthDialog}
           >
             {currentLanguage === 'hindi' ? 'Chat saaf karo' : 'Clear chat'}
           </button>

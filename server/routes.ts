@@ -23,6 +23,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Send a message
   app.post('/api/messages', async (req, res) => {
+    // Log the full request body for every message
+    console.log('POST /api/messages req.body:', JSON.stringify(req.body));
     try {
       // Validate request body with extended schema for premium photos
       const messageSchema = z.object({
@@ -32,10 +34,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Optional photo fields for premium messages
         photoUrl: z.string().optional(),
         isPremium: z.boolean().optional(),
-        skipUserMessage: z.boolean().optional()
+        skipUserMessage: z.boolean().optional(),
+        role: z.enum(['user', 'assistant']).optional(), // Add role to schema
+        messageCount: z.number().optional(), // Add message count to schema
+        isAuthenticated: z.boolean().optional() // Add auth state to schema
       });
       
       const validatedData = messageSchema.parse(req.body);
+      
+      // Get user profile if available
+      let userName = '';
+      const guestProfile = req.cookies?.guestProfile;
+      if (guestProfile) {
+        try {
+          const profile = JSON.parse(guestProfile);
+          userName = profile.name || '';
+        } catch (e) {
+          console.error('Error parsing user profile from cookie:', e);
+        }
+      }
+      // Check for premium photo offer BEFORE attempting LLM call
+      const messageCount = validatedData.messageCount || 0;
+      const isAuthenticated = validatedData.isAuthenticated || false;
+      console.log('=== Premium Photo Check Debug ===');
+      console.log('From req.body:', {
+        messageCount: validatedData.messageCount,
+        isAuthenticated: validatedData.isAuthenticated
+      });
+      console.log('Used for check:', {
+        messageCount,
+        isAuthenticated,
+        meetsCriteria: isAuthenticated && messageCount >= 3 && messageCount % 4 === 0,
+        modulo: messageCount % 4
+      });
+      
+      if (isAuthenticated && messageCount >= 3 && messageCount % 4 === 0) {
+        console.log('Premium photo offer triggered!');
+        // This is a premium photo offer message
+        const photoOfferMessage = `${userName ? userName + ", " : ""}Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?`;
+        
+        console.log('Sending photo offer:', photoOfferMessage);
+        
+        // Save the premium photo offer message
+        const botMessage = await storage.createMessage({
+          content: photoOfferMessage,
+          role: 'assistant',
+          companionId: validatedData.companionId,
+          isPremium: true
+        });
+        
+        console.log('Photo offer message saved:', botMessage);
+        
+        // Only create a user message if not explicitly skipped
+        let userMessage;
+        if (!validatedData.skipUserMessage) {
+          userMessage = await storage.createMessage({
+            content: validatedData.content,
+            role: 'user',
+            companionId: validatedData.companionId,
+            photoUrl: validatedData.photoUrl,
+            isPremium: validatedData.isPremium
+          });
+        }
+        // Return both messages
+        return res.status(201).json({ userMessage, botMessage });
+      }
       
       // Check if this is a photo message (premium or regular)
       const isPhotoMessage = !!validatedData.photoUrl;
@@ -59,13 +122,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // For premium photos, we directly create the bot response with the photo
         const botMessage = await storage.createMessage({
           content: validatedData.content,
-          role: 'assistant',
+          role: validatedData.role || 'assistant', // Use provided role or default to assistant
           companionId: validatedData.companionId,
           photoUrl: validatedData.photoUrl,
           isPremium: validatedData.isPremium
         });
         
         // Return both messages
+        return res.status(201).json({ userMessage, botMessage });
+      }
+      
+      // If a role is explicitly provided and it's 'assistant', create the message directly
+      if (validatedData.role === 'assistant') {
+        const botMessage = await storage.createMessage({
+          content: validatedData.content,
+          role: 'assistant',
+          companionId: validatedData.companionId,
+          photoUrl: validatedData.photoUrl,
+          isPremium: validatedData.isPremium
+        });
+        
         return res.status(201).json({ userMessage, botMessage });
       }
       
@@ -77,45 +153,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         msg => !msg.companionId || msg.companionId === validatedData.companionId
       );
       
-      const conversationHistory = companionMessages.map(msg => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content
-      }));
-      
-      // Get user profile if available
-      let userName = '';
-      const guestProfile = req.cookies?.guestProfile;
-      if (guestProfile) {
-        try {
-          const profile = JSON.parse(guestProfile);
-          userName = profile.name || '';
-        } catch (e) {
-          console.error('Error parsing user profile from cookie:', e);
-        }
-      }
-      
-      // Generate AI response with additional context
-      const responseContent = await generateResponse(
-        validatedData.content,
-        conversationHistory,
-        validatedData.language,
-        { 
+      // Normal message flow (non-photo message)
+      try {
+        const conversationHistory = companionMessages.map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        }));
+        
+        // Generate AI response with additional context
+        const responseContent = await generateResponse(
+          validatedData.content,
+          conversationHistory,
+          validatedData.language,
+          { 
+            companionId: validatedData.companionId,
+            userName
+          }
+        );
+        
+        // Save the AI response with companion ID
+        const botMessage = await storage.createMessage({
+          content: responseContent,
+          role: 'assistant',
           companionId: validatedData.companionId,
-          userName
+          photoUrl: validatedData.photoUrl,
+          isPremium: validatedData.isPremium
+        });
+        
+        // Return both messages
+        res.status(201).json({ userMessage, botMessage });
+      } catch (error) {
+        console.error('Error in message processing:', error);
+        
+        // If it's a rate limit error, send a friendly message
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage.toLowerCase().includes('rate limit')) {
+          const botMessage = await storage.createMessage({
+            content: "I'm getting too many messages right now. Can you please wait a moment and try again?",
+            role: 'assistant',
+            companionId: validatedData.companionId
+          });
+          return res.status(201).json({ userMessage, botMessage });
         }
-      );
-      
-      // Save the AI response with companion ID
-      const botMessage = await storage.createMessage({
-        content: responseContent,
-        role: 'assistant',
-        companionId: validatedData.companionId,
-        photoUrl: validatedData.photoUrl,
-        isPremium: validatedData.isPremium
-      });
-      
-      // Return both messages
-      res.status(201).json({ userMessage, botMessage });
+        
+        // For other errors, throw to be caught by outer catch block
+        throw error;
+      }
     } catch (error) {
       console.error('Error creating message:', error);
       
