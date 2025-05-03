@@ -63,18 +63,23 @@ export class MemStorage implements IStorage {
     const photoUrl = insertMessage.photoUrl || null;
     const isPremium = insertMessage.isPremium || null;
     
+    // Ensure contextInfo is always a string or null, not undefined
+    const contextInfo = insertMessage.contextInfo || null;
+    
     // Log premium photo message creation
     if (photoUrl && isPremium) {
       console.log(`Creating premium photo message with URL: ${photoUrl}`);
     }
     
     const message: Message = { 
-      ...insertMessage, 
-      companionId,
       id, 
+      content: insertMessage.content,
+      role: insertMessage.role,
       timestamp: now,
+      companionId,
       photoUrl,
-      isPremium
+      isPremium,
+      contextInfo
     };
     
     this.messages.set(id, message);
