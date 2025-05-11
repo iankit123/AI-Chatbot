@@ -7,8 +7,9 @@
     "node": "18.x"
   },
   "scripts": {
+    "prebuild": "echo 'Node version:' && node -v && npm -v && npm ls @vitejs/plugin-react || true && ls -l node_modules/@vitejs/plugin-react || true",
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && tsc",
+    "build": "npm run prebuild && vite build && tsc",
     "start": "NODE_ENV=production node dist/server/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push"
@@ -100,8 +101,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.13",
-    "@vercel/node": "^5.1.15",
-    "@vitejs/plugin-react": "^4.4.1",
+    "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
