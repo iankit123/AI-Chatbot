@@ -13,8 +13,8 @@ function getApiBaseUrl() {
   if (import.meta.env.PROD) {
     return '';
   }
-  // In development, use the local server
-  return 'http://localhost:5000';
+  // In development, the Vite proxy handles requests, so use a relative path
+  return '';
 }
 
 export async function apiRequest(
@@ -26,16 +26,62 @@ export async function apiRequest(
   const fullUrl = `${getApiBaseUrl()}${url}`;
 
   console.log(`[apiRequest] ${method} ${fullUrl}`);
+  if (data) {
+    console.log('[apiRequest] Request data:', JSON.stringify(data, null, 2));
+  }
   
-  const res = await fetch(fullUrl, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+  try {
+    // Initialize headers with proper type
+    const headers: Record<string, string> = {
+      'Accept': 'application/json'
+    };
+    
+    // Add Content-Type header only if there's data
+    if (data) {
+      headers['Content-Type'] = 'application/json';
+    }
 
-  await throwIfResNotOk(res);
-  return res;
+    const res = await fetch(fullUrl, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: 'include',
+      mode: 'cors',
+      cache: 'no-cache',
+    });
+
+    console.log(`[apiRequest] Response status: ${res.status} ${res.statusText}`);
+    
+    // Log response headers for debugging
+    const responseHeaders: Record<string, string> = {};
+    res.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    console.log('[apiRequest] Response headers:', JSON.stringify(responseHeaders, null, 2));
+    
+    // Clone the response so we can read it multiple times if needed
+    const responseClone = res.clone();
+    
+    try {
+      // Try to parse the response as JSON for better error messages
+      const responseData = await responseClone.json();
+      console.log('[apiRequest] Response data:', JSON.stringify(responseData, null, 2));
+    } catch (e) {
+      // If it's not JSON, log as text
+      const text = await responseClone.text();
+      console.log('[apiRequest] Response text:', text);
+    }
+    
+    await throwIfResNotOk(res);
+    return res;
+  } catch (error) {
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      console.error('[apiRequest] Network Error: Failed to fetch. This is often a CORS issue. Check the server logs for preflight request details.');
+    } else {
+      console.error('[apiRequest] Error making request:', error);
+    }
+    throw error;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

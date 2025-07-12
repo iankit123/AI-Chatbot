@@ -23,8 +23,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Send a message
   app.post('/api/messages', async (req, res) => {
-    // Log the full request body for every message
-    console.log('POST /api/messages req.body:', JSON.stringify(req.body));
+    // Log detailed request information
+    console.log('=== INCOMING REQUEST ===');
+    console.log('Method:', req.method);
+    console.log('URL:', req.originalUrl);
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    console.log('Query:', JSON.stringify(req.query, null, 2));
+    console.log('Params:', JSON.stringify(req.params, null, 2));
+    console.log('========================');
     try {
       // Validate request body with extended schema for premium photos
       const messageSchema = z.object({

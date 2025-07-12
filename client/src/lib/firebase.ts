@@ -1,6 +1,22 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, browserSessionPersistence, setPersistence } from "firebase/auth";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  browserSessionPersistence, 
+  setPersistence,
+  fetchSignInMethodsForEmail,
+  User as FirebaseUser,
+  UserCredential,
+  User
+} from "firebase/auth";
 import { getDatabase, ref, set, get, onValue, push, child, update } from "firebase/database";
+
+// Re-export the Firebase User type for use in other files
+export type { FirebaseUser };
 
 // Firebase configuration from your Firebase project
 const firebaseConfig = {
@@ -69,8 +85,19 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export const createUser = async (email: string, password: string) => {
+export const createUser = async (email: string, password: string): Promise<FirebaseUser> => {
   try {
+    // First check if the user already exists
+    const methods = await fetchSignInMethodsForEmail(auth, email);
+    if (methods && methods.length > 0) {
+      // User already exists, sign them in instead
+      console.log('User already exists, signing in instead');
+      // Sign in existing user and return the user object
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      return userCredential.user;
+    }
+
+    // Create new user
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     
     // Save user registration data in Firebase database
@@ -80,7 +107,8 @@ export const createUser = async (email: string, password: string) => {
       email: email,
       createdAt: new Date().toISOString(),
       accountType: 'email_password',
-      lastLogin: new Date().toISOString()
+      lastLogin: new Date().toISOString(),
+      name: email.split('@')[0] // Set a default name from email
     });
     
     // Also track this signup as an activation request
@@ -94,9 +122,21 @@ export const createUser = async (email: string, password: string) => {
     
     console.log('User created and saved to Firebase database');
     return userCredential.user;
-  } catch (error) {
-    console.error("Error creating user: ", error);
-    throw error;
+  } catch (error: any) {
+    console.error("Error in createUser: ", error);
+    
+    // More specific error handling
+    let errorMessage = 'An error occurred while creating your account.';
+    
+    if (error.code === 'auth/email-already-in-use') {
+      errorMessage = 'This email is already registered. Please sign in instead.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = 'The email address is not valid.';
+    } else if (error.code === 'auth/weak-password') {
+      errorMessage = 'The password is too weak. Please choose a stronger password.';
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 
@@ -104,26 +144,34 @@ export const signIn = async (email: string, password: string) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
-    // Update last login timestamp
+    // Update last login time
     const userId = userCredential.user.uid;
     const userRef = ref(database, `users/${userId}`);
     
-    // Get current user data
-    const snapshot = await get(userRef);
-    let userData = {};
-    
-    if (snapshot.exists()) {
-      userData = snapshot.val();
+    // Check if user profile exists, create one if not
+    const userSnapshot = await get(userRef);
+    if (!userSnapshot.exists()) {
+      await set(userRef, {
+        email: email,
+        name: email.split('@')[0],
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      });
+    } else {
+      await update(userRef, {
+        lastLogin: new Date().toISOString()
+      });
     }
     
-    // Update with lastLogin timestamp
-    await update(userRef, {
-      ...userData,
-      lastLogin: new Date().toISOString(),
-      email: email // Ensure email is always up to date
+    // Log this login
+    const loginRef = ref(database, `users/${userId}/logins`);
+    const newLoginRef = push(loginRef);
+    await set(newLoginRef, {
+      timestamp: new Date().toISOString(),
+      method: 'email_password'
     });
     
-    // Add login event to activation requests
+    // Add this login to activation events
     const activationRef = ref(database, `users/${userId}/activationRequests`);
     const newRequestRef = push(activationRef);
     await set(newRequestRef, {
