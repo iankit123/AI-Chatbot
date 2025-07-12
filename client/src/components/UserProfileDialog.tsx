@@ -63,7 +63,11 @@ export function UserProfileDialog({
     try {
       // If user is logged in, save to Firebase
       if (currentUser) {
-        await updateProfile({ name, age: ageNum });
+        if (!currentUser.email) {
+          setError('Your email is not available, cannot save profile.');
+          return;
+        }
+        await updateProfile({ name, age: ageNum, email: currentUser.email });
       } else {
         // For guest users, just save to localStorage
         localStorage.setItem('guestProfile', JSON.stringify({ name, age: ageNum }));
