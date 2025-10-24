@@ -71,11 +71,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Used for check:', {
         messageCount,
         isAuthenticated,
-        meetsCriteria: isAuthenticated && messageCount >= 3 && messageCount % 4 === 0,
-        modulo: messageCount % 4
+        meetsCriteria: isAuthenticated && messageCount >= 10 && messageCount % 10 === 0,
+        modulo: messageCount % 10
       });
       
-      if (isAuthenticated && messageCount >= 3 && messageCount % 4 === 0) {
+      if (isAuthenticated && messageCount >= 10 && messageCount % 10 === 0) {
         console.log('Premium photo offer triggered!');
         // This is a premium photo offer message
         const photoOfferMessage = `${userName ? userName + ", " : ""}Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?`;

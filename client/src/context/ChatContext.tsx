@@ -419,12 +419,12 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         }
       });
 
-      // 5. Premium offers on every 4th message (0, 4, 8, 12, etc.) for authenticated users
-      const shouldOfferPremium = isAuthenticated() && (messageCount % 4 === 0) && messageCount > 0;
+      // 5. Premium offers on every 10th message (10, 20, 30, etc.) for authenticated users
+      const shouldOfferPremium = isAuthenticated() && (messageCount % 10 === 0) && messageCount >= 10;
       console.log("[ChatContext] Premium offer check:", { 
         isAuthenticated: isAuthenticated(),
         messageCount,
-        remainder: messageCount % 4,
+        remainder: messageCount % 10,
         shouldOfferPremium,
         premiumOfferMade: premiumOfferMadeRef.current 
       });
@@ -569,6 +569,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const handleSend = async (content: string) => {
     console.log("[ChatContext] handleSend called", { content });
     setIsTyping(true);
+    
+    // Track when typing started for minimum display duration
+    const typingStartTime = Date.now();
+    const MIN_TYPING_DURATION = 2000; // Minimum 1.5 seconds to show typing
     
     // Track message timestamps for rate limiting
     const now = Date.now();
@@ -715,7 +719,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
-      setIsTyping(false);
+      // Ensure typing indicator is visible for minimum duration
+      const elapsedTime = Date.now() - typingStartTime;
+      const remainingTime = Math.max(0, MIN_TYPING_DURATION - elapsedTime);
+      
+      if (remainingTime > 0) {
+        setTimeout(() => {
+          setIsTyping(false);
+        }, remainingTime);
+      } else {
+        setIsTyping(false);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
     }
   };

@@ -56,8 +56,19 @@ export async function generateResponse(
     // Create system message with natural Hinglish instruction and first-person emphasis
     const languageInstruction =
       language === "hindi"
-        ? "IMPORTANT: Respond as if you are a Female, and chatting with a Man. Respond with AT LEAST 95% Hindi content written in Roman script (English letters). LIMIT English to only 5% of your response for words that Indians commonly use in English. For example: 'Aaj main office ja rahi thi aur mujhe traffic mein 2 hours waste karne pade.' Notice how only a few English words are used, but most of the sentence is Hindi in Roman script. NEVER write full sentences in English except for very common phrases. Use casual, everyday Hindi as spoken, not formal Hindi."
-        : "Respond as if you are a Female, and chatting with a Man. Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal?";
+        ? `CRITICAL HINDI GRAMMAR RULES:
+- Use correct verb conjugations: "tum kaise ho" (NOT "tumne kaise ho"), "tum kya kar rahe ho" (NOT "tumne kya kar rahe ho")
+- For "you" (tum): Use "tum" with "ho" (are), "kar rahe ho" (doing), "ja rahe ho" (going)
+- NEVER use "tumne" with present tense verbs like "ho" - "tumne" is only for past tense
+- Correct examples: "Tum kaise ho?", "Tum kya kar rahe ho?", "Tum mujhe dekh sakte ho"
+- Wrong examples: "Tumne kaise ho?", "Tumne kya kar rahe ho", "Tumne mujhe dekh sakte ho"
+- Use "main" (I) with "hun" (am), "thi" (was), "ja rahi hun" (going)
+- Use "tum" (you) with "ho" (are), "the" (were), "kar rahe ho" (doing)
+
+RESPONSE LENGTH: Keep responses SHORT and CONCISE. Maximum 2-3 sentences or 20-30 words. Be brief and to the point like texting.
+
+Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Roman script. Only 5% English for common words like "office", "traffic", "hours". Use casual everyday Hindi grammar as spoken by young Indians.`
+        : "Respond as if you are a Female, and chatting with a Man. Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal? Keep responses SHORT - maximum 2-3 sentences.";
 
     // ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself.
 
@@ -103,10 +114,10 @@ export async function generateResponse(
 
     // Prepare the request body
     const requestBody: ChatCompletionRequest = {
-      model: "llama3-8b-8192", // Using Llama 3 8B model (more stable)
+      model: "llama-3.3-70b-versatile", // More capable model for better Hindi grammar
       messages,
-      temperature: 0.7, // Balanced creativity and consistency
-      max_tokens: 500, // Reasonable response length
+      temperature: 0.6, // Slightly lower for more focused, concise responses
+      max_tokens: 150, // SHORT responses - 25-30% of original length
     };
 
     // Make request to Groq API
