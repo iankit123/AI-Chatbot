@@ -98,6 +98,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const lastProcessedMessageRef = useRef<string>("");
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Store bot message to add after typing indicator disappears
+  const botMessageToAddRef = useRef<Message | null>(null);
+  
   // Bot info from localStorage
   const [botName, setBotName] = useState(() => {
     try {
@@ -568,11 +571,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Helper: send message to server and update UI
   const handleSend = async (content: string) => {
     console.log("[ChatContext] handleSend called", { content });
+    console.log("[ChatContext] Setting typing indicator to TRUE");
     setIsTyping(true);
     
     // Track when typing started for minimum display duration
     const typingStartTime = Date.now();
-    const MIN_TYPING_DURATION = 2000; // Minimum 1.5 seconds to show typing
+    const MIN_TYPING_DURATION = 6000; // Minimum 2 seconds to show typing
+    console.log("[ChatContext] Typing started at:", new Date(typingStartTime).toISOString());
     
     // Track message timestamps for rate limiting
     const now = Date.now();
@@ -604,6 +609,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Auto-reset rate limit after 30 seconds
       setTimeout(() => setIsRateLimited(false), 30000);
       setIsTyping(false);
+      botMessageToAddRef.current = null; // Clear any pending message
+      console.log("[ChatContext] Rate limited - cleared pending message and stopped typing");
       return;
     }
 
@@ -681,6 +688,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           
           console.log("[ChatContext] Rate limit hit, cooling down for 15 seconds");
           setIsTyping(false);
+          botMessageToAddRef.current = null; // Clear any pending message
           return;
         }
         
@@ -691,6 +699,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       setIsRateLimited(false);
       
       const data = await res.json();
+      console.log("[ChatContext] Received bot response from API");
       if (data.botMessage) {
         const botMessage = {
           ...data.botMessage,
@@ -699,14 +708,16 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           timestamp: new Date(),
         };
         
-        setMessages((prev) => [...prev, botMessage]);
-
-            // Save assistant message to Firebase
+        // Store bot message to add after typing indicator disappears
+        botMessageToAddRef.current = botMessage;
+        console.log("[ChatContext] Bot message stored in ref, will add after typing completes");
+        
+        // Save assistant message to Firebase
         saveChatMessage(botMessage);
       }
     } catch (error) {
       console.error("[ChatContext] Error sending message:", error);
-      // Add an error message to the chat
+      // Store error message to add after typing indicator disappears
       const errorMsg: Message = {
         id: tempId - 1,
         content: "Sorry, I couldn't process your message. Please try again later.",
@@ -717,18 +728,45 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         isPremium: null,
         contextInfo: null
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      botMessageToAddRef.current = errorMsg;
+      console.log("[ChatContext] Error message stored in ref, will add after typing completes");
     } finally {
       // Ensure typing indicator is visible for minimum duration
       const elapsedTime = Date.now() - typingStartTime;
       const remainingTime = Math.max(0, MIN_TYPING_DURATION - elapsedTime);
       
+      console.log("[ChatContext] Finally block - elapsed:", elapsedTime, "ms, remaining:", remainingTime, "ms");
+      console.log("[ChatContext] Has pending message:", !!botMessageToAddRef.current);
+      
       if (remainingTime > 0) {
+        console.log("[ChatContext] Waiting", remainingTime, "ms before hiding typing and showing message");
         setTimeout(() => {
+          console.log("[ChatContext] Timeout complete - hiding typing indicator");
           setIsTyping(false);
+          
+          // Add the bot message AFTER typing indicator disappears
+          if (botMessageToAddRef.current) {
+            const messageToAdd = botMessageToAddRef.current;
+            console.log("[ChatContext] Adding bot message NOW:", messageToAdd.content.substring(0, 50));
+            botMessageToAddRef.current = null; // Clear ref first
+            setMessages((prev) => [...prev, messageToAdd]); // Then add the captured message
+          } else {
+            console.log("[ChatContext] No message to add");
+          }
         }, remainingTime);
       } else {
+        console.log("[ChatContext] No wait needed - hiding typing and showing message immediately");
         setIsTyping(false);
+        
+        // Add the bot message immediately if typing time has already passed
+        if (botMessageToAddRef.current) {
+          const messageToAdd = botMessageToAddRef.current;
+          console.log("[ChatContext] Adding bot message NOW (immediate):", messageToAdd.content.substring(0, 50));
+          botMessageToAddRef.current = null; // Clear ref first
+          setMessages((prev) => [...prev, messageToAdd]); // Then add the captured message
+        } else {
+          console.log("[ChatContext] No message to add");
+        }
       }
       
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
