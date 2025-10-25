@@ -43,8 +43,15 @@ export const googleProvider = new GoogleAuthProvider();
 // Authentication functions
 export const signInWithGoogle = async () => {
   try {
+    console.log("[Firebase] Starting Google sign-in...");
+    console.log("[Firebase] Current domain:", window.location.hostname);
+    console.log("[Firebase] Auth domain:", firebaseConfig.authDomain);
+    console.log("[Firebase] API Key present:", !!firebaseConfig.apiKey);
+    
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
+    
+    console.log("[Firebase] Google sign-in successful, user ID:", user.uid);
     
     // Save or update user information in Firebase database
     const userId = user.uid;
@@ -77,10 +84,27 @@ export const signInWithGoogle = async () => {
       source: 'google_login'
     });
     
-    console.log("Google user login data saved to Firebase:", userId);
+    console.log("[Firebase] Google user login data saved to Firebase:", userId);
     return user;
-  } catch (error) {
-    console.error("Error signing in with Google: ", error);
+  } catch (error: any) {
+    console.error("[Firebase] Error signing in with Google");
+    console.error("[Firebase] Error details:", {
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+      domain: window.location.hostname,
+      authDomain: firebaseConfig.authDomain
+    });
+    
+    // Log specific error information
+    if (error?.code === 'auth/unauthorized-domain') {
+      console.error("[Firebase] UNAUTHORIZED DOMAIN ERROR");
+      console.error("[Firebase] Current domain:", window.location.hostname);
+      console.error("[Firebase] This domain must be added to:");
+      console.error("  1. Firebase Console -> Authentication -> Settings -> Authorized domains");
+      console.error("  2. Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs");
+    }
+    
     throw error;
   }
 };

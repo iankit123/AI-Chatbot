@@ -212,13 +212,20 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   };
   
   const handleGoogleSignIn = async () => {
+    console.log("[AuthDialog] handleGoogleSignIn called");
+    console.log("[AuthDialog] Current location:", window.location.href);
+    console.log("[AuthDialog] Hostname:", window.location.hostname);
+    
     try {
       setLoading(true);
       setError('');
       
       try {
+        console.log("[AuthDialog] Attempting Firebase Google sign-in...");
         // Try Firebase Google sign in
         const user = await signInWithGoogle();
+        
+        console.log("[AuthDialog] Firebase sign-in successful, user:", user.uid);
         
         // Save user to localStorage for easy access
         localStorage.setItem('authUser', JSON.stringify({
@@ -236,16 +243,19 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
           localStorage.setItem('guestProfile', JSON.stringify(profile));
         }
         
-        console.log("Successfully authenticated with Google via Firebase:", user.uid);
+        console.log("[AuthDialog] Successfully authenticated with Google via Firebase:", user.uid);
         
         toast({
           title: "Successfully signed in",
           description: "Welcome! You now have unlimited access."
         });
-      } catch (firebaseError) {
+      } catch (firebaseError: any) {
         // Format error message for display
         const errorMsg = formatFirebaseError(firebaseError);
-        console.warn("Firebase Google sign-in failed:", errorMsg);
+        console.error("[AuthDialog] Firebase Google sign-in failed");
+        console.error("[AuthDialog] Error code:", firebaseError?.code);
+        console.error("[AuthDialog] Error message:", firebaseError?.message);
+        console.error("[AuthDialog] Full error:", firebaseError);
         
         // For configuration errors, we use fallback but show a specific message
         if (firebaseError instanceof FirebaseError && 
@@ -253,6 +263,8 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
              firebaseError.code === 'auth/popup-blocked' ||
              firebaseError.code === 'auth/cancelled-popup-request' ||
              firebaseError.code === 'auth/popup-closed-by-user')) {
+          
+          console.log("[AuthDialog] Using fallback offline mode");
           
           toast({
             title: "Using offline mode",
@@ -268,13 +280,16 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
           });
         } else {
           // For other errors, display them to the user and don't use fallback
+          console.error("[AuthDialog] Not using fallback, error:", errorMsg);
           setError(errorMsg);
           throw new Error(errorMsg);
         }
       }
       
+      console.log("[AuthDialog] Calling onAuthComplete");
       onAuthComplete();
     } catch (err) {
+      console.error("[AuthDialog] Sign-in failed:", err);
       const errorMessage = err instanceof Error ? err.message : 'Sign in failed';
       setError(errorMessage);
       
