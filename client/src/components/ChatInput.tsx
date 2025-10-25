@@ -7,8 +7,9 @@ export function ChatInput() {
 
   const handleSend = async () => {
     if (message.trim() && !showAuthDialog) {
-      await sendMessage(message);
-      setMessage('');
+      const trimmedMessage = message.trim();
+      setMessage(''); // Clear input immediately
+      await sendMessage(trimmedMessage);
     }
   };
 
