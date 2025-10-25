@@ -700,20 +700,40 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       
       const data = await res.json();
       console.log("[ChatContext] Received bot response from API");
+      
+      // Handle both response formats: {botMessage: {...}} and {content: "..."}
+      let botMessage;
       if (data.botMessage) {
-        const botMessage = {
+        // Local API format
+        botMessage = {
           ...data.botMessage,
           id: tempId - 1,
           companionId,
           timestamp: new Date(),
         };
-        
+      } else if (data.content) {
+        // Deployed API format
+        botMessage = {
+          id: tempId - 1,
+          content: data.content,
+          role: "assistant",
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: null
+        };
+      }
+      
+      if (botMessage) {
         // Store bot message to add after typing indicator disappears
         botMessageToAddRef.current = botMessage;
         console.log("[ChatContext] Bot message stored in ref, will add after typing completes");
         
         // Save assistant message to Firebase
         saveChatMessage(botMessage);
+      } else {
+        console.log("[ChatContext] No bot message found in response:", data);
       }
     } catch (error) {
       console.error("[ChatContext] Error sending message:", error);
