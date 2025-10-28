@@ -450,9 +450,67 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       const isUserAskingForPhoto = isAskingForPhoto(trimmedContent);
       console.log("[ChatContext] Is user asking for photo:", { content: trimmedContent, isUserAskingForPhoto });
   
-      // 6. Detect affirmative response for premium photo first (regardless of premium offer)
-      // If the user is already asking for a photo directly OR responding affirmatively to a previous offer
-      if (isAuthenticated() && (premiumOfferMadeRef.current || isUserAskingForPhoto) && isAffirmativeResponse) {
+      // 6. Handle photo requests - if user asks for photo and is authenticated, show premium photo immediately
+      if (isAuthenticated() && isUserAskingForPhoto) {
+        console.log("[ChatContext] User asking for photo - showing premium photo");
+        const photos = PREMIUM_PHOTOS[companionId] || PREMIUM_PHOTOS.priya;
+        const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
+        
+        // Just set the current photo but don't show dialog automatically
+        // User will need to click on the photo to see the premium dialog
+        setCurrentPhoto(premiumPhotoUrl);
+        console.log("[ChatContext] Setting premium photo to:", premiumPhotoUrl);
+        
+        // Add the premium photo as a chat message with more descriptive content
+        const premiumMsg: Message = {
+          id: -Math.floor(Math.random() * 1000000000),
+          content: "Ye meri kal ki photo hai. Kaisi lagi? 😊",
+          role: "assistant",
+          companionId: companionId || "priya",
+          timestamp: new Date(),
+          photoUrl: premiumPhotoUrl,
+          isPremium: true,
+          contextInfo: "premium_photo_share"
+        };
+        setMessages((prev) => [...prev, premiumMsg]);
+        
+        // Save assistant message to Firebase
+        saveChatMessage(premiumMsg);
+        
+        // Also send user's message
+        const tempId = -Math.floor(Math.random() * 1000000000);
+        const userMessage: Message = {
+          id: tempId,
+          content: trimmedContent,
+          role: "user",
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: null
+        };
+        setMessages((prev) => [...prev, userMessage]);
+        saveChatMessage(userMessage);
+        
+        // Update message count
+        setMessageCount((c) => {
+          const newCount = c + 1;
+          localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
+          return newCount;
+        });
+        
+        // Release processing lock
+        isProcessingRef.current = false;
+        if (processingTimeoutRef.current) {
+          clearTimeout(processingTimeoutRef.current);
+          processingTimeoutRef.current = null;
+        }
+        
+        return;
+      }
+      
+      // Detect affirmative response for premium photo if a previous offer was made
+      if (isAuthenticated() && premiumOfferMadeRef.current && isAffirmativeResponse) {
         console.log("[ChatContext] User replied affirmatively to premium offer or asked for photo");
         const photos = PREMIUM_PHOTOS[companionId] || PREMIUM_PHOTOS.priya;
         const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
