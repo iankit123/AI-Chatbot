@@ -274,6 +274,20 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     };
   }, [companionId]);
 
+  // Reset message processing refs when auth dialog opens/closes or authentication changes
+  useEffect(() => {
+    // When auth dialog state changes, clear any stuck message refs
+    if (showAuthDialog) {
+      console.log("[ChatContext] Auth dialog opened, resetting message refs");
+      lastProcessedMessageRef.current = "";
+      isProcessingRef.current = false;
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
+    }
+  }, [showAuthDialog]);
+
   // Helper: check if user is authenticated
   const isAuthenticated = () => {
     try {
