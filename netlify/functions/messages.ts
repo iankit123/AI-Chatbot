@@ -38,6 +38,28 @@ const handler: Handler = async (event) => {
       const validatedData = messageSchema.parse(body);
       const database = getDb();
       
+      // Get chat history from database BEFORE saving the current message
+      let chatHistory: Array<{ role: string; content: string }> = [];
+      if (database) {
+        try {
+          const recentMessages = await database.select()
+            .from(messages)
+            .where(eq(messages.companionId, validatedData.companionId))
+            .orderBy(desc(messages.timestamp))
+            .limit(10);
+          
+          chatHistory = recentMessages.reverse().map(m => ({
+            role: m.role,
+            content: m.content
+          }));
+          console.log('[Netlify Function] Fetched chat history:', chatHistory.length, 'messages');
+        } catch (error) {
+          console.error('[Netlify Function] Error fetching chat history:', error);
+        }
+      } else {
+        console.log('[Netlify Function] Database not available, using empty chat history');
+      }
+      
       // Save user message to database
       let savedUserMessage: any = null;
       if (database) {
@@ -57,24 +79,11 @@ const handler: Handler = async (event) => {
         }
       }
       
-      // Get chat history from database
-      let chatHistory: Array<{ role: string; content: string }> = [];
-      if (database) {
-        try {
-          const recentMessages = await database.select()
-            .from(messages)
-            .where(eq(messages.companionId, validatedData.companionId))
-            .orderBy(desc(messages.timestamp))
-            .limit(10);
-          
-          chatHistory = recentMessages.reverse().map(m => ({
-            role: m.role,
-            content: m.content
-          }));
-        } catch (error) {
-          console.error('[Netlify Function] Error fetching chat history:', error);
-        }
-      }
+      // Add the current user message to chat history
+      chatHistory.push({
+        role: 'user',
+        content: validatedData.content
+      });
       
       // Generate AI response (call the LLM service)
       const { generateResponse } = await import('../../server/services/llm');
@@ -86,6 +95,8 @@ const handler: Handler = async (event) => {
           companionId: validatedData.companionId
         }
       );
+      
+      console.log('[Netlify Function] Generated response using', chatHistory.length, 'messages of context');
       
       // Save bot response to database
       let savedBotMessage: any = null;
