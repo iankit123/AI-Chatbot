@@ -2,7 +2,7 @@ import { Handler } from '@netlify/functions';
 import { Pool } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { eq, desc } from 'drizzle-orm';
-import { messages } from '../../shared/schema';
+import * as schema from '../../shared/schema';
 import { z } from 'zod';
 
 // Initialize database connection
@@ -10,13 +10,28 @@ let db: ReturnType<typeof drizzle> | null = null;
 
 function getDb() {
   if (!db && process.env.DATABASE_URL) {
+    console.log('[Netlify Function] Initializing database connection...');
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    db = drizzle({ client: pool, schema: { messages } });
+    db = drizzle({ client: pool, schema });
+    console.log('[Netlify Function] Database initialized');
+  } else if (!process.env.DATABASE_URL) {
+    console.log('[Netlify Function] DATABASE_URL not found in environment');
   }
   return db;
 }
 
 const handler: Handler = async (event) => {
+  // CORS headers
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS'
+  };
+  
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
+  
   // Handle both /api/messages and /api/ routes
   if (event.httpMethod === 'POST' && (event.path === '/api/messages' || event.path === '/api/')) {
     try {
@@ -43,9 +58,9 @@ const handler: Handler = async (event) => {
       if (database) {
         try {
           const recentMessages = await database.select()
-            .from(messages)
-            .where(eq(messages.companionId, validatedData.companionId))
-            .orderBy(desc(messages.timestamp))
+            .from(schema.messages)
+            .where(eq(schema.messages.companionId, validatedData.companionId))
+            .orderBy(desc(schema.messages.timestamp))
             .limit(10);
           
           chatHistory = recentMessages.reverse().map(m => ({
@@ -64,7 +79,7 @@ const handler: Handler = async (event) => {
       let savedUserMessage: any = null;
       if (database) {
         try {
-          const result = await database.insert(messages).values({
+          const result = await database.insert(schema.messages).values({
             content: validatedData.content,
             role: 'user' as const,
             companionId: validatedData.companionId,
@@ -102,7 +117,7 @@ const handler: Handler = async (event) => {
       let savedBotMessage: any = null;
       if (database) {
         try {
-          const result = await database.insert(messages).values({
+          const result = await database.insert(schema.messages).values({
             content: responseContent,
             role: 'assistant' as const,
             companionId: validatedData.companionId,
@@ -119,19 +134,60 @@ const handler: Handler = async (event) => {
       
       return {
         statusCode: 200,
+        headers,
         body: JSON.stringify({ content: responseContent })
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Netlify Function] Error:', error);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to process message' })
+        headers,
+        body: JSON.stringify({ error: 'Failed to process message', details: error.message })
       };
+    }
+  }
+  
+  // GET /api/messages - Get all messages
+  if (event.httpMethod === 'GET') {
+    try {
+      const database = getDb();
+      const companionId = event.queryStringParameters?.companionId as string;
+      
+      if (!database) {
+        return { statusCode: 200, headers, body: JSON.stringify([]) };
+      }
+      
+      const allMessages = companionId 
+        ? await database.select().from(schema.messages).where(eq(schema.messages.companionId, companionId)).orderBy(desc(schema.messages.timestamp))
+        : await database.select().from(schema.messages).orderBy(desc(schema.messages.timestamp));
+        
+      return { statusCode: 200, headers, body: JSON.stringify(allMessages.reverse()) };
+    } catch (error: any) {
+      console.error('[Netlify Function] Error fetching messages:', error);
+      return { statusCode: 500, headers, body: JSON.stringify({ message: 'Failed to fetch messages', error: error.message }) };
+    }
+  }
+  
+  // DELETE /api/messages - Clear messages
+  if (event.httpMethod === 'DELETE') {
+    try {
+      const database = getDb();
+      
+      if (database) {
+        await database.delete(schema.messages);
+        console.log('[Netlify Function] Cleared all messages from database');
+      }
+      
+      return { statusCode: 200, headers, body: JSON.stringify({ message: 'All messages cleared' }) };
+    } catch (error: any) {
+      console.error('[Netlify Function] Error clearing messages:', error);
+      return { statusCode: 500, headers, body: JSON.stringify({ message: 'Failed to clear messages', error: error.message }) };
     }
   }
 
   return {
     statusCode: 405,
+    headers,
     body: JSON.stringify({ error: 'Method not allowed' })
   };
 };
