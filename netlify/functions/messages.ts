@@ -16,23 +16,20 @@ function getDb() {
   if (!db && process.env.DATABASE_URL) {
     console.log('[Netlify Function] Initializing database connection...');
     try {
-      // Ensure we're using the connection pooler port if it's Supabase
-      let connectionString = process.env.DATABASE_URL;
+      const connectionString = process.env.DATABASE_URL;
       
-      // If using Supabase direct connection (port 5432), switch to pooler (port 6543)
-      if (connectionString.includes(':5432/') && connectionString.includes('supabase.co')) {
-        connectionString = connectionString.replace(':5432/', ':6543/');
-        console.log('[Netlify Function] Switched to connection pooler port 6543');
-      }
-      
-      console.log('[Netlify Function] Connection string host:', connectionString.match(/@([^:]+)/)?.[1] || 'unknown');
+      // Extract hostname for logging (hide password)
+      const hostMatch = connectionString.match(/@([^:]+)/);
+      const hostname = hostMatch ? hostMatch[1] : 'unknown';
+      console.log('[Netlify Function] Connecting to host:', hostname);
       
       const pool = new Pool({ connectionString });
       db = drizzle({ client: pool, schema });
       console.log('[Netlify Function] Database initialized successfully');
     } catch (error: any) {
       console.error('[Netlify Function] Error initializing database:', error.message);
-      console.error('[Netlify Function] Connection string (hidden):', process.env.DATABASE_URL?.replace(/:[^:@]+@/, ':****@') || 'missing');
+      const hiddenUrl = process.env.DATABASE_URL?.replace(/:([^:@]+)@/, ':****@') || 'missing';
+      console.error('[Netlify Function] Connection string (hidden):', hiddenUrl);
       throw error;
     }
   } else if (!process.env.DATABASE_URL) {

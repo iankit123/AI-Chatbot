@@ -13,19 +13,20 @@
 ### 1. Update DATABASE_URL in Netlify
 
 **Important:** 
-- The password `Welcome@NewRelic` MUST be URL-encoded as `Welcome%40NewRelic`
-- The code will automatically switch to connection pooler port (6543) if using Supabase
-- You can use either port 5432 (direct) or 6543 (pooler) - pooler is recommended for serverless
+- Use the Session pooler connection string from Supabase Dashboard
+- Password `Welcome_NewRelic` does NOT need URL encoding (it uses underscore, not @)
+- The connection string format includes project ID in username: `postgres.necugmwwnmjuqnhppswt`
 
-**Recommended URL (Connection Pooler - Port 6543):**
+**Correct URL (Session Pooler):**
 ```
-postgresql://postgres:Welcome%40NewRelic@db.necugmwwnmjuqnhppswt.supabase.co:6543/postgres?sslmode=require
+postgresql://postgres.necugmwwnmjuqnhppswt:Welcome_NewRelic@aws-1-ap-south-1.pooler.supabase.com:5432/postgres
 ```
 
-**Alternative URL (Direct - Port 5432, auto-switches to pooler):**
-```
-postgresql://postgres:Welcome%40NewRelic@db.necugmwwnmjuqnhppswt.supabase.co:5432/postgres?sslmode=require
-```
+**Important Notes:**
+- Username format: `postgres.necugmwwnmjuqnhppswt` (includes project reference ID)
+- Hostname: `aws-1-ap-south-1.pooler.supabase.com` (pooler endpoint)
+- Password: `Welcome_NewRelic` (with underscore, no URL encoding needed)
+- Port: `5432` (correct for pooler)
 
 **To get the correct connection string from Supabase:**
 1. Go to: https://supabase.com/dashboard/project/necugmwwnmjuqnhppswt/settings/database
@@ -37,7 +38,7 @@ postgresql://postgres:Welcome%40NewRelic@db.necugmwwnmjuqnhppswt.supabase.co:543
 **Steps:**
 1. Go to: https://app.netlify.com/sites/onlinefriend/settings/env
 2. Find or add `DATABASE_URL` variable
-3. Set value to: `postgresql://postgres:Welcome%40NewRelic@db.necugmwwnmjuqnhppswt.supabase.co:5432/postgres?sslmode=require`
+3. Set value to: `postgresql://postgres.necugmwwnmjuqnhppswt:Welcome_NewRelic@aws-1-ap-south-1.pooler.supabase.com:5432/postgres`
 4. Click "Save"
 5. Go to "Deploys" tab and click "Trigger deploy" → "Clear cache and deploy site"
 
@@ -88,7 +89,7 @@ If messages still aren't being saved, check the function logs:
 - **Fix:** Add DATABASE_URL to Netlify environment variables
 
 **Issue:** "password authentication failed"
-- **Fix:** Use URL-encoded password: `Welcome%40NewRelic` (not `Welcome@NewRelic`)
+- **Fix:** Use the exact password from Supabase: `Welcome_NewRelic` (no URL encoding needed for underscore)
 
 **Issue:** "relation messages does not exist"
 - **Fix:** Run the SQL migration in Supabase
