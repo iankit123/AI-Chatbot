@@ -15,9 +15,26 @@ let db: ReturnType<typeof drizzle> | null = null;
 function getDb() {
   if (!db && process.env.DATABASE_URL) {
     console.log('[Netlify Function] Initializing database connection...');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    db = drizzle({ client: pool, schema });
-    console.log('[Netlify Function] Database initialized');
+    try {
+      // Ensure we're using the connection pooler port if it's Supabase
+      let connectionString = process.env.DATABASE_URL;
+      
+      // If using Supabase direct connection (port 5432), switch to pooler (port 6543)
+      if (connectionString.includes(':5432/') && connectionString.includes('supabase.co')) {
+        connectionString = connectionString.replace(':5432/', ':6543/');
+        console.log('[Netlify Function] Switched to connection pooler port 6543');
+      }
+      
+      console.log('[Netlify Function] Connection string host:', connectionString.match(/@([^:]+)/)?.[1] || 'unknown');
+      
+      const pool = new Pool({ connectionString });
+      db = drizzle({ client: pool, schema });
+      console.log('[Netlify Function] Database initialized successfully');
+    } catch (error: any) {
+      console.error('[Netlify Function] Error initializing database:', error.message);
+      console.error('[Netlify Function] Connection string (hidden):', process.env.DATABASE_URL?.replace(/:[^:@]+@/, ':****@') || 'missing');
+      throw error;
+    }
   } else if (!process.env.DATABASE_URL) {
     console.log('[Netlify Function] DATABASE_URL not found in environment');
   }
@@ -72,8 +89,11 @@ const handler: Handler = async (event) => {
             content: m.content
           }));
           console.log('[Netlify Function] Fetched chat history:', chatHistory.length, 'messages');
-        } catch (error) {
-          console.error('[Netlify Function] Error fetching chat history:', error);
+        } catch (error: any) {
+          console.error('[Netlify Function] Error fetching chat history:', error?.message || error);
+          if (error?.code === 'ENOTFOUND') {
+            console.error('[Netlify Function] DNS lookup failed - check DATABASE_URL hostname');
+          }
         }
       } else {
         console.log('[Netlify Function] Database not available, using empty chat history');
@@ -93,8 +113,11 @@ const handler: Handler = async (event) => {
           }).returning();
           savedUserMessage = result[0];
           console.log('[Netlify Function] Saved user message to database:', savedUserMessage?.id);
-        } catch (error) {
-          console.error('[Netlify Function] Error saving user message to database:', error);
+        } catch (error: any) {
+          console.error('[Netlify Function] Error saving user message to database:', error?.message || error);
+          if (error?.code === 'ENOTFOUND') {
+            console.error('[Netlify Function] DNS lookup failed - verify DATABASE_URL hostname is correct');
+          }
         }
       }
       
@@ -131,8 +154,11 @@ const handler: Handler = async (event) => {
           }).returning();
           savedBotMessage = result[0];
           console.log('[Netlify Function] Saved bot message to database:', savedBotMessage?.id);
-        } catch (error) {
-          console.error('[Netlify Function] Error saving bot message to database:', error);
+        } catch (error: any) {
+          console.error('[Netlify Function] Error saving bot message to database:', error?.message || error);
+          if (error?.code === 'ENOTFOUND') {
+            console.error('[Netlify Function] DNS lookup failed - verify DATABASE_URL hostname is correct');
+          }
         }
       }
       
