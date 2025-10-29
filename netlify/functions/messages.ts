@@ -51,12 +51,17 @@ const handler: Handler = async (event) => {
       });
       
       const validatedData = messageSchema.parse(body);
+      console.log('[Netlify Function] Processing message:', validatedData.content);
+      
       const database = getDb();
+      console.log('[Netlify Function] Database instance:', database ? 'available' : 'null');
+      console.log('[Netlify Function] DATABASE_URL present:', !!process.env.DATABASE_URL);
       
       // Get chat history from database BEFORE saving the current message
       let chatHistory: Array<{ role: string; content: string }> = [];
       if (database) {
         try {
+          console.log('[Netlify Function] Fetching chat history for companion:', validatedData.companionId);
           const recentMessages = await database.select()
             .from(schema.messages)
             .where(eq(schema.messages.companionId, validatedData.companionId))
@@ -68,17 +73,19 @@ const handler: Handler = async (event) => {
             content: m.content
           }));
           console.log('[Netlify Function] Fetched chat history:', chatHistory.length, 'messages');
-        } catch (error) {
-          console.error('[Netlify Function] Error fetching chat history:', error);
+        } catch (error: any) {
+          console.error('[Netlify Function] Error fetching chat history:', error?.message || error);
+          console.error('[Netlify Function] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         }
       } else {
-        console.log('[Netlify Function] Database not available, using empty chat history');
+        console.warn('[Netlify Function] Database not available, using empty chat history');
       }
       
       // Save user message to database
       let savedUserMessage: any = null;
       if (database) {
         try {
+          console.log('[Netlify Function] Attempting to save user message to database...');
           const result = await database.insert(schema.messages).values({
             content: validatedData.content,
             role: 'user' as const,
@@ -88,10 +95,15 @@ const handler: Handler = async (event) => {
             contextInfo: null
           }).returning();
           savedUserMessage = result[0];
-          console.log('[Netlify Function] Saved user message to database:', savedUserMessage?.id);
-        } catch (error) {
-          console.error('[Netlify Function] Error saving user message to database:', error);
+          console.log('[Netlify Function] ✅ Successfully saved user message to database:', savedUserMessage?.id);
+        } catch (error: any) {
+          console.error('[Netlify Function] ❌ Error saving user message to database');
+          console.error('[Netlify Function] Error message:', error?.message || error);
+          console.error('[Netlify Function] Error code:', error?.code);
+          console.error('[Netlify Function] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         }
+      } else {
+        console.warn('[Netlify Function] Skipping database save - database not available');
       }
       
       // Add the current user message to chat history
@@ -117,6 +129,7 @@ const handler: Handler = async (event) => {
       let savedBotMessage: any = null;
       if (database) {
         try {
+          console.log('[Netlify Function] Attempting to save bot message to database...');
           const result = await database.insert(schema.messages).values({
             content: responseContent,
             role: 'assistant' as const,
@@ -126,10 +139,15 @@ const handler: Handler = async (event) => {
             contextInfo: null
           }).returning();
           savedBotMessage = result[0];
-          console.log('[Netlify Function] Saved bot message to database:', savedBotMessage?.id);
-        } catch (error) {
-          console.error('[Netlify Function] Error saving bot message to database:', error);
+          console.log('[Netlify Function] ✅ Successfully saved bot message to database:', savedBotMessage?.id);
+        } catch (error: any) {
+          console.error('[Netlify Function] ❌ Error saving bot message to database');
+          console.error('[Netlify Function] Error message:', error?.message || error);
+          console.error('[Netlify Function] Error code:', error?.code);
+          console.error('[Netlify Function] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         }
+      } else {
+        console.warn('[Netlify Function] Skipping bot message save - database not available');
       }
       
       return {
