@@ -1,16 +1,13 @@
 import { Handler } from '@netlify/functions';
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, desc } from 'drizzle-orm';
 import * as schema from '../../shared/schema';
 import { z } from 'zod';
-import ws from 'ws';
-
-// Configure Neon for serverless environments (Netlify Functions)
-neonConfig.webSocketConstructor = ws;
 
 // Initialize database connection
 let db: ReturnType<typeof drizzle> | null = null;
+let pool: Pool | null = null;
 
 function getDb() {
   if (!db && process.env.DATABASE_URL) {
@@ -23,8 +20,16 @@ function getDb() {
       const hostname = hostMatch ? hostMatch[1] : 'unknown';
       console.log('[Netlify Function] Connecting to host:', hostname);
       
-      const pool = new Pool({ connectionString });
-      db = drizzle({ client: pool, schema });
+      // Create a connection pool using pg (node-postgres)
+      pool = new Pool({
+        connectionString,
+        // Configure for serverless: close idle connections quickly
+        max: 1, // Limit connections for serverless
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 10000,
+      });
+      
+      db = drizzle(pool, { schema });
       console.log('[Netlify Function] Database initialized successfully');
     } catch (error: any) {
       console.error('[Netlify Function] Error initializing database:', error.message);
