@@ -5,17 +5,34 @@
 2. ✅ Added proper error logging
 3. ✅ Added GET and DELETE handlers
 4. ✅ Added CORS headers
+5. ✅ Fixed WebSocket configuration for Neon serverless
+6. ✅ Auto-switch to connection pooler (port 6543) for Supabase
 
 ## Required Steps:
 
 ### 1. Update DATABASE_URL in Netlify
 
-**Important:** The password `Welcome@NewRelic` MUST be URL-encoded as `Welcome%40NewRelic`
+**Important:** 
+- The password `Welcome@NewRelic` MUST be URL-encoded as `Welcome%40NewRelic`
+- The code will automatically switch to connection pooler port (6543) if using Supabase
+- You can use either port 5432 (direct) or 6543 (pooler) - pooler is recommended for serverless
 
-**Correct URL:**
+**Recommended URL (Connection Pooler - Port 6543):**
+```
+postgresql://postgres:Welcome%40NewRelic@db.necugmwwnmjuqnhppswt.supabase.co:6543/postgres?sslmode=require
+```
+
+**Alternative URL (Direct - Port 5432, auto-switches to pooler):**
 ```
 postgresql://postgres:Welcome%40NewRelic@db.necugmwwnmjuqnhppswt.supabase.co:5432/postgres?sslmode=require
 ```
+
+**To get the correct connection string from Supabase:**
+1. Go to: https://supabase.com/dashboard/project/necugmwwnmjuqnhppswt/settings/database
+2. Find "Connection string" section
+3. Select "Session mode" (for connection pooler) or "Transaction mode"
+4. Copy the connection string
+5. Replace `[YOUR-PASSWORD]` with your actual password (URL-encoded)
 
 **Steps:**
 1. Go to: https://app.netlify.com/sites/onlinefriend/settings/env
@@ -78,4 +95,12 @@ If messages still aren't being saved, check the function logs:
 
 **Issue:** "column companion_id does not exist"
 - **Fix:** Check column names match exactly (snake_case in database, camelCase in Drizzle)
+
+**Issue:** "ENOTFOUND db.xxx.supabase.co" (DNS lookup failed)
+- **Fix:** 
+  1. Verify the hostname in DATABASE_URL matches your Supabase project
+  2. Get the connection string from Supabase Dashboard → Settings → Database
+  3. Ensure you're using the correct project reference ID
+  4. Try using port 6543 (connection pooler) instead of 5432
+  5. Check that your Supabase project is active and not paused
 
