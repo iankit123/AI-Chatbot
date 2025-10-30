@@ -43,78 +43,47 @@ export function PremiumPhotoDialog({
   
   const handlePayment = async () => {
     setProcessing(true);
-    
-    // Payment request data
-    const requestData = {
-      type: 'premium_photo',
-      companionId: companionName.toLowerCase(),
-      timestamp: new Date().toISOString(),
-      amount: 20,
-      imageUrl: blurredImageUrl
-    };
-    
-    // First record the payment attempt immediately
-    try {
-      // Store the request in localStorage for redundancy
-      const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
-      paymentRequests.push(requestData);
-      localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
-
-      // DEBUG LOGS FOR AUTH
-      console.log('[PHOTO PAYMENT] auth.currentUser:', auth.currentUser);
-      const localAuthUserString = localStorage.getItem('authUser');
-      let user = auth.currentUser;
-      if (!user && localAuthUserString) {
-        user = JSON.parse(localAuthUserString);
-      }
-      console.log('[PHOTO PAYMENT] Computed user:', user);
-      if (user && user.uid) {
-        try {
-          const userEmail = user.email || 'unknown@example.com';
-          console.log('[PHOTO PAYMENT] About to log payment request to Firebase for user', user.uid, userEmail);
-          await logPaymentRequest(
-            user.uid,
-            userEmail,
-            'premium_photo',
-            {
-              companionId: companionName.toLowerCase(),
-              imageUrl: blurredImageUrl
-            }
-          );
-          console.log('[PHOTO PAYMENT] logPaymentRequest completed successfully');
-        } catch (firebaseError) {
-          console.error('Error logging payment request to Firebase:', firebaseError);
-          // Continue with local storage only
-        }
-      } else {
-        // Not authenticated - show a warning toast to the user
-        toast({
-          title: 'Please log in to use premium features',
-          description: 'Sign in and try again to unlock premium photos!',
-          variant: 'destructive',
-          duration: 4000
-        });
-        console.log('[PHOTO PAYMENT] User not authenticated for Firebase payment request logging');
-      }
-    } catch (error) {
-      console.error('Error saving payment request:', error);
-    }
-    
-    // Then simulate payment processing
-    setTimeout(() => {
+    // Use up-to-date Firebase Auth user (do not fallback)
+    const user = auth.currentUser;
+    if (!user) {
       setProcessing(false);
-      
-      // Show technical issue message
       toast({
-        title: "Technical Issue",
-        description: "Our payment system is currently down. Please check back after 30 minutes.",
-        variant: "destructive",
-        duration: 5000
+        title: 'Please log in to use premium features',
+        description: 'Sign in and try again to unlock premium photos!',
+        variant: 'destructive',
+        duration: 4000,
       });
-      
-      // Close dialog
-      onOpenChange(false);
-    }, 2000);
+      return;
+    }
+    const userEmail = user.email || 'unknown@example.com';
+    try {
+      await logPaymentRequest(
+        user.uid,
+        userEmail,
+        'premium_photo',
+        {
+          companionId: companionName.toLowerCase(),
+          imageUrl: blurredImageUrl,
+          timestamp: new Date().toISOString(),
+          amount: 20,
+        }
+      );
+      toast({
+        title: 'Payment successful!',
+        description: 'Your payment request has been logged.',
+        status: 'success',
+      });
+      onOpenChange(false); // Close dialog after success
+    } catch (firebaseError) {
+      toast({
+        title: 'Payment failed!',
+        description: 'Unable to log payment request. Please try again.',
+        variant: 'destructive',
+      });
+      console.error('[PHOTO PAYMENT] Error logging payment request:', firebaseError);
+    } finally {
+      setProcessing(false);
+    }
   };
   
   const handleDecline = async () => {
