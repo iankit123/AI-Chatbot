@@ -114,22 +114,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-// Export DatabaseStorage from db-storage.ts
-export { DatabaseStorage } from "./db-storage";
-
-// Use DatabaseStorage for production, MemStorage for development/fallback
-let StorageImplementation: new () => IStorage;
-try {
-  // Try to use database storage if DATABASE_URL is available
-  if (process.env.DATABASE_URL) {
-    StorageImplementation = require("./db-storage").DatabaseStorage;
-    console.log("[Storage] Using DatabaseStorage");
-  } else {
-    throw new Error("No DATABASE_URL");
-  }
-} catch (error) {
-  console.log("[Storage] Using MemStorage (fallback)");
-  StorageImplementation = MemStorage;
-}
-
-export const storage = new StorageImplementation();
+export const storage = new MemStorage();
