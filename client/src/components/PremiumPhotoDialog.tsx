@@ -70,15 +70,14 @@ export function PremiumPhotoDialog({
       );
       toast({
         title: 'Payment successful!',
-        description: 'Your payment request has been logged.',
-        status: 'success',
+        description: 'Your payment request has been logged.'
       });
       onOpenChange(false); // Close dialog after success
     } catch (firebaseError) {
       toast({
         title: 'Payment failed!',
         description: 'Unable to log payment request. Please try again.',
-        variant: 'destructive',
+        variant: 'destructive'
       });
       console.error('[PHOTO PAYMENT] Error logging payment request:', firebaseError);
     } finally {
