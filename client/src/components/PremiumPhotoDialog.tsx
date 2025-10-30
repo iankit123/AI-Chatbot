@@ -60,17 +60,18 @@ export function PremiumPhotoDialog({
       paymentRequests.push(requestData);
       localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
 
-      // --- FIX: Use Firebase currentUser for auth check, not just localStorage ---
+      // DEBUG LOGS FOR AUTH
+      console.log('[PHOTO PAYMENT] auth.currentUser:', auth.currentUser);
+      const localAuthUserString = localStorage.getItem('authUser');
       let user = auth.currentUser;
-      if (!user) {
-        // fallback to localStorage authUser if available
-        const authUser = localStorage.getItem('authUser');
-        if (authUser) user = JSON.parse(authUser);
+      if (!user && localAuthUserString) {
+        user = JSON.parse(localAuthUserString);
       }
-
+      console.log('[PHOTO PAYMENT] Computed user:', user);
       if (user && user.uid) {
         try {
           const userEmail = user.email || 'unknown@example.com';
+          console.log('[PHOTO PAYMENT] About to log payment request to Firebase for user', user.uid, userEmail);
           await logPaymentRequest(
             user.uid,
             userEmail,
@@ -80,7 +81,7 @@ export function PremiumPhotoDialog({
               imageUrl: blurredImageUrl
             }
           );
-          console.log('Premium photo payment request successfully logged to Firebase (auth.currentUser)', user.uid);
+          console.log('[PHOTO PAYMENT] logPaymentRequest completed successfully');
         } catch (firebaseError) {
           console.error('Error logging payment request to Firebase:', firebaseError);
           // Continue with local storage only
@@ -93,7 +94,7 @@ export function PremiumPhotoDialog({
           variant: 'destructive',
           duration: 4000
         });
-        console.log('User not authenticated for Firebase payment request logging');
+        console.log('[PHOTO PAYMENT] User not authenticated for Firebase payment request logging');
       }
     } catch (error) {
       console.error('Error saving payment request:', error);
