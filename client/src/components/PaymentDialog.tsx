@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useChat } from '@/context/ChatContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { auth, logPaymentRequest } from '@/lib/firebase';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -11,23 +13,48 @@ interface PaymentDialogProps {
 export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
   const [processing, setProcessing] = useState(false);
   const { botName, currentPhoto, setShowPremiumPhoto, setShowPaymentDialog } = useChat();
+  const { toast } = useToast();
   
   const handlePayment = async () => {
     try {
       setProcessing(true);
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Require live Firebase auth user
+      const user = auth.currentUser;
+      if (!user) {
+        setProcessing(false);
+        toast({
+          title: 'Please log in to use premium features',
+          description: 'Sign in and try again to unlock premium photos!',
+          variant: 'destructive',
+          duration: 4000,
+        });
+        return;
+      }
+      const userEmail = user.email || 'unknown@example.com';
+      const companionId = (botName || '').toLowerCase() || 'unknown';
+      const imageUrl = currentPhoto || '';
       
-      // Payment successful
+      // Log payment request to Firebase (same as voice flow)
+      await logPaymentRequest(user.uid, userEmail, 'premium_photo', {
+        companionId,
+        imageUrl,
+        amount: 20,
+        timestamp: new Date().toISOString(),
+      });
+      
       onOpenChange(false);
-      // Display success message or update UI
-      console.log("Payment successful!");
-      
-      // You could update user's account to reflect the purchase
-      // For now, we'll just close both dialogs
       setShowPremiumPhoto(false);
+      toast({
+        title: 'Payment successful!',
+        description: 'Your payment request has been logged.'
+      });
     } catch (error) {
-      console.error("Payment error:", error);
+      console.error('Payment error:', error);
+      toast({
+        title: 'Payment failed!',
+        description: 'Unable to log payment request. Please try again.',
+        variant: 'destructive'
+      });
     } finally {
       setProcessing(false);
     }
