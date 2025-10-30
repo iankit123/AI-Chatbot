@@ -55,35 +55,45 @@ export function PremiumPhotoDialog({
     
     // First record the payment attempt immediately
     try {
-      // Store the request in localStorage
+      // Store the request in localStorage for redundancy
       const paymentRequests = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
       paymentRequests.push(requestData);
       localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
-      
-      // Log payment request to Firebase using our new function
-      const authUser = localStorage.getItem('authUser');
-      if (authUser) {
+
+      // --- FIX: Use Firebase currentUser for auth check, not just localStorage ---
+      let user = auth.currentUser;
+      if (!user) {
+        // fallback to localStorage authUser if available
+        const authUser = localStorage.getItem('authUser');
+        if (authUser) user = JSON.parse(authUser);
+      }
+
+      if (user && user.uid) {
         try {
-          const user = JSON.parse(authUser);
           const userEmail = user.email || 'unknown@example.com';
-          
-          // IMPORTANT: Log with our dedicated function for consistency
           await logPaymentRequest(
-            user.uid, 
-            userEmail, 
-            'premium_photo', 
+            user.uid,
+            userEmail,
+            'premium_photo',
             {
               companionId: companionName.toLowerCase(),
               imageUrl: blurredImageUrl
             }
           );
-          console.log("Premium photo payment request successfully logged to Firebase");
+          console.log('Premium photo payment request successfully logged to Firebase (auth.currentUser)', user.uid);
         } catch (firebaseError) {
           console.error('Error logging payment request to Firebase:', firebaseError);
           // Continue with local storage only
         }
       } else {
-        console.log("User not authenticated, no Firebase logging for premium photo payment");
+        // Not authenticated - show a warning toast to the user
+        toast({
+          title: 'Please log in to use premium features',
+          description: 'Sign in and try again to unlock premium photos!',
+          variant: 'destructive',
+          duration: 4000
+        });
+        console.log('User not authenticated for Firebase payment request logging');
       }
     } catch (error) {
       console.error('Error saving payment request:', error);
