@@ -19,6 +19,8 @@ interface ChatCompletionRequest {
   messages: ChatMessage[];
   temperature?: number;
   max_tokens?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
 }
 
 interface ChatCompletionResponse {
@@ -70,9 +72,10 @@ RESPONSE LENGTH: Keep responses SHORT and CONCISE. Maximum 2-3 sentences or 20-3
 VARIETY AND NATURAL CONVERSATION:
 - NEVER repeat the same phrases or expressions in consecutive messages
 - Vary your responses naturally - use different expressions, questions, and topics
-- Avoid saying "mujhe tumse baat karke accha lag raha hai" or similar phrases repeatedly
+- Avoid saying "mujhe tumse baat karke accha/khushi lag raha hai" or any greeting repeats
 - Each response should be unique and show genuine interest through varied expressions
 - Ask different questions each time to keep the conversation engaging
+- Do NOT repeat greetings like "Main Priya hun... Tum kaise ho?"; pick a new angle if user sends short replies.
 
 Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Roman script. Only 5% English for common words like "office", "traffic", "hours". Use casual everyday Hindi grammar as spoken by young Indians.`
         : "Respond as if you are a Female, and chatting with a Man. Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal? Keep responses SHORT - maximum 2-3 sentences.";
@@ -112,9 +115,26 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
       content: `${BOT_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${languageInstruction}`,
     };
 
-    // Prepare the conversation history with system message
+    // Build anti-repetition guard using last 3 assistant messages
+    const recentAssistantUtterances = conversationHistory
+      .filter(m => m.role === "assistant")
+      .slice(-3)
+      .map(m => `- ${m.content}`)
+      .join("\n");
+
+    const antiRepeatGuard: ChatMessage | null = recentAssistantUtterances
+      ? {
+          role: "system",
+          content:
+            `Recent assistant messages (avoid repeating similar greetings/wording):\n${recentAssistantUtterances}\n` +
+            `Do NOT produce a response that is semantically similar to the above lines. Start with a fresh angle; no repeated template like "Main Priya hun... Tum kaise ho?"`,
+        }
+      : null;
+
+    // Prepare the conversation history with system message and anti-repeat guard
     const messages: ChatMessage[] = [
       systemMessage,
+      ...(antiRepeatGuard ? [antiRepeatGuard] : []),
       ...conversationHistory,
       { role: "user", content: userMessage },
     ];
@@ -123,8 +143,10 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
     const requestBody: ChatCompletionRequest = {
       model: "llama-3.3-70b-versatile", // More capable model for better Hindi grammar
       messages,
-      temperature: 0.6, // Slightly lower for more focused, concise responses
-      max_tokens: 150, // SHORT responses - 25-30% of original length
+      temperature: 0.6, // focused, concise responses
+      max_tokens: 150, // SHORT responses
+      frequency_penalty: 0.9, // discourage repeating tokens/phrases
+      presence_penalty: 0.6, // encourage introducing new ideas
     };
 
     // Make request to Groq API
