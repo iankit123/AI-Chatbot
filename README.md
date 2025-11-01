@@ -1,17 +1,1 @@
-# Database Configuration
-# Get your Neon database URL from https://console.neon.tech
-DATABASE_URL=postgresql://user:password@localhost:5432/chatbot
 
-# Groq API Key for LLM
-# Get your API key from https://console.groq.com
-# Node Environment
-NODE_ENV=development
-
-GROQ_API_KEY=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
-# Supabase Configuration
-SUPABASE_URL=https://necugmwwnmjuqnhppswt.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lY3VnbXd3bm1qdXFuaHBwc3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMjEzNDAsImV4cCI6MjA3Njg5NzM0MH0.igOJ_1hRhZB-W8i0ypJ7JaDXDnXqVFNGWr2OSfHqaW8
-
-# Client-side environment variables (VITE_ prefix required)
-VITE_SUPABASE_URL=https://necugmwwnmjuqnhppswt.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lY3VnbXd3bm1qdXFuaHBwc3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMjEzNDAsImV4cCI6MjA3Njg5NzM0MH0.igOJ_1hRhZB-W8i0ypJ7JaDXDnXqVFNGWr2OSfHqaW8
