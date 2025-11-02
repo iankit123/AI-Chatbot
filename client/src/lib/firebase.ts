@@ -288,18 +288,57 @@ export const saveChatMessage = async (message: any) => {
     let userId: string;
     let userEmail: string;
     let isAnonymous = false;
+    let userName: string | null = null;
+    let userAge: number | null = null;
     
     if (currentUser) {
       // Authenticated user - use their Firebase UID
       userId = currentUser.uid;
       userEmail = currentUser.email || 'unknown@example.com';
       console.log(`[Firebase] Saving chat message for authenticated user: ${userId}`);
+      
+      // Try to get user profile from Firebase
+      try {
+        const profile = await getUserProfile(userId);
+        if (profile) {
+          userName = profile.name || null;
+          userAge = profile.age || null;
+          console.log(`[Firebase] Retrieved user profile - name: ${userName}, age: ${userAge}`);
+        }
+      } catch (profileError) {
+        console.warn(`[Firebase] Could not retrieve user profile:`, profileError);
+        // Fallback: try to get from localStorage if available
+        const guestProfile = localStorage.getItem('guestProfile');
+        if (guestProfile) {
+          try {
+            const parsedProfile = JSON.parse(guestProfile);
+            userName = parsedProfile.name || null;
+            userAge = parsedProfile.age || null;
+            console.log(`[Firebase] Using localStorage profile - name: ${userName}, age: ${userAge}`);
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }
+      }
     } else {
       // Unauthenticated user - use anonymous ID
       userId = getAnonymousUserId();
       userEmail = 'anonymous@example.com';
       isAnonymous = true;
       console.log(`[Firebase] Saving chat message for anonymous user: ${userId}`);
+      
+      // Get user profile from localStorage for anonymous users
+      const guestProfile = localStorage.getItem('guestProfile');
+      if (guestProfile) {
+        try {
+          const parsedProfile = JSON.parse(guestProfile);
+          userName = parsedProfile.name || null;
+          userAge = parsedProfile.age || null;
+          console.log(`[Firebase] Retrieved anonymous user profile - name: ${userName}, age: ${userAge}`);
+        } catch (e) {
+          console.warn(`[Firebase] Could not parse guestProfile from localStorage:`, e);
+        }
+      }
     }
     
     // Create a more structured message object with additional metadata
@@ -308,6 +347,8 @@ export const saveChatMessage = async (message: any) => {
       role: message.role,
       timestamp: message.timestamp ? message.timestamp.toISOString() : new Date().toISOString(),
       userEmail: userEmail,
+      userName: userName, // Include user's name
+      userAge: userAge, // Include user's age
       isPremium: message.isPremium || false,
       photoUrl: message.photoUrl || null,
       isAnonymous: isAnonymous, // Flag to identify anonymous chats
