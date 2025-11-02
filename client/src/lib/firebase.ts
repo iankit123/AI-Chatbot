@@ -281,15 +281,16 @@ export const getAnonymousUserId = (): string => {
 
 // New function to save both user and assistant messages with additional metadata
 export const saveChatMessage = async (message: any) => {
+  const currentUser = auth.currentUser;
+  const companionId = message.companionId || 'unknown';
+  
+  let userId: string = '';
+  let userEmail: string = '';
+  let isAnonymous = false;
+  let userName: string | null = null;
+  let userAge: number | null = null;
+  
   try {
-    const currentUser = auth.currentUser;
-    const companionId = message.companionId || 'unknown';
-    
-    let userId: string;
-    let userEmail: string;
-    let isAnonymous = false;
-    let userName: string | null = null;
-    let userAge: number | null = null;
     
     if (currentUser) {
       // Authenticated user - use their Firebase UID
@@ -355,32 +356,99 @@ export const saveChatMessage = async (message: any) => {
       // Add any other relevant fields
     };
     
+    // Log save attempt details
+    console.log(`[Firebase] Attempting to save ${message.role} message:`, {
+      userId,
+      companionId,
+      isAnonymous,
+      domain: window.location.hostname,
+      hasContent: !!message.content,
+      messageDataKeys: Object.keys(messageData)
+    });
+    
     // Save to user-specific chat collection (works for both authenticated and anonymous users)
     const chatRef = ref(database, `chats/${userId}/${companionId}/messages`);
     const newMessageRef = push(chatRef);
-    await set(newMessageRef, messageData);
+    
+    try {
+      await set(newMessageRef, messageData);
+      console.log(`[Firebase] Successfully saved to user-specific collection`);
+    } catch (setError: any) {
+      console.error(`[Firebase] ERROR saving to user-specific collection:`, {
+        error: setError,
+        code: setError?.code,
+        message: setError?.message,
+        path: `chats/${userId}/${companionId}/messages`,
+        domain: window.location.hostname
+      });
+      throw setError; // Re-throw to be caught by outer catch
+    }
     
     // Also save to global chats collection for analytics
     const globalChatRef = ref(database, `allChats`);
     const newGlobalMessageRef = push(globalChatRef);
-    await set(newGlobalMessageRef, {
-      ...messageData,
-      userId: userId,
-      companionId: companionId
-    });
+    try {
+      await set(newGlobalMessageRef, {
+        ...messageData,
+        userId: userId,
+        companionId: companionId
+      });
+      console.log(`[Firebase] Successfully saved to global chats collection`);
+    } catch (globalError: any) {
+      console.error(`[Firebase] ERROR saving to global collection:`, {
+        error: globalError,
+        code: globalError?.code,
+        message: globalError?.message,
+        domain: window.location.hostname
+      });
+      // Continue even if global save fails - the main save already succeeded
+    }
     
     // For anonymous users, also save to a dedicated anonymous chats collection for easier tracking
     if (isAnonymous) {
       const anonymousChatRef = ref(database, `anonymousChats/${userId}/${companionId}/messages`);
       const newAnonymousMessageRef = push(anonymousChatRef);
-      await set(newAnonymousMessageRef, messageData);
-      console.log(`[Firebase] Anonymous chat message saved to Firebase: ${message.role} message (ID: ${userId})`);
+      try {
+        await set(newAnonymousMessageRef, messageData);
+        console.log(`[Firebase] Anonymous chat message saved to Firebase: ${message.role} message (ID: ${userId})`);
+      } catch (anonError: any) {
+        console.error(`[Firebase] ERROR saving to anonymous collection:`, {
+          error: anonError,
+          code: anonError?.code,
+          message: anonError?.message,
+          domain: window.location.hostname
+        });
+        // Continue even if anonymous save fails - the main save already succeeded
+      }
     } else {
       console.log(`[Firebase] Chat message saved to Firebase: ${message.role} message`);
     }
     return newMessageRef.key;
-  } catch (error) {
-    console.error("Error saving chat message to Firebase: ", error);
+  } catch (error: any) {
+    // Get userId for error reporting (may not be set if error occurred early)
+    const errorUserId = userId || (currentUser?.uid) || getAnonymousUserId();
+    
+    console.error("[Firebase] Error saving chat message to Firebase:", {
+      error,
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+      domain: window.location.hostname,
+      timestamp: new Date().toISOString(),
+      userId: errorUserId,
+      isAnonymous,
+      companionId: message.companionId || 'unknown'
+    });
+    
+    // Additional diagnostics
+    if (error?.code === 'PERMISSION_DENIED' || error?.message?.includes('permission')) {
+      console.error("[Firebase] PERMISSION DENIED - Check Firebase Realtime Database security rules!");
+      console.error("[Firebase] Rules must allow writes to:", `chats/${errorUserId}/${companionId}/messages`);
+      console.error("[Firebase] Current domain:", window.location.hostname);
+      console.error("[Firebase] Go to Firebase Console -> Realtime Database -> Rules");
+      console.error("[Firebase] Rules should allow writes for authenticated and anonymous users");
+    }
+    
     return null; // Don't throw, just return null to prevent app disruption
   }
 };
