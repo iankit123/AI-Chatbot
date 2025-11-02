@@ -257,19 +257,50 @@ export const saveMessage = async (userId: string, companionId: string, message: 
   }
 };
 
+// Get or generate anonymous user ID for unauthenticated users
+// This ID is stored in localStorage and persists across sessions
+// but does NOT authenticate the user in Firebase Auth
+export const getAnonymousUserId = (): string => {
+  const ANONYMOUS_ID_KEY = 'anonymousUserId';
+  
+  // Try to get existing anonymous ID from localStorage
+  let anonymousId = localStorage.getItem(ANONYMOUS_ID_KEY);
+  
+  // If no ID exists, generate a new one
+  if (!anonymousId) {
+    // Generate a unique anonymous ID using timestamp and random number
+    anonymousId = `anonymous-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    localStorage.setItem(ANONYMOUS_ID_KEY, anonymousId);
+    console.log('[Firebase] Generated new anonymous user ID:', anonymousId);
+  } else {
+    console.log('[Firebase] Using existing anonymous user ID:', anonymousId);
+  }
+  
+  return anonymousId;
+};
+
 // New function to save both user and assistant messages with additional metadata
 export const saveChatMessage = async (message: any) => {
   try {
-    // Check if user is authenticated
     const currentUser = auth.currentUser;
-    if (!currentUser) {
-      console.log('User not authenticated, not saving chat message to Firebase');
-      return null;
-    }
-    
-    const userId = currentUser.uid;
-    const userEmail = currentUser.email || 'unknown@example.com';
     const companionId = message.companionId || 'unknown';
+    
+    let userId: string;
+    let userEmail: string;
+    let isAnonymous = false;
+    
+    if (currentUser) {
+      // Authenticated user - use their Firebase UID
+      userId = currentUser.uid;
+      userEmail = currentUser.email || 'unknown@example.com';
+      console.log(`[Firebase] Saving chat message for authenticated user: ${userId}`);
+    } else {
+      // Unauthenticated user - use anonymous ID
+      userId = getAnonymousUserId();
+      userEmail = 'anonymous@example.com';
+      isAnonymous = true;
+      console.log(`[Firebase] Saving chat message for anonymous user: ${userId}`);
+    }
     
     // Create a more structured message object with additional metadata
     const messageData = {
@@ -279,10 +310,11 @@ export const saveChatMessage = async (message: any) => {
       userEmail: userEmail,
       isPremium: message.isPremium || false,
       photoUrl: message.photoUrl || null,
+      isAnonymous: isAnonymous, // Flag to identify anonymous chats
       // Add any other relevant fields
     };
     
-    // Save to user-specific chat collection
+    // Save to user-specific chat collection (works for both authenticated and anonymous users)
     const chatRef = ref(database, `chats/${userId}/${companionId}/messages`);
     const newMessageRef = push(chatRef);
     await set(newMessageRef, messageData);
@@ -296,7 +328,15 @@ export const saveChatMessage = async (message: any) => {
       companionId: companionId
     });
     
-    console.log(`Chat message saved to Firebase: ${message.role} message`);
+    // For anonymous users, also save to a dedicated anonymous chats collection for easier tracking
+    if (isAnonymous) {
+      const anonymousChatRef = ref(database, `anonymousChats/${userId}/${companionId}/messages`);
+      const newAnonymousMessageRef = push(anonymousChatRef);
+      await set(newAnonymousMessageRef, messageData);
+      console.log(`[Firebase] Anonymous chat message saved to Firebase: ${message.role} message (ID: ${userId})`);
+    } else {
+      console.log(`[Firebase] Chat message saved to Firebase: ${message.role} message`);
+    }
     return newMessageRef.key;
   } catch (error) {
     console.error("Error saving chat message to Firebase: ", error);
