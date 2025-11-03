@@ -234,19 +234,60 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             console.log("[ChatContext] Updated message count to", count, "based on chat history");
             } else {
             console.log("[ChatContext] No previous chat history found, starting fresh");
+            // History loading complete, but no history - welcome message will be added by the other useEffect
           }
         } catch (error) {
           console.error("[ChatContext] Error loading chat history:", error);
-          // If error loading history, just continue with empty chat
+          // If error loading history, just continue with empty chat - welcome message will be added
         }
       } else {
         console.log("[ChatContext] User not authenticated, not loading chat history");
+        // Not authenticated - welcome message will be added for new chats
       }
     };
     
     // Load chat history when component mounts or companion changes
     loadChatHistory();
   }, [companionId]);
+
+  // Add first welcome message when chat starts (only for new chats, not when loading history)
+  useEffect(() => {
+    // Only add welcome message if:
+    // 1. Messages array is empty (new chat or no history)
+    // 2. Companion is selected
+    // 3. Give enough time for history to load (500ms delay)
+    if (messages.length === 0 && companionId && botName) {
+      const timer = setTimeout(() => {
+        // Double-check messages are still empty after delay (history loading might have finished)
+        setMessages((prevMessages) => {
+          if (prevMessages.length === 0) {
+            const welcomeMessage: Message = {
+              id: Date.now(),
+              content: "Hi, main Priya hoon. Tum kaise ho?",
+              role: "assistant",
+              companionId: companionId,
+              timestamp: new Date(),
+              photoUrl: null,
+              isPremium: null,
+              contextInfo: null,
+            };
+            
+            console.log("[ChatContext] Adding first welcome message:", welcomeMessage.content);
+            
+            // Save welcome message to Firebase if user is authenticated or anonymous
+            saveChatMessage(welcomeMessage).catch((error) => {
+              console.error("[ChatContext] Error saving welcome message to Firebase:", error);
+            });
+            
+            return [welcomeMessage];
+          }
+          return prevMessages;
+        });
+      }, 500); // Increased delay to allow history loading to complete
+      
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, companionId, botName]);
 
   // Track authentication state changes
   useEffect(() => {
@@ -289,13 +330,49 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   }, [showAuthDialog]);
 
   // Helper: check if user is authenticated
+  // IMPORTANT: Only check Firebase auth.currentUser, NOT localStorage
+  // Anonymous user IDs should NEVER be considered authenticated
   const isAuthenticated = () => {
     try {
-      const authUser = localStorage.getItem("authUser");
-      if (!authUser) return false;
-      const parsed = JSON.parse(authUser);
-      return !!parsed.uid;
-    } catch {
+      // Use Firebase auth state, not localStorage
+      // localStorage can have stale data or anonymous IDs
+      const currentUser = auth.currentUser;
+      
+      // Only return true if there's a real Firebase authenticated user
+      // and it's NOT an anonymous ID
+      if (!currentUser) return false;
+      
+      // Ensure the user ID is not an anonymous ID
+      // Anonymous IDs follow the pattern: "anonymous-{timestamp}-{random}"
+      if (currentUser.uid.startsWith('anonymous-')) {
+        console.warn("[ChatContext] Detected anonymous ID as currentUser, clearing auth state");
+        // Clear any stale authUser from localStorage
+        localStorage.removeItem('authUser');
+        return false;
+      }
+      
+      // Verify user has an email (real Firebase users have emails)
+      // Anonymous IDs wouldn't have real emails
+      const hasRealEmail = currentUser.email && !currentUser.email.includes('anonymous');
+      
+      // Double-check localStorage doesn't contain anonymous data
+      const storedAuth = localStorage.getItem("authUser");
+      if (storedAuth) {
+        try {
+          const parsed = JSON.parse(storedAuth);
+          if (parsed.uid && parsed.uid.startsWith('anonymous-')) {
+            console.warn("[ChatContext] Found anonymous ID in authUser localStorage, clearing it");
+            localStorage.removeItem('authUser');
+            return false;
+          }
+        } catch {
+          // Invalid JSON, ignore
+        }
+      }
+      
+      return hasRealEmail || !!currentUser.displayName;
+    } catch (error) {
+      console.error("[ChatContext] Error checking authentication:", error);
       return false;
     }
   };

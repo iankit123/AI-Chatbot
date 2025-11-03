@@ -260,8 +260,24 @@ export const saveMessage = async (userId: string, companionId: string, message: 
 // Get or generate anonymous user ID for unauthenticated users
 // This ID is stored in localStorage and persists across sessions
 // but does NOT authenticate the user in Firebase Auth
+// IMPORTANT: Anonymous IDs should NEVER be stored in 'authUser' localStorage key
 export const getAnonymousUserId = (): string => {
   const ANONYMOUS_ID_KEY = 'anonymousUserId';
+  
+  // CRITICAL: Ensure no anonymous ID is stored in authUser
+  // Clean up any accidental anonymous IDs from authUser
+  try {
+    const authUser = localStorage.getItem('authUser');
+    if (authUser) {
+      const parsed = JSON.parse(authUser);
+      if (parsed.uid && parsed.uid.startsWith('anonymous-')) {
+        console.warn('[Firebase] Found anonymous ID in authUser, clearing it');
+        localStorage.removeItem('authUser');
+      }
+    }
+  } catch {
+    // Ignore parsing errors
+  }
   
   // Try to get existing anonymous ID from localStorage
   let anonymousId = localStorage.getItem(ANONYMOUS_ID_KEY);

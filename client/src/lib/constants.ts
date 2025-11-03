@@ -1,4 +1,4 @@
-export const WELCOME_MESSAGE_HINDI = "Hey! Main Priya hun. Aapse baat karke bohot khushi ho rahi hai. Aap kaise ho? 😊";
+export const WELCOME_MESSAGE_HINDI = "Hi, main Priya hoon. Tum kaise ho?";
 export const WELCOME_MESSAGE_ENGLISH = "Hello! I'm Priya. I'm so happy to be talking with you. How are you? Kaisa chal raha hai aaj? 😊";
 
 export const LANGUAGE_OPTIONS = {

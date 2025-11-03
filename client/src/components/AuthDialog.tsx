@@ -258,26 +258,39 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
         console.error("[AuthDialog] Full error:", firebaseError);
         
         // For configuration errors, we use fallback but show a specific message
+        // IMPORTANT: Do NOT use fallback for user cancellation - user should remain unauthenticated
         if (firebaseError instanceof FirebaseError && 
             (firebaseError.code === 'auth/configuration-not-found' || 
-             firebaseError.code === 'auth/popup-blocked' ||
-             firebaseError.code === 'auth/cancelled-popup-request' ||
-             firebaseError.code === 'auth/popup-closed-by-user')) {
+             firebaseError.code === 'auth/popup-blocked')) {
           
-          console.log("[AuthDialog] Using fallback offline mode");
+          // Only use fallback for configuration errors, not user cancellation
+          console.log("[AuthDialog] Using fallback offline mode for configuration error");
           
           toast({
             title: "Using offline mode",
             description: "Google sign-in unavailable. Using local storage for now.",
           });
           
-          // Use fallback authentication if Firebase fails
+          // Use fallback authentication if Firebase fails due to configuration
           await simulateGoogleSignIn();
           
           toast({
             title: "Signed in (offline mode)",
             description: "Welcome! You've been signed in using offline mode."
           });
+        } else if (firebaseError instanceof FirebaseError && 
+                   (firebaseError.code === 'auth/cancelled-popup-request' ||
+                    firebaseError.code === 'auth/popup-closed-by-user')) {
+          // User cancelled or closed the popup - do NOT authenticate them
+          console.log("[AuthDialog] User cancelled sign-in, not authenticating");
+          
+          // Clear any stale auth state
+          localStorage.removeItem('authUser');
+          
+          // Don't show error, just quietly return - user intentionally cancelled
+          setError('');
+          setLoading(false);
+          return; // Exit early, don't call onAuthComplete
         } else {
           // For other errors, display them to the user and don't use fallback
           console.error("[AuthDialog] Not using fallback, error:", errorMsg);
