@@ -4,7 +4,10 @@ import { BOT_SYSTEM_PROMPT } from "@/lib/constants";
 // Groq API configuration
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 console.log("GROQ_API_KEY loaded:", GROQ_API_KEY ? "Present" : "Missing");
-if (!GROQ_API_KEY) {
+if (GROQ_API_KEY) {
+  console.log("GROQ_API_KEY preview:", GROQ_API_KEY.substring(0, 15) + "...");
+  console.log("GROQ_API_KEY length:", GROQ_API_KEY.length);
+} else {
   console.error("GROQ_API_KEY not found in environment variables");
 }
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -73,6 +76,7 @@ VARIETY AND NATURAL CONVERSATION:
 - NEVER repeat the same phrases or expressions in consecutive messages
 - Vary your responses naturally - use different expressions, questions, and topics
 - Avoid saying "mujhe tumse baat karke accha/khushi lag raha hai" or any greeting repeats
+- Avoid saying "Mujhe lagta hai tum udas ho" or similar statements
 - Each response should be unique and show genuine interest through varied expressions
 - Ask different questions each time to keep the conversation engaging
 - Do NOT repeat greetings like "Main Priya hun... Tum kaise ho?"; pick a new angle if user sends short replies.
@@ -86,6 +90,13 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
     let userContext = "";
     if (contextOptions.userName) {
       userContext = `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`;
+    }
+    
+    // Detect if this is the first conversation (no previous messages)
+    const isFirstConversation = conversationHistory.length === 0;
+    let firstConversationContext = "";
+    if (isFirstConversation) {
+      firstConversationContext = `IMPORTANT: This is the FIRST message from the user. You are starting a NEW conversation. Do NOT reference any previous messages or conversations. Do NOT say things like "tum itne baar hi kyun kah rahe ho" (why are you saying hi so many times) or similar phrases that imply repetition. This is the very first interaction.`;
     }
 
     // Select companion-specific personality
@@ -112,7 +123,7 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
 
     const systemMessage: ChatMessage = {
       role: "system",
-      content: `${BOT_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${languageInstruction}`,
+      content: `${BOT_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${firstConversationContext}\n${languageInstruction}`,
     };
 
     // Build anti-repetition guard using last 3 assistant messages

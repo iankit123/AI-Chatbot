@@ -110,6 +110,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if this is a photo message (premium or regular)
       const isPhotoMessage = !!validatedData.photoUrl;
       
+      // Normal message flow (non-photo message) - Check if this is first user message BEFORE saving
+      // Get conversation history for this specific companion BEFORE saving the new message
+      const allMessages = await storage.getMessages();
+      console.log('[DEBUG] All messages in storage:', allMessages.length);
+      console.log('[DEBUG] All messages:', allMessages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })));
+      
+      // Filter messages for this companion
+      const companionMessages = allMessages.filter(
+        msg => !msg.companionId || msg.companionId === validatedData.companionId
+      );
+      console.log('[DEBUG] Companion messages (filtered):', companionMessages.length);
+      console.log('[DEBUG] Companion messages:', companionMessages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })));
+      
+      // Check if this is the first user message (no previous user messages)
+      const userMessages = companionMessages.filter(msg => msg.role === 'user');
+      const isFirstUserMessage = userMessages.length === 0;
+      console.log('[DEBUG] User messages count:', userMessages.length);
+      console.log('[DEBUG] Is first user message:', isFirstUserMessage);
+      
       // Only create a user message if not explicitly skipped
       let userMessage;
       if (!validatedData.skipUserMessage) {
@@ -153,19 +172,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Normal message flow (non-photo message)
-      // Get conversation history for this specific companion
-      const allMessages = await storage.getMessages();
-      // Filter messages for this companion
-      const companionMessages = allMessages.filter(
-        msg => !msg.companionId || msg.companionId === validatedData.companionId
-      );
-      
-      // Normal message flow (non-photo message)
       try {
-        const conversationHistory = companionMessages.map(msg => ({
+        
+        // Filter out welcome messages (simple "Hi" or "Hello" from assistant) if this is the first user message
+        let filteredMessages = companionMessages;
+        if (isFirstUserMessage) {
+          console.log('[DEBUG] First user message detected. Filtering welcome messages...');
+          console.log('[DEBUG] Companion messages before filter:', companionMessages.map(m => ({ role: m.role, content: m.content })));
+          filteredMessages = companionMessages.filter(msg => {
+            // Exclude welcome messages (assistant messages that are just "Hi" or "Hello")
+            if (msg.role === 'assistant') {
+              const content = msg.content.trim().toLowerCase();
+              const isWelcomeMessage = content === 'hi' || content === 'hello' || 
+                      content.startsWith('hi, main') || content.startsWith('hello, main');
+              if (isWelcomeMessage) {
+                console.log('[DEBUG] Filtering out welcome message:', msg.content);
+              }
+              return !isWelcomeMessage;
+            }
+            return true;
+          });
+          console.log('[DEBUG] Companion messages after filter:', filteredMessages.map(m => ({ role: m.role, content: m.content })));
+        }
+        
+        const conversationHistory = filteredMessages.map(msg => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content
         }));
+        
+        console.log('[DEBUG] Conversation history being sent to LLM:', conversationHistory);
+        console.log('[DEBUG] Is first user message:', isFirstUserMessage);
         
         // Generate AI response with additional context
         const responseContent = await generateResponse(

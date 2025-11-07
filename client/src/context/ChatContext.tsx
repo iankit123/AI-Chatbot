@@ -263,7 +263,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           if (prevMessages.length === 0) {
             const welcomeMessage: Message = {
               id: Date.now(),
-              content: `Hi, main ${botName} hoon. Tum kaise ho?`,
+              content: `Hi`,
               role: "assistant",
               companionId: companionId,
               timestamp: new Date(),
