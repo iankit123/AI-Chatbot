@@ -447,7 +447,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Helper: check if a user's message is asking for a photo
   const isAskingForPhoto = (content: string): boolean => {
     const lowerContent = content.toLowerCase();
-    const photoKeywords = ['photo', 'picture', 'pic', 'image', 'photo', 'tasveer', 'foto', 'selfie', 'dekhna', 'share'];
+    const photoKeywords = ['photo', 'picture', 'pic', 'image', 'photo', 'tasveer', 'foto', 'selfie', 'share','dp'];
     return photoKeywords.some(word => lowerContent.includes(word));
   };
 
@@ -979,6 +979,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       };
       botMessageToAddRef.current = errorMsg;
       console.log("[ChatContext] Error message stored in ref, will add after typing completes");
+      
+      // Save error message to Firebase
+      saveChatMessage(errorMsg);
     } finally {
       // Ensure typing indicator is visible for minimum duration
       const elapsedTime = Date.now() - typingStartTime;
