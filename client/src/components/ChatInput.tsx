@@ -54,13 +54,13 @@ export function ChatInput() {
       
       <div className="mt-2 px-3 pb-1">
         <div className="flex justify-between text-xs text-neutral-700">
-          <span className="truncate mr-1">• {currentLanguage === 'hindi' ? 'Hindi aur English dono supported hain' : 'Hindi and English both supported'}</span>
+          {/* <span className="truncate mr-1">• {currentLanguage === 'hindi' ? '' : ''}</span> */}
           <button 
             className="underline whitespace-nowrap"
             onClick={clearChat}
             disabled={showAuthDialog}
           >
-            {currentLanguage === 'hindi' ? 'Chat saaf karo' : 'Clear chat'}
+            {/* {currentLanguage === 'hindi' ? 'Chat saaf karo' : 'Clear chat'} */}
           </button>
         </div>
       </div>

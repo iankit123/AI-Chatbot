@@ -101,6 +101,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Store bot message to add after typing indicator disappears
   const botMessageToAddRef = useRef<Message | null>(null);
   
+  // Track if welcome message has been added for each companion in this session
+  const welcomeMessageAddedRef = useRef<Set<string>>(new Set());
+  
   // Bot info from localStorage
   const [botName, setBotName] = useState(() => {
     try {
@@ -139,14 +142,24 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
               new: companion
             });
             
+            // Check if companion actually changed
+            const companionChanged = companion.id !== companionId;
+            
             // Important: Actually update all state values with the new data
             // This ensures the UI reflects the selected companion
           setBotName(companion.name);
           setBotAvatar(companion.avatar);
             setCompanionId(companion.id);
             
-          // Reset messages when companion changes
-          setMessages([]);
+          // Only reset messages when companion actually changes (not when navigating back to same companion)
+          if (companionChanged) {
+            console.log("[ChatContext] Companion changed, clearing messages");
+            setMessages([]);
+            // Clear welcome message tracking for the old companion (it will be reset when new companion loads)
+            // Note: We don't clear the entire set, just let it accumulate. The welcome message will only be added once per companion.
+          } else {
+            console.log("[ChatContext] Same companion selected, keeping messages");
+          }
             
             console.log("[ChatContext] Companion updated successfully to:", companion.name);
           }
@@ -194,55 +207,95 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     setMessageCount(savedCount ? parseInt(savedCount, 10) : 0);
   }, [companionId]);
 
-  // Load previous chat history for authenticated users
+  // Load previous chat history for authenticated and anonymous users
   useEffect(() => {
     const loadChatHistory = async () => {
-      // Only attempt to load chat history if user is authenticated
-      if (isAuthenticated()) {
-        try {
-          // Get the current user's ID
+      try {
+        let userId: string | null = null;
+        
+        // Get user ID - either authenticated or anonymous
+        if (isAuthenticated()) {
           const authUser = localStorage.getItem("authUser");
-          if (!authUser) return;
-          
-          const { uid } = JSON.parse(authUser);
-          console.log("[ChatContext] Loading chat history for user:", uid, "with companion:", companionId);
-          
-          // Load messages from Firebase
-          const firebaseMessages = await getFirebaseMessages(uid, companionId);
-          if (firebaseMessages && firebaseMessages.length > 0) {
-            console.log("[ChatContext] Found previous chat history with", firebaseMessages.length, "messages");
-            
-            // Convert Firebase messages format to app Message format
-            const convertedMessages: Message[] = firebaseMessages.map((msg: any) => ({
-              id: msg.id || -Math.floor(Math.random() * 1000000000),
-                content: msg.content,
-                role: msg.role,
-                companionId: companionId,
-                timestamp: new Date(msg.timestamp),
-                photoUrl: msg.photoUrl || null,
-                isPremium: msg.isPremium || null,
-              contextInfo: msg.contextInfo || null,
-            }));
-            
-            // Set the messages in state
-            setMessages(convertedMessages);
-            
-            // Update message count based on history
-            const count = convertedMessages.filter(msg => msg.role === "user").length;
-            setMessageCount(count);
-            localStorage.setItem(`messageCount_${companionId}`, count.toString());
-            console.log("[ChatContext] Updated message count to", count, "based on chat history");
-            } else {
-            console.log("[ChatContext] No previous chat history found, starting fresh");
-            // History loading complete, but no history - welcome message will be added by the other useEffect
+          if (authUser) {
+            const { uid } = JSON.parse(authUser);
+            userId = uid;
+            console.log("[ChatContext] Loading chat history for authenticated user:", userId, "with companion:", companionId);
           }
-        } catch (error) {
-          console.error("[ChatContext] Error loading chat history:", error);
-          // If error loading history, just continue with empty chat - welcome message will be added
+        } else {
+          // For anonymous users, get their anonymous ID
+          const anonymousId = localStorage.getItem("anonymousUserId");
+          if (anonymousId) {
+            userId = anonymousId;
+            console.log("[ChatContext] Loading chat history for anonymous user:", userId, "with companion:", companionId);
+          }
         }
-      } else {
-        console.log("[ChatContext] User not authenticated, not loading chat history");
-        // Not authenticated - welcome message will be added for new chats
+        
+        if (!userId) {
+          console.log("[ChatContext] No user ID found, not loading chat history");
+          return;
+        }
+        
+        // Load messages from Firebase (works for both authenticated and anonymous users)
+        const firebaseMessages = await getFirebaseMessages(userId, companionId);
+        if (firebaseMessages && firebaseMessages.length > 0) {
+          console.log("[ChatContext] Found previous chat history with", firebaseMessages.length, "messages");
+          
+          // Convert Firebase messages format to app Message format
+          const convertedMessages: Message[] = firebaseMessages.map((msg: any) => ({
+            id: msg.id || -Math.floor(Math.random() * 1000000000),
+            content: msg.content,
+            role: msg.role,
+            companionId: companionId,
+            timestamp: new Date(msg.timestamp),
+            photoUrl: msg.photoUrl || null,
+            isPremium: msg.isPremium || null,
+            contextInfo: msg.contextInfo || null,
+          }));
+          
+          // Filter out duplicate "Hi" messages from assistant (keep only the first one)
+          const filteredMessages: Message[] = [];
+          let lastAssistantContent: string | null = null;
+          for (const msg of convertedMessages) {
+            let shouldSkip = false;
+            
+            if (msg.role === 'assistant') {
+              const content = msg.content.trim().toLowerCase();
+              // Skip duplicate "Hi" or "Hello" messages from assistant
+              if ((content === 'hi' || content === 'hello') && lastAssistantContent === content) {
+                console.log("[ChatContext] Filtering out duplicate welcome message:", msg.content);
+                shouldSkip = true; // Skip this message, don't add it
+              } else {
+                lastAssistantContent = content;
+              }
+            } else {
+              // Reset last assistant content when user message appears
+              lastAssistantContent = null;
+            }
+            
+            // Only add message if we didn't skip it
+            if (!shouldSkip) {
+              filteredMessages.push(msg);
+            }
+          }
+          
+          // Set the messages in state
+          setMessages(filteredMessages);
+          
+          // Mark that welcome message has been added for this companion (since it's in history)
+          welcomeMessageAddedRef.current.add(companionId);
+          
+          // Update message count based on history
+          const count = convertedMessages.filter(msg => msg.role === "user").length;
+          setMessageCount(count);
+          localStorage.setItem(`messageCount_${companionId}`, count.toString());
+          console.log("[ChatContext] Updated message count to", count, "based on chat history");
+        } else {
+          console.log("[ChatContext] No previous chat history found, starting fresh");
+          // History loading complete, but no history - welcome message will be added by the other useEffect
+        }
+      } catch (error) {
+        console.error("[ChatContext] Error loading chat history:", error);
+        // If error loading history, just continue with empty chat - welcome message will be added
       }
     };
     
@@ -251,16 +304,22 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   }, [companionId]);
 
   // Add first welcome message when chat starts (only for new chats, not when loading history)
+  // Only add once per companion per session
   useEffect(() => {
     // Only add welcome message if:
     // 1. Messages array is empty (new chat or no history)
     // 2. Companion is selected
-    // 3. Give enough time for history to load (500ms delay)
-    if (messages.length === 0 && companionId && botName) {
+    // 3. Welcome message hasn't been added for this companion yet in this session
+    // 4. Give enough time for history to load (500ms delay)
+    if (messages.length === 0 && companionId && botName && !welcomeMessageAddedRef.current.has(companionId)) {
       const timer = setTimeout(() => {
         // Double-check messages are still empty after delay (history loading might have finished)
+        // and welcome message hasn't been added by another effect
         setMessages((prevMessages) => {
-          if (prevMessages.length === 0) {
+          if (prevMessages.length === 0 && !welcomeMessageAddedRef.current.has(companionId)) {
+            // Mark that welcome message has been added for this companion
+            welcomeMessageAddedRef.current.add(companionId);
+            
             const welcomeMessage: Message = {
               id: Date.now(),
               content: `Hi`,
@@ -272,7 +331,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
               contextInfo: null,
             };
             
-            console.log("[ChatContext] Adding first welcome message:", welcomeMessage.content);
+            console.log("[ChatContext] Adding first welcome message for companion:", companionId);
             
             // Save welcome message to Firebase if user is authenticated or anonymous
             saveChatMessage(welcomeMessage).catch((error) => {
@@ -875,6 +934,27 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       }
       
       if (botMessage) {
+        // Check for duplicate messages from assistant
+        const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+        const botContent = botMessage.content.trim().toLowerCase();
+        
+        // Block duplicate "Hi" or "Hello" messages from assistant
+        if (lastMessage && lastMessage.role === 'assistant') {
+          const lastContent = lastMessage.content.trim().toLowerCase();
+          if ((botContent === 'hi' || botContent === 'hello') && 
+              (lastContent === 'hi' || lastContent === 'hello') &&
+              botContent === lastContent) {
+            console.log("[ChatContext] Blocking duplicate welcome message from assistant:", botMessage.content);
+            return; // Don't add duplicate message
+          }
+          
+          // Block exact duplicate messages from assistant
+          if (botContent === lastContent && botMessage.role === 'assistant') {
+            console.log("[ChatContext] Blocking duplicate message from assistant:", botMessage.content);
+            return; // Don't add duplicate message
+          }
+        }
+        
         // Store bot message to add after typing indicator disappears
         botMessageToAddRef.current = botMessage;
         console.log("[ChatContext] Bot message stored in ref, will add after typing completes");
@@ -916,9 +996,33 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           // Add the bot message AFTER typing indicator disappears
           if (botMessageToAddRef.current) {
             const messageToAdd = botMessageToAddRef.current;
-            console.log("[ChatContext] Adding bot message NOW:", messageToAdd.content.substring(0, 50));
             botMessageToAddRef.current = null; // Clear ref first
-            setMessages((prev) => [...prev, messageToAdd]); // Then add the captured message
+            
+            // Check for duplicate before adding
+            setMessages((prev) => {
+              const lastMessage = prev.length > 0 ? prev[prev.length - 1] : null;
+              const messageContent = messageToAdd.content.trim().toLowerCase();
+              
+              if (lastMessage && lastMessage.role === 'assistant') {
+                const lastContent = lastMessage.content.trim().toLowerCase();
+                // Block duplicate "Hi" or "Hello" messages
+                if ((messageContent === 'hi' || messageContent === 'hello') && 
+                    (lastContent === 'hi' || lastContent === 'hello') &&
+                    messageContent === lastContent) {
+                  console.log("[ChatContext] Blocking duplicate welcome message:", messageToAdd.content);
+                  return prev; // Don't add duplicate
+                }
+                
+                // Block exact duplicate messages
+                if (messageContent === lastContent && messageToAdd.role === 'assistant') {
+                  console.log("[ChatContext] Blocking duplicate message:", messageToAdd.content);
+                  return prev; // Don't add duplicate
+                }
+              }
+              
+              console.log("[ChatContext] Adding bot message NOW:", messageToAdd.content.substring(0, 50));
+              return [...prev, messageToAdd]; // Then add the captured message
+            });
           } else {
             console.log("[ChatContext] No message to add");
           }
@@ -930,9 +1034,33 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         // Add the bot message immediately if typing time has already passed
         if (botMessageToAddRef.current) {
           const messageToAdd = botMessageToAddRef.current;
-          console.log("[ChatContext] Adding bot message NOW (immediate):", messageToAdd.content.substring(0, 50));
           botMessageToAddRef.current = null; // Clear ref first
-          setMessages((prev) => [...prev, messageToAdd]); // Then add the captured message
+          
+          // Check for duplicate before adding
+          setMessages((prev) => {
+            const lastMessage = prev.length > 0 ? prev[prev.length - 1] : null;
+            const messageContent = messageToAdd.content.trim().toLowerCase();
+            
+            if (lastMessage && lastMessage.role === 'assistant') {
+              const lastContent = lastMessage.content.trim().toLowerCase();
+              // Block duplicate "Hi" or "Hello" messages
+              if ((messageContent === 'hi' || messageContent === 'hello') && 
+                  (lastContent === 'hi' || lastContent === 'hello') &&
+                  messageContent === lastContent) {
+                console.log("[ChatContext] Blocking duplicate welcome message:", messageToAdd.content);
+                return prev; // Don't add duplicate
+              }
+              
+              // Block exact duplicate messages
+              if (messageContent === lastContent && messageToAdd.role === 'assistant') {
+                console.log("[ChatContext] Blocking duplicate message:", messageToAdd.content);
+                return prev; // Don't add duplicate
+              }
+            }
+            
+            console.log("[ChatContext] Adding bot message NOW (immediate):", messageToAdd.content.substring(0, 50));
+            return [...prev, messageToAdd]; // Then add the captured message
+          });
         } else {
           console.log("[ChatContext] No message to add");
         }
