@@ -25,6 +25,105 @@ interface UserProfile {
 const AUTH_USER_KEY = "authUser";
 const ANONYMOUS_ID_KEY = "anonymousUserId";
 
+export const normalizeIndianPhone = (input: string): string | null => {
+  let digits = input.replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("91")) digits = digits.slice(-10);
+  else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(-10);
+  else if (digits.length > 10) digits = digits.slice(-10);
+  return digits.length === 10 ? digits : null;
+};
+
+export const isSignedInLocally = (): boolean => {
+  try {
+    const raw = localStorage.getItem(AUTH_USER_KEY);
+    if (!raw) return false;
+    const u = JSON.parse(raw) as AppUser;
+    if (!u?.uid || String(u.uid).startsWith("anonymous-")) return false;
+    const email = u.email ? String(u.email) : "";
+    const pseudoEmail =
+      email && !email.includes("anonymous") && !email.endsWith("@phone.local");
+    return pseudoEmail || !!u.displayName;
+  } catch {
+    return false;
+  }
+};
+
+const notifyLocalAuthListeners = () => {
+  window.dispatchEvent(new Event("local-storage-auth"));
+};
+
+/** Marks the user signed-in locally using phone (no OTP). Syncs guestProfile.name if missing. */
+export const signInWithPhoneLocal = (name: string, phoneDigits: string): AppUser => {
+  const normalized = normalizeIndianPhone(phoneDigits);
+  if (!normalized) throw new Error("Invalid phone number");
+
+  let prev: Record<string, unknown> = {};
+  try {
+    const g = localStorage.getItem("guestProfile");
+    prev = g ? JSON.parse(g) : {};
+  } catch {
+    prev = {};
+  }
+
+  const displayName = name.trim() || (prev.name as string)?.trim() || "User";
+  const user: AppUser = {
+    uid: `phone-${normalized}`,
+    email: `${normalized}@phone.local`,
+    displayName,
+    photoURL: null,
+  };
+  auth.currentUser = user;
+  localStorage.setItem(
+    AUTH_USER_KEY,
+    JSON.stringify(user),
+  );
+  localStorage.setItem(
+    "guestProfile",
+    JSON.stringify({
+      ...prev,
+      name: displayName,
+      phone: normalized,
+    }),
+  );
+  notifyLocalAuthListeners();
+  return user;
+};
+
+export async function upsertAppProfileOnServer(
+  deviceId: string,
+  opts: { phone?: string | null; name?: string | null },
+): Promise<boolean> {
+  try {
+    const res = await fetch("/api/profiles/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        device_id: deviceId,
+        phone_number: opts.phone ?? null,
+        name: opts.name ?? null,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function logPaymentAttemptOnServer(payload: {
+  device_id: string;
+  phone_number: string;
+  amount_rupees: number;
+  companion_id?: string | null;
+  rate_note?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  await fetch("/api/billing/payment-attempt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 const toAppUser = (user: any): AppUser => ({
   uid: user.id,
   email: user.email || null,
@@ -125,6 +224,7 @@ export const signOutUser = async () => {
   if (supabase) await supabase.auth.signOut();
   auth.currentUser = null;
   localStorage.removeItem(AUTH_USER_KEY);
+  notifyLocalAuthListeners();
 };
 
 export const saveUserProfile = async (_userId: string, profile: UserProfile) => {
@@ -167,6 +267,9 @@ export const getAnonymousUserId = (): string => {
   localStorage.setItem(ANONYMOUS_ID_KEY, anonymousId);
   return anonymousId;
 };
+
+/** Stable browser id for guests (same key as anonymous chat owner). */
+export const getDeviceId = (): string => getAnonymousUserId();
 
 const getOwnerIds = () => {
   const user = auth.currentUser || getStoredAuthUser();
@@ -213,7 +316,14 @@ export const saveChatMessage = async (message: any) => {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Failed to save chat message: ${text}`);
+    let detail = text;
+    try {
+      const j = JSON.parse(text) as { error?: string; hint?: string; message?: string };
+      detail = [j.message, j.error, j.hint].filter(Boolean).join(" — ") || text;
+    } catch {
+      /* raw text */
+    }
+    throw new Error(`Failed to save chat message: ${detail}`);
   }
 
   const data = await response.json();

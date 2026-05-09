@@ -21,7 +21,7 @@ const getSupabaseAdmin = () => {
 
 const resolveOwner = (userId?: string | null, anonymousUserId?: string | null) => {
   if (userId && uuidPattern.test(userId)) {
-    return { user_id: userId, anonymous_user_id: null };
+    return { user_id: userId, anonymous_user_id: null as string | null };
   }
 
   const guestId = anonymousUserId || userId;
@@ -29,7 +29,18 @@ const resolveOwner = (userId?: string | null, anonymousUserId?: string | null) =
     throw new Error("A user_id or anonymous_user_id is required");
   }
 
-  return { user_id: null, anonymous_user_id: guestId };
+  return { user_id: null as string | null, anonymous_user_id: guestId };
+};
+
+/** PostgREST can reject explicit `user_id: null` on FK columns — omit null keys instead. */
+const rowWithOwner = (
+  owner: { user_id: string | null; anonymous_user_id: string | null },
+  fields: Record<string, unknown>,
+): Record<string, unknown> => {
+  const row: Record<string, unknown> = { ...fields };
+  if (owner.user_id) row.user_id = owner.user_id;
+  if (owner.anonymous_user_id) row.anonymous_user_id = owner.anonymous_user_id;
+  return row;
 };
 
 interface SaveChatMessageInput {
@@ -66,8 +77,7 @@ export const saveChatMessageToSupabase = async (input: SaveChatMessageInput) => 
   const { data: existingConversation, error: findError } = await conversationQuery.maybeSingle();
   if (findError) throw findError;
 
-  const conversationPayload = {
-    ...owner,
+  const conversationPayload = rowWithOwner(owner, {
     companion_id: input.companionId,
     companion_name: input.companionName,
     companion_avatar: input.companionAvatar,
@@ -77,7 +87,7 @@ export const saveChatMessageToSupabase = async (input: SaveChatMessageInput) => 
     last_message_role: input.role,
     last_message_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  };
+  });
 
   const conversationId = existingConversation?.id;
   const { data: conversation, error: conversationError } = conversationId
@@ -97,18 +107,19 @@ export const saveChatMessageToSupabase = async (input: SaveChatMessageInput) => 
 
   const { data: message, error: messageError } = await supabase
     .from("chat_messages")
-    .insert({
-      ...owner,
-      conversation_id: conversation.id,
-      companion_id: input.companionId,
-      role: input.role,
-      content: input.content,
-      language: input.language,
-      photo_url: input.photoUrl,
-      is_premium: Boolean(input.isPremium),
-      context_info: input.contextInfo,
-      metadata: input.metadata || {},
-    })
+    .insert(
+      rowWithOwner(owner, {
+        conversation_id: conversation.id,
+        companion_id: input.companionId,
+        role: input.role,
+        content: input.content,
+        language: input.language,
+        photo_url: input.photoUrl,
+        is_premium: Boolean(input.isPremium),
+        context_info: input.contextInfo,
+        metadata: input.metadata || {},
+      }),
+    )
     .select(
       "id, conversation_id, companion_id, role, content, language, photo_url, is_premium, context_info, created_at",
     )

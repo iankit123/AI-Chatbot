@@ -1,9 +1,34 @@
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { BottomNav } from "@/components/BottomNav";
-import { auth, getUserProfile } from "@/lib/supabase";
+import {
+  auth,
+  getUserProfile,
+  isSignedInLocally,
+  signOutUser,
+} from "@/lib/supabase";
 import { useChat } from "@/context/ChatContext";
 import { isHomeAssistantCardVisible } from "@/lib/experiments";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CreditCard, LogOut, MessageCircle, Zap } from "lucide-react";
+import { ProfileDialog } from "@/components/ProfileDialog";
+
+function firstNameOnly(full: string): string {
+  const t = full.trim();
+  if (!t) return "";
+  return t.split(/\s+/)[0];
+}
+
+function formatPhoneDisplay(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(-10);
+  return d.length === 10 ? d : "—";
+}
 
 interface RoleCard {
   id: string;
@@ -79,7 +104,7 @@ const roles: RoleCard[] = [
   },
   {
     id: "krishna",
-    title: "Chat with Krishna",
+    title: "Krishna",
     description: "Spiritual guidance and life wisdom",
     route: "/krishna",
     gradient: "from-blue-500 to-indigo-600",
@@ -108,16 +133,34 @@ const getGreeting = () => {
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const { currentLanguage, setLanguage } = useChat();
+  const { currentLanguage, setLanguage, setShowRechargeDialog } = useChat();
   const [userName, setUserName] = useState<string>("");
   const [userPhoto, setUserPhoto] = useState<string>("");
+  const [userPhone, setUserPhone] = useState<string>("");
+  const [walletCredits, setWalletCredits] = useState<number>(0);
+  const [signedIn, setSignedIn] = useState(isSignedInLocally);
+  const [headerProfileOpen, setHeaderProfileOpen] = useState(false);
+
+  useEffect(() => {
+    const refreshSignedIn = () => setSignedIn(isSignedInLocally());
+    window.addEventListener("local-storage-auth", refreshSignedIn);
+    return () => window.removeEventListener("local-storage-auth", refreshSignedIn);
+  }, []);
 
   useEffect(() => {
     const loadUserInfo = async () => {
       try {
         let name = "";
         let photo = "";
-        
+        let phone = "";
+
+        setSignedIn(isSignedInLocally());
+        try {
+          setWalletCredits(Number(localStorage.getItem("wallet_credits") || "0"));
+        } catch {
+          setWalletCredits(0);
+        }
+
         // Check for authenticated user first
         if (auth.currentUser) {
           try {
@@ -132,31 +175,52 @@ export default function Home() {
             console.log("Could not load user profile from Supabase");
           }
         }
-        
-        // Fallback to guest profile from localStorage
-        if (!name) {
-          const guestProfile = localStorage.getItem('guestProfile');
-          if (guestProfile) {
-            try {
-              const parsed = JSON.parse(guestProfile);
-              if (parsed.name) {
-                name = parsed.name;
-              }
-            } catch (e) {
-              console.error("Error parsing guest profile:", e);
-            }
+
+        const guestProfile = localStorage.getItem("guestProfile");
+        if (guestProfile) {
+          try {
+            const parsed = JSON.parse(guestProfile) as {
+              name?: string;
+              phone?: string;
+            };
+            if (!name && parsed.name) name = parsed.name;
+            if (parsed.phone) phone = String(parsed.phone);
+          } catch (e) {
+            console.error("Error parsing guest profile:", e);
           }
         }
-        
-        if (name) setUserName(name);
-        if (photo) setUserPhoto(photo);
+
+        setUserName(name);
+        setUserPhoto(photo);
+        setUserPhone(phone);
       } catch (error) {
         console.error("Error loading user info:", error);
       }
     };
-    
+
     loadUserInfo();
+    const onRefresh = () => loadUserInfo();
+    window.addEventListener("local-storage-auth", onRefresh);
+    return () => window.removeEventListener("local-storage-auth", onRefresh);
   }, []);
+
+  const handleProfileLogout = async () => {
+    await signOutUser().catch(() => {
+      auth.currentUser = null;
+      localStorage.removeItem("authUser");
+    });
+    localStorage.removeItem("guestProfile");
+    window.dispatchEvent(new Event("local-storage-auth"));
+    setSignedIn(false);
+    setUserName("");
+    setUserPhoto("");
+    setUserPhone("");
+  };
+
+  const supportHref =
+    (typeof import.meta.env.VITE_SUPPORT_MAILTO === "string" &&
+      import.meta.env.VITE_SUPPORT_MAILTO.trim()) ||
+    "mailto:support@example.com?subject=Help";
 
   const handleRoleSelect = (route: string) => {
     setLocation(route);
@@ -202,6 +266,10 @@ export default function Home() {
           krishnaBadge: "आध्यात्मिक ज्ञान",
           englishBadge: "इंग्लिश प्रैक्टिस",
           startChat: "चैट शुरू करें",
+          profileMenuRemainingCredits: "बचे हुए क्रेडिट",
+          profileMenuBuyCredits: "क्रेडिट खरीदें",
+          profileMenuMessageUs: "Message Us",
+          profileMenuLogOut: "लॉग आउट",
         }
       : {
           welcomeBack: "Welcome back",
@@ -219,7 +287,7 @@ export default function Home() {
           careerDescription: "Career planning & growth",
           relationshipTitle: "Relationship Coach",
           relationshipDescription: "Emotional support & connection",
-          krishnaTitle: "Chat with Krishna",
+          krishnaTitle: "Krishna",
           krishnaDescription: "Spiritual guidance and life wisdom",
           englishTitle: "Learn English",
           englishDescription: "Practice speaking and grammar",
@@ -241,6 +309,10 @@ export default function Home() {
           krishnaBadge: "SPIRITUAL WISDOM",
           englishBadge: "ENGLISH PRACTICE",
           startChat: "Start Chat",
+          profileMenuRemainingCredits: "Remaining credits",
+          profileMenuBuyCredits: "Buy credits",
+          profileMenuMessageUs: "Message Us",
+          profileMenuLogOut: "Log out",
         };
 
   const localizedRoleCopy: Record<string, { title: string; description: string }> = {
@@ -284,33 +356,112 @@ export default function Home() {
         <img
           src="/images/home-hero-characters.png"
           alt="AI Assistants"
-          className="absolute inset-0 h-full w-full object-cover object-center"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none"
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/75 to-transparent" />
 
         {/* Welcome Section */}
-        <div className="relative z-10 mb-2 flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            {userPhoto ? (
-              <img 
-                src={userPhoto} 
-                alt={userName || "User"}
-                className="h-9 w-9 rounded-full border-2 border-white object-cover shadow-sm ring-2 ring-indigo-100"
-              />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-sm ring-2 ring-indigo-100">
-                <span className="text-xl font-semibold text-white">
-                  {userName ? userName.charAt(0).toUpperCase() : 'U'}
-                </span>
+        <div className="relative z-20 mb-2 flex items-start justify-between gap-2">
+          {signedIn ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex min-w-0 max-w-[calc(100%-7rem)] items-center gap-2.5 rounded-xl py-0.5 pl-0.5 pr-2 text-left outline-none ring-offset-2 ring-offset-transparent transition hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-indigo-400"
+                >
+                  {userPhoto ? (
+                    <img
+                      src={userPhoto}
+                      alt={firstNameOnly(userName) || "User"}
+                      className="h-9 w-9 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-2 ring-indigo-100"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-sm ring-2 ring-indigo-100">
+                      <span className="text-xl font-semibold text-white">
+                        {(userName ? firstNameOnly(userName) : "").charAt(0).toUpperCase() || "U"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium leading-tight text-slate-500">{uiText.welcomeBack},</p>
+                    <h2 className="truncate text-lg font-bold leading-tight text-slate-900">
+                      {firstNameOnly(userName) || "User"}
+                    </h2>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                sideOffset={8}
+                className="z-[100] w-[min(calc(100vw-2rem),18rem)] p-0 shadow-lg"
+              >
+                <div className="border-b border-border px-4 py-3">
+                  <p className="font-semibold text-slate-900">{userName.trim() || "User"}</p>
+                  <p className="text-sm text-slate-500 tabular-nums">{formatPhoneDisplay(userPhone)}</p>
+                </div>
+                <div className="px-1 py-1">
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <CreditCard className="h-5 w-5 shrink-0 text-pink-600" aria-hidden />
+                    <span className="flex-1 text-sm text-slate-900">{uiText.profileMenuRemainingCredits}</span>
+                    <span className="text-sm font-bold tabular-nums text-pink-600">{walletCredits}</span>
+                  </div>
+                  <DropdownMenuSeparator className="my-0" />
+                  <DropdownMenuItem
+                    className="gap-3 py-2.5 text-pink-600 focus:text-pink-600 cursor-pointer"
+                    onSelect={() => setShowRechargeDialog(true)}
+                  >
+                    <Zap className="h-5 w-5 shrink-0" aria-hidden />
+                    <span>{uiText.profileMenuBuyCredits}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="my-0" />
+                  <DropdownMenuItem
+                    className="gap-3 py-2.5 cursor-pointer"
+                    onSelect={() => {
+                      window.location.href = supportHref;
+                    }}
+                  >
+                    <MessageCircle className="h-5 w-5 shrink-0" aria-hidden />
+                    <span>{uiText.profileMenuMessageUs}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="my-0" />
+                  <DropdownMenuItem
+                    className="gap-3 py-2.5 text-slate-600 focus:text-slate-600 cursor-pointer"
+                    onSelect={() => void handleProfileLogout()}
+                  >
+                    <LogOut className="h-5 w-5 shrink-0" aria-hidden />
+                    <span>{uiText.profileMenuLogOut}</span>
+                  </DropdownMenuItem>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setHeaderProfileOpen(true)}
+              className="flex min-w-0 max-w-[calc(100%-7rem)] cursor-pointer touch-manipulation items-center gap-2.5 rounded-xl py-0.5 pl-0.5 pr-2 text-left outline-none ring-offset-2 ring-offset-transparent transition hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-indigo-400 active:opacity-90"
+              aria-label={currentLanguage === "hindi" ? "खाता खोलें" : "Open account"}
+            >
+              {userPhoto ? (
+                <img
+                  src={userPhoto}
+                  alt={firstNameOnly(userName) || "User"}
+                  className="h-9 w-9 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-2 ring-indigo-100"
+                />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-sm ring-2 ring-indigo-100">
+                  <span className="text-xl font-semibold text-white">
+                    {(userName ? firstNameOnly(userName) : "").charAt(0).toUpperCase() || "U"}
+                  </span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-medium leading-tight text-slate-500">{uiText.welcomeBack},</p>
+                <h2 className="truncate text-lg font-bold leading-tight text-slate-900">
+                  {firstNameOnly(userName) || "User"}
+                </h2>
               </div>
-            )}
-            <div>
-              <p className="text-xs font-medium leading-tight text-slate-500">{uiText.welcomeBack},</p>
-              <h2 className="text-lg font-bold leading-tight text-slate-900">
-                {userName || "User"}
-              </h2>
-            </div>
-          </div>
+            </button>
+          )}
           <div className="flex shrink-0 items-center gap-1.5">
             <div className="flex items-center rounded-xl border border-white/70 bg-white/90 p-0.5 shadow-sm backdrop-blur">
               <button
@@ -431,6 +582,8 @@ export default function Home() {
         </div>
       </div>
       
+      <ProfileDialog open={headerProfileOpen} onOpenChange={setHeaderProfileOpen} />
+
       <BottomNav />
     </div>
   );

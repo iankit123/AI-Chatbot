@@ -4,6 +4,32 @@ import { TypingIndicator } from './TypingIndicator';
 import { formatDate } from '@/lib/dates';
 import { useChat } from '@/context/ChatContext';
 import { ROLE_SUGGESTIONS, type RoleType } from '@/lib/constants';
+import { getPersistentChatDisclaimer } from '@/lib/chatDisclaimers';
+
+const ROLE_CHAT_IDS: RoleType[] = [
+  'doctor',
+  'kundli',
+  'parenting',
+  'finance',
+  'career',
+  'krishna',
+  'english',
+];
+
+function readCompanionSelection(): { companionId: string; currentRole: RoleType | null } {
+  try {
+    const saved = localStorage.getItem('selectedCompanion');
+    if (!saved) return { companionId: '', currentRole: null };
+    const companion = JSON.parse(saved);
+    const companionId = typeof companion.id === 'string' ? companion.id : '';
+    const currentRole = ROLE_CHAT_IDS.includes(companion.id as RoleType)
+      ? (companion.id as RoleType)
+      : null;
+    return { companionId, currentRole };
+  } catch {
+    return { companionId: '', currentRole: null };
+  }
+}
 
 export function ChatArea() {
   const { messages, isTyping, botAvatar, setComposerDraft, composerInputRef } = useChat();
@@ -11,25 +37,14 @@ export function ChatArea() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [previousMessagesLength, setPreviousMessagesLength] = useState(0);
   
-  // Get current role from companionId
-  const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
-  
+  const [{ companionId, currentRole }, setCompanionSelection] = useState(readCompanionSelection);
+
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("selectedCompanion");
-      if (saved) {
-        const companion = JSON.parse(saved);
-        const roleTypes: RoleType[] = ['doctor', 'kundli', 'parenting', 'finance', 'career'];
-        if (roleTypes.includes(companion.id as RoleType)) {
-          setCurrentRole(companion.id as RoleType);
-        } else {
-          setCurrentRole(null);
-        }
-      }
-    } catch {
-      setCurrentRole(null);
-    }
+    setCompanionSelection(readCompanionSelection());
   }, [messages]);
+
+  const persistentDisclaimer =
+    companionId ? getPersistentChatDisclaimer(companionId) : null;
   
   const handleSuggestionTap = (suggestion: string) => {
     setComposerDraft(suggestion);
@@ -86,18 +101,34 @@ export function ChatArea() {
   return (
     <div 
       ref={chatAreaRef}
-      className="absolute inset-0 w-full px-4 py-3 space-y-4 chat-area pb-20 overflow-y-auto"
+      className="chat-area wa-chat-pattern absolute inset-0 w-full overflow-y-auto px-3 pb-24 pt-2 space-y-2"
       style={{ maxHeight: 'calc(100vh - 160px)' }}
     >
       {/* Date display */}
-      <div className="text-center text-neutral-700 text-sm my-4">
-        <p>Aaj ka din - <span>{formatDate(new Date(), 'en-IN')}</span></p>
+      <div className="my-3 flex justify-center">
+        <span className="rounded-lg bg-white/80 px-3 py-1 text-xs font-medium text-neutral-600 shadow-sm">
+          {formatDate(new Date(), 'en-IN')}
+        </span>
       </div>
+
+      {persistentDisclaimer && (
+        <div className="mb-3 px-1">
+          <div
+            className="rounded-lg border border-amber-200/90 bg-amber-50/95 px-3 py-2 text-[11px] leading-snug text-amber-950 shadow-sm"
+            role="note"
+          >
+            <span className="mr-1 inline-block font-semibold text-amber-900">
+              Note:
+            </span>
+            {persistentDisclaimer}
+          </div>
+        </div>
+      )}
       
       {/* Show suggestions for role-based chats - always visible at top */}
-      {currentRole && ROLE_SUGGESTIONS[currentRole] && (
+      {currentRole && (ROLE_SUGGESTIONS[currentRole]?.length ?? 0) > 0 && (
         <div className="mb-6">
-          <p className="text-neutral-600 text-sm mb-3 text-center">Try asking:</p>
+          <p className="mb-2 text-center text-xs font-medium text-neutral-600">Try asking</p>
           <div className="flex flex-wrap gap-2 justify-center">
             {ROLE_SUGGESTIONS[currentRole].map((suggestion, index) => (
               <button
@@ -105,7 +136,7 @@ export function ChatArea() {
                 type="button"
                 onTouchStart={(e) => e.stopPropagation()}
                 onClick={() => handleSuggestionTap(suggestion)}
-                className="touch-manipulation select-none px-4 py-2 bg-white border border-neutral-200 rounded-full text-sm text-neutral-700 hover:bg-neutral-50 hover:border-primary active:bg-neutral-100 transition-colors shadow-sm"
+                className="touch-manipulation select-none rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-xs font-medium text-neutral-800 shadow-sm transition-colors hover:bg-white active:bg-neutral-50"
               >
                 {suggestion}
               </button>

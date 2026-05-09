@@ -73,8 +73,14 @@ export function RoleAvatar({ role, className = "w-10 h-10" }: RoleAvatarProps) {
 
     case 'krishna':
       return (
-        <div className={`${baseClasses} bg-blue-500`}>
-          <span className="text-xl text-white">🪷</span>
+        <div
+          className={`${className} shrink-0 overflow-hidden rounded-full border-2 border-white bg-[#1e3a5f]`}
+        >
+          <img
+            src="/images/krishna-card.png"
+            alt="Krishna"
+            className="h-full w-full object-cover object-[center_22%]"
+          />
         </div>
       );
 

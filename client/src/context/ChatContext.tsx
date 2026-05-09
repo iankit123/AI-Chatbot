@@ -13,6 +13,8 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getRandomPhotoPrompt } from "@/lib/companionPhotos";
 import { auth, saveChatMessage, getChatMessages, getAnonymousUserId } from "@/lib/supabase";
+import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
+import { RechargeChatDialog } from "@/components/RechargeChatDialog";
 
 const AFFIRMATIVE_WORDS = [
   "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
@@ -40,7 +42,7 @@ interface ChatContextType {
   botAvatar: string;
   messageCount: number;
   showProfileDialog: boolean;
-  showAuthDialog: boolean;
+  showRechargeDialog: boolean;
   showPremiumTease: boolean;
   showPremiumPhoto: boolean;
   showPaymentDialog: boolean;
@@ -50,7 +52,7 @@ interface ChatContextType {
   setComposerDraft: (value: string) => void;
   composerInputRef: React.RefObject<HTMLInputElement>;
   setShowProfileDialog: (show: boolean) => void;
-  setShowAuthDialog: (show: boolean) => void;
+  setShowRechargeDialog: (show: boolean) => void;
   setShowPremiumTease: (show: boolean) => void;
   setShowPremiumPhoto: (show: boolean) => void;
   setShowPaymentDialog: (show: boolean) => void;
@@ -58,6 +60,8 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   startFreshChat: () => void;
+  /** Replace the conversation (e.g. Kundli birth form seed). Marks welcome as sent and persists messages. */
+  seedConversation: (msgs: Message[]) => void;
   toggleLanguage: () => void;
   setLanguage: (language: "hindi" | "english") => void;
   userProfile: { name: string; age: string } | null;
@@ -87,7 +91,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   });
   const [messageCount, setMessageCount] = useState(0);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showRechargeDialog, setShowRechargeDialog] = useState(false);
   const [showPremiumTease, setShowPremiumTease] = useState(false);
   const [showPremiumPhoto, setShowPremiumPhoto] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -337,7 +341,16 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     // 2. Companion is selected
     // 3. Welcome message hasn't been added for this companion yet in this session
     // 4. Give enough time for history to load (500ms delay)
-    if (messages.length === 0 && companionId && botName && !welcomeMessageAddedRef.current.has(companionId)) {
+    if (
+      companionId === "kundli" ||
+      !messages.length &&
+      companionId &&
+      botName &&
+      !welcomeMessageAddedRef.current.has(companionId)
+    ) {
+      if (companionId === "kundli") {
+        return;
+      }
       const timer = setTimeout(() => {
         // Double-check messages are still empty after delay (history loading might have finished)
         // and welcome message hasn't been added by another effect
@@ -348,13 +361,16 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             
             const welcomeMessage: Message = {
               id: Date.now(),
-              content: `Hi`,
+              content:
+                companionId === "english"
+                  ? getEnglishChatOpeningHtml(currentLanguage)
+                  : "Hi",
               role: "assistant",
               companionId: companionId,
               timestamp: new Date(),
               photoUrl: null,
               isPremium: null,
-              contextInfo: null,
+              contextInfo: companionId === "english" ? "english_lesson_opening" : null,
             };
             
             console.log("[ChatContext] Adding first welcome message for companion:", companionId);
@@ -371,7 +387,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       
       return () => clearTimeout(timer);
     }
-  }, [messages.length, companionId, botName]);
+  }, [messages.length, companionId, botName, currentLanguage]);
 
   // Track authentication state changes
   useEffect(() => {
@@ -402,7 +418,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Reset message processing refs when auth dialog opens/closes or authentication changes
   useEffect(() => {
     // When auth dialog state changes, clear any stuck message refs
-    if (showAuthDialog) {
+    if (showRechargeDialog) {
       console.log("[ChatContext] Auth dialog opened, resetting message refs");
       lastProcessedMessageRef.current = "";
       isProcessingRef.current = false;
@@ -411,7 +427,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         processingTimeoutRef.current = null;
       }
     }
-  }, [showAuthDialog]);
+  }, [showRechargeDialog]);
 
   // Helper: check if user is authenticated
   // IMPORTANT: Only check active auth state, NOT localStorage alone.
@@ -556,7 +572,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // 4. On 4th message (messageCount is 3, as it's 0-indexed), show login/signup popup for non-authenticated users
       // For cases where messageCount is already high, use modulus to catch every 4th message
       // Also check if user previously dismissed the dialog and should be prompted again
-      const wasDialogDismissed = localStorage.getItem('auth_dialog_dismissed') === 'true';
+      const wasDialogDismissed = localStorage.getItem('recharge_dialog_dismissed') === 'true';
       const isAuth4thMessage = !isAuthenticated() && (
         (messageCount === 3) || 
         (messageCount > 3 && messageCount % 4 === 3) ||
@@ -569,14 +585,14 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         wasDialogDismissed,
         isFirstAuth4thMessage: messageCount === 3,
         is4thMessageOrMultiple: messageCount > 3 && messageCount % 4 === 3,
-        shouldShowAuthDialog: isAuth4thMessage
+        shouldShowRechargeDialog: isAuth4thMessage
       });
 
       if (isAuth4thMessage) {
-        console.log("[ChatContext] Triggering setShowAuthDialog(true) for login/signup");
+        console.log("[ChatContext] Triggering setShowRechargeDialog(true) for recharge");
         // Clear the dismissed flag when showing the dialog again
-        localStorage.removeItem('auth_dialog_dismissed');
-        setShowAuthDialog(true);
+        localStorage.removeItem('recharge_dialog_dismissed');
+        setShowRechargeDialog(true);
         return;
       }
       
@@ -1147,6 +1163,27 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     }
   }, []);
 
+  const seedConversation = useCallback((msgs: Message[]) => {
+    let cid = companionIdRef.current;
+    try {
+      const raw = localStorage.getItem("selectedCompanion");
+      if (raw) cid = JSON.parse(raw).id;
+    } catch {
+      /* keep ref */
+    }
+    if (!cid) return;
+    welcomeMessageAddedRef.current.add(cid);
+    setMessages(msgs);
+    const userCount = msgs.filter((m) => m.role === "user").length;
+    setMessageCount(userCount);
+    localStorage.setItem(`messageCount_${cid}`, String(userCount));
+    for (const m of msgs) {
+      void saveChatMessage(m).catch((error) => {
+        console.error("[ChatContext] Error saving seeded message:", error);
+      });
+    }
+  }, []);
+
   // Clear chat
   const clearChat = async () => {
     // Clear messages from API
@@ -1185,6 +1222,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
   // Payment dialog logic (UI should call setShowPaymentDialog(true) on photo click)
 
+  const handleRechargeComplete = useCallback(() => {
+    lastProcessedMessageRef.current = "";
+    isProcessingRef.current = false;
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+      processingTimeoutRef.current = null;
+    }
+    setMessageCount(0);
+    const cid = companionIdRef.current;
+    localStorage.setItem(`messageCount_${cid}`, "0");
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -1195,13 +1244,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         botAvatar,
         messageCount,
         showProfileDialog,
-        showAuthDialog,
+        showRechargeDialog,
         showPremiumTease,
         showPremiumPhoto,
         showPaymentDialog,
         currentPhoto,
         setShowProfileDialog,
-        setShowAuthDialog,
+        setShowRechargeDialog,
         setShowPremiumTease,
         setShowPremiumPhoto,
         setShowPaymentDialog,
@@ -1212,12 +1261,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         sendMessage,
         clearChat,
         startFreshChat,
+        seedConversation,
         toggleLanguage,
         setLanguage,
         userProfile,
         setUserProfile,
       }}
     >
+      <RechargeChatDialog
+        open={showRechargeDialog}
+        onOpenChange={setShowRechargeDialog}
+        onComplete={handleRechargeComplete}
+      />
       {children}
     </ChatContext.Provider>
   );

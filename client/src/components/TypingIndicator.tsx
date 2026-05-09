@@ -9,13 +9,20 @@ interface TypingIndicatorProps {
 export function TypingIndicator({ botAvatar }: TypingIndicatorProps) {
   const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
 
-  // Check if this is a role-based chat
   useEffect(() => {
     try {
       const saved = localStorage.getItem("selectedCompanion");
       if (saved) {
         const companion = JSON.parse(saved);
-        const roleTypes: RoleType[] = ['doctor', 'kundli', 'parenting', 'finance', 'career'];
+        const roleTypes: RoleType[] = [
+          'doctor',
+          'kundli',
+          'parenting',
+          'finance',
+          'career',
+          'krishna',
+          'english',
+        ];
         if (roleTypes.includes(companion.id as RoleType)) {
           setCurrentRole(companion.id as RoleType);
         } else {
@@ -28,17 +35,15 @@ export function TypingIndicator({ botAvatar }: TypingIndicatorProps) {
   }, []);
 
   return (
-    <div className="flex items-start mb-4">
+    <div className="mb-2 flex items-end gap-2">
       {currentRole ? (
-        <div className="mr-2">
-          <RoleAvatar role={currentRole} className="w-8 h-8" />
-        </div>
+        <RoleAvatar role={currentRole} className="h-8 w-8 shrink-0" />
       ) : (
-        <div className="w-8 h-8 rounded-full bg-white overflow-hidden flex-shrink-0 mr-2">
+        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white">
           <img 
             src={botAvatar} 
             alt="Virtual companion avatar"
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
               const parent = e.currentTarget.parentElement;
@@ -49,11 +54,11 @@ export function TypingIndicator({ botAvatar }: TypingIndicatorProps) {
           />
         </div>
       )}
-      <div className="relative max-w-[80%] bg-partner rounded-2xl rounded-tl-none px-4 py-3 chat-bubble-left shadow-sm">
+      <div className="wa-bubble-received relative max-w-[min(85%,28rem)] px-4 py-3 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
         <div className="flex space-x-1">
-          <div className="w-2 h-2 bg-neutral-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-          <div className="w-2 h-2 bg-neutral-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-          <div className="w-2 h-2 bg-neutral-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          <div className="h-2 w-2 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: '0ms' }}></div>
+          <div className="h-2 w-2 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: '150ms' }}></div>
+          <div className="h-2 w-2 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: '300ms' }}></div>
         </div>
       </div>
     </div>

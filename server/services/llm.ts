@@ -2,6 +2,8 @@ import fetch from "node-fetch";
 import type { RoleType } from "@/lib/constants";
 import {
   COMPANION_PERSONALITY_PROMPTS,
+  ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
+  ENGLISH_UI_LANGUAGE_APPENDIX_HINDI,
   RELATIONSHIP_SYSTEM_PROMPT,
   ROLE_SYSTEM_PROMPTS,
   type RolePromptId,
@@ -126,7 +128,13 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
       // Use role-specific prompt
       const roleId = contextOptions.companionId as RolePromptId;
       const rolePrompt = ROLE_SYSTEM_PROMPTS[roleId];
-      systemPromptContent = `${rolePrompt}\n${userContext}\n${firstConversationContext}`;
+      const englishUiAppendix =
+        roleId === "english"
+          ? language === "hindi"
+            ? ENGLISH_UI_LANGUAGE_APPENDIX_HINDI
+            : ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH
+          : "";
+      systemPromptContent = `${rolePrompt}\n${userContext}\n${firstConversationContext}${englishUiAppendix}`;
     } else {
       const companionPersonality =
         COMPANION_PERSONALITY_PROMPTS[contextOptions.companionId || ""] ||

@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   COMPANION_PERSONALITY_PROMPTS,
+  ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
+  ENGLISH_UI_LANGUAGE_APPENDIX_HINDI,
   RELATIONSHIP_SYSTEM_PROMPT,
   ROLE_SYSTEM_PROMPTS,
   type RolePromptId,
@@ -77,10 +79,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const companionPrompt =
           COMPANION_PERSONALITY_PROMPTS[companionId] || COMPANION_PERSONALITY_PROMPTS.default;
         
-        // Language instruction
-        const languageInstruction = language === 'hindi' 
-          ? "Respond with AT LEAST 95% Hindi content written in Roman script (English letters). Use casual, everyday Hindi as spoken, not formal Hindi."
-          : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters).";
+        const languageInstructionNonEnglishRole =
+          language === 'hindi'
+            ? "Respond with AT LEAST 95% Hindi content written in Roman script (English letters). Use casual, everyday Hindi as spoken, not formal Hindi."
+            : "Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters).";
+        const languageInstructionForRole = (id: string) =>
+          id === 'english'
+            ? language === 'hindi'
+              ? ENGLISH_UI_LANGUAGE_APPENDIX_HINDI
+              : ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH
+            : languageInstructionNonEnglishRole;
         
         // Get chat history
         const chatHistory = messages
@@ -96,8 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           {
             role: 'system',
             content: isRoleBased
-              ? `${ROLE_SYSTEM_PROMPTS[companionId as RolePromptId]}\n${languageInstruction}`
-              : `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPrompt}\n${languageInstruction}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
+              ? `${ROLE_SYSTEM_PROMPTS[companionId as RolePromptId]}\n${languageInstructionForRole(companionId)}`
+              : `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPrompt}\n${languageInstructionNonEnglishRole}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
           },
           ...chatHistory
         ];

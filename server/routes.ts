@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { z } from 'zod';
-import { generateResponse } from './services/llm';
+import { z } from "zod";
+import { generateResponse } from "./services/llm";
 import express from "express";
 import path from "path";
 import {
@@ -10,6 +10,47 @@ import {
   getChatMessagesFromSupabase,
   saveChatMessageToSupabase,
 } from "./services/supabaseChat";
+import { logPaymentAttemptRow, upsertProfileRow } from "./services/supabaseBilling";
+
+/** Supabase / PostgREST errors may omit `message` or put causes on sibling keys — avoid opaque "Unknown error". */
+function serializeSupabaseError(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error && error.message) return error.message;
+  if (error !== null && typeof error === "object") {
+    const o = error as Record<string, unknown>;
+    const parts: string[] = [];
+    const push = (v: unknown) => {
+      if (typeof v === "string" && v.trim()) parts.push(v.trim());
+    };
+    push(o.message);
+    push(o.details);
+    push(o.hint);
+    if (typeof o.error === "string") push(o.error);
+    push(o.error_description);
+    if (typeof o.code !== "undefined" && o.code !== null) parts.push(String(o.code));
+    if (parts.length) return Array.from(new Set(parts)).join(" — ");
+    try {
+      const json = JSON.stringify(o);
+      if (json && json !== "{}") return json;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (error === undefined || error === null) return "Empty error from database driver — check server logs.";
+  return String(error);
+}
+
+function isMissingDbRelation(error: unknown): boolean {
+  const msg = serializeSupabaseError(error).toLowerCase();
+  if (msg.includes("does not exist") || msg.includes("schema cache")) return true;
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    (error as { code?: string }).code === "42P01"
+  )
+    return true;
+  return false;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve static files from the client/public directory
@@ -45,9 +86,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid chat message', errors: error.errors });
       }
+      const detail = serializeSupabaseError(error);
+      const hint = isMissingDbRelation(error)
+        ? "Ensure Supabase has the chat tables from migrations/0001_chat_storage.sql applied."
+        : undefined;
       res.status(500).json({
-        message: 'Failed to save chat message',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        message: "Failed to save chat message",
+        error: detail,
+        ...(hint ? { hint } : {}),
       });
     }
   });
@@ -71,9 +117,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid chat query', errors: error.errors });
       }
       res.status(500).json({
-        message: 'Failed to load chat messages',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        message: "Failed to load chat messages",
+        error: serializeSupabaseError(error),
       });
+    }
+  });
+
+  app.post("/api/profiles/upsert", async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        device_id: z.string().min(1),
+        phone_number: z.string().optional().nullable(),
+        name: z.string().optional().nullable(),
+      });
+      const data = bodySchema.parse(req.body);
+      const row = await upsertProfileRow({
+        deviceId: data.device_id,
+        phoneNumber: data.phone_number ?? undefined,
+        name: data.name ?? undefined,
+      });
+      res.status(200).json(row);
+    } catch (error) {
+      console.error("Error upserting profile:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid profile payload", errors: error.errors });
+      }
+      const msg = serializeSupabaseError(error);
+      if (msg.includes("SUPABASE_URL")) {
+        return res.status(503).json({ message: "Profile sync unavailable" });
+      }
+      if (isMissingDbRelation(error) && msg.toLowerCase().includes("profiles")) {
+        return res.status(503).json({
+          message: "Profiles table missing",
+          error: msg,
+          hint: "Run migrations/0002_profiles_payment.sql in your Supabase SQL editor.",
+        });
+      }
+      res.status(500).json({ message: "Failed to upsert profile", error: msg });
+    }
+  });
+
+  app.post("/api/billing/payment-attempt", async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        device_id: z.string().min(1),
+        phone_number: z.string().min(10),
+        amount_rupees: z.number().positive(),
+        companion_id: z.string().optional().nullable(),
+        rate_note: z.string().optional().nullable(),
+        metadata: z.record(z.unknown()).optional(),
+      });
+      const data = bodySchema.parse(req.body);
+      const row = await logPaymentAttemptRow({
+        deviceId: data.device_id,
+        phoneNumber: data.phone_number,
+        amountRupees: data.amount_rupees,
+        companionId: data.companion_id,
+        rateNote: data.rate_note ?? undefined,
+        metadata: data.metadata,
+      });
+      res.status(201).json(row);
+    } catch (error) {
+      console.error("Error logging payment attempt:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payment attempt payload", errors: error.errors });
+      }
+      const msg = serializeSupabaseError(error);
+      if (msg.includes("SUPABASE_URL")) {
+        return res.status(503).json({ message: "Billing log unavailable" });
+      }
+      if (isMissingDbRelation(error)) {
+        return res.status(503).json({
+          message: "Billing tables missing",
+          error: msg,
+          hint: "Run migrations/0002_profiles_payment.sql in your Supabase SQL editor.",
+        });
+      }
+      res.status(500).json({ message: "Failed to log payment attempt", error: msg });
     }
   });
 
@@ -92,8 +212,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid conversations query', errors: error.errors });
       }
       res.status(500).json({
-        message: 'Failed to load chat conversations',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        message: "Failed to load chat conversations",
+        error: serializeSupabaseError(error),
       });
     }
   });

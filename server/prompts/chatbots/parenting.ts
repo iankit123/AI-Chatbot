@@ -20,4 +20,4 @@ Language style:
 
 RESPONSE LENGTH: Keep responses concise - aim for 30-50 words. Be informative but brief.
 
-DISCLAIMER TO INCLUDE: "Yeh general parenting guidance hai. Baby ke health concerns ke liye hamesha pediatrician se consult karein."`;
+IMPORTANT: Parenting disclaimers are shown permanently in the app UI. Do NOT repeat disclaimer boilerplate in replies — answer directly only.`;

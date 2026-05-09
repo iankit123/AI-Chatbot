@@ -2,67 +2,73 @@ import { KeyboardEvent } from 'react';
 import { useChat } from '@/context/ChatContext';
 
 export function ChatInput() {
-  const { sendMessage, clearChat, currentLanguage, showAuthDialog, composerDraft, setComposerDraft, composerInputRef } = useChat();
+  const { sendMessage, currentLanguage, showRechargeDialog, composerDraft, setComposerDraft, composerInputRef } = useChat();
 
   const handleSend = async () => {
-    if (composerDraft.trim() && !showAuthDialog) {
+    if (composerDraft.trim() && !showRechargeDialog) {
       const trimmedMessage = composerDraft.trim();
-      setComposerDraft(''); // Clear input immediately
+      setComposerDraft('');
       await sendMessage(trimmedMessage);
     }
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !showAuthDialog) {
+    if (e.key === 'Enter' && !showRechargeDialog) {
       handleSend();
     }
   };
 
+  const placeholder =
+    currentLanguage === 'hindi' ? 'एक संदेश टाइप करें…' : 'Type a message';
+
+  const canSend = composerDraft.trim().length > 0 && !showRechargeDialog;
+
   return (
-    <div className="bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] p-2 border-t">
-      <div className="flex items-center gap-2">
-        <button 
-          className="p-1.5 text-neutral-700 rounded-full hover:bg-neutral-100" 
-          aria-label="Add emoji"
-          disabled={showAuthDialog}
-        >
-          <span className="material-icons text-sm">sentiment_satisfied_alt</span>
-        </button>
-        
-        <div className="relative flex-grow rounded-full bg-neutral-100 overflow-hidden">
-          <input 
-            type="text" 
+    <div className="border-t border-black/[0.06] bg-[#f0f2f5] px-2 py-2">
+      <div className="flex items-end gap-2">
+        <div className="relative flex min-h-[42px] flex-1 items-center rounded-[24px] border border-black/[0.06] bg-white px-3 shadow-[0_1px_1px_rgba(11,20,26,0.08)]">
+          <input
+            type="text"
             ref={composerInputRef}
             value={composerDraft}
             onChange={(e) => setComposerDraft(e.target.value)}
             onKeyUp={handleKeyPress}
-            className="w-full px-4 py-2 bg-transparent text-neutral-900 outline-none" 
-            placeholder={currentLanguage === 'hindi' ? "Apna message yahan likho..." : "Type your message here..."}
-            disabled={showAuthDialog}
+            className="min-h-[38px] w-full flex-1 bg-transparent py-2 pr-1 text-[15px] text-neutral-900 outline-none placeholder:text-neutral-400"
+            placeholder={placeholder}
+            disabled={showRechargeDialog}
+            aria-label={placeholder}
           />
-        </div>
-        
-        <button 
-          onClick={handleSend}
-          className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors"
-          aria-label="Send message"
-          disabled={showAuthDialog}
-        >
-          <span className="material-icons text-sm">send</span>
-        </button>
-      </div>
-      
-      <div className="mt-2 px-3 pb-1">
-        <div className="flex justify-between text-xs text-neutral-700">
-          {/* <span className="truncate mr-1">• {currentLanguage === 'hindi' ? '' : ''}</span> */}
-          <button 
-            className="underline whitespace-nowrap"
-            onClick={clearChat}
-            disabled={showAuthDialog}
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
+            aria-label="Emoji"
+            disabled={showRechargeDialog}
           >
-            {/* {currentLanguage === 'hindi' ? 'Chat saaf karo' : 'Clear chat'} */}
+            <span className="material-icons text-[22px] leading-none">mood</span>
+          </button>
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
+            aria-label="Attach"
+            disabled={showRechargeDialog}
+          >
+            <span className="material-icons text-[22px] leading-none">attach_file</span>
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={handleSend}
+          className={`mb-[3px] flex h-11 w-11 shrink-0 items-center justify-center rounded-full shadow-[0_1px_2px_rgba(11,20,26,0.12)] transition-colors ${
+            canSend
+              ? 'bg-[#00a884] text-white hover:bg-[#06d394]'
+              : 'bg-[#e9edef] text-neutral-500'
+          }`}
+          aria-label="Send message"
+          disabled={showRechargeDialog || !canSend}
+        >
+          <span className="material-icons text-[22px] leading-none">send</span>
+        </button>
       </div>
     </div>
   );

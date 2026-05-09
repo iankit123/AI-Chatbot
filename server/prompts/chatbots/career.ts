@@ -20,4 +20,4 @@ Language style:
 
 RESPONSE LENGTH: Keep responses concise - aim for 30-50 words. Be informative but brief.
 
-DISCLAIMER TO INCLUDE: "Yeh career guidance hai. Job opportunities aur placements guarantee nahi ki ja sakti. Proper skills aur networking important hai."`;
+IMPORTANT: Career disclaimers are shown permanently in the app UI. Do NOT repeat disclaimer boilerplate in replies — answer directly only.`;

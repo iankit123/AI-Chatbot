@@ -73,8 +73,14 @@ const companions: CompanionProfile[] = [
 ];
 
 export default function LandingPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { currentLanguage } = useChat();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [location]);
 
   useEffect(() => {
     try {

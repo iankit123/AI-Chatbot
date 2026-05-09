@@ -47,10 +47,5 @@ export const ROLE_SUGGESTIONS: Record<RoleType, string[]> = {
     "Gita se ek practical advice do",
     "Apne karm par focus kaise karu?"
   ],
-  english: [
-    "Meri English speaking improve karvao",
-    "Daily use English sentences sikhao",
-    "Meri grammar mistake correct karo",
-    "Interview ke liye English practice karni hai"
-  ]
+  english: [],
 };

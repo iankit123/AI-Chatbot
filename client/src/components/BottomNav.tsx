@@ -1,10 +1,22 @@
 import { useLocation } from 'wouter';
 import { ProfileDialog } from './ProfileDialog';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { isSignedInLocally } from '@/lib/supabase';
 
 export function BottomNav() {
   const [location, setLocation] = useLocation();
   const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const [signedIn, setSignedIn] = useState(isSignedInLocally);
+
+  useEffect(() => {
+    const refresh = () => setSignedIn(isSignedInLocally());
+    window.addEventListener('local-storage-auth', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('local-storage-auth', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -13,11 +25,12 @@ export function BottomNav() {
     return location.startsWith(path);
   };
 
+  const profileLabel = signedIn ? 'Profile' : 'Sign in';
+
   return (
     <>
       <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 px-2 py-2 z-50">
         <div className="grid grid-cols-3 gap-1">
-          {/* Home */}
           <button
             onClick={() => setLocation('/')}
             className={`flex flex-col items-center justify-center py-1 cursor-pointer transition-colors ${
@@ -33,7 +46,6 @@ export function BottomNav() {
             <span className="text-xs font-medium">Home</span>
           </button>
 
-          {/* Old Chats */}
           <button
             onClick={() => setLocation('/old-chats')}
             className={`flex flex-col items-center justify-center py-1 cursor-pointer transition-colors ${
@@ -48,7 +60,6 @@ export function BottomNav() {
             <span className="text-xs font-medium">Old chats</span>
           </button>
 
-          {/* Profile */}
           <button
             onClick={() => setShowProfileDialog(true)}
             className={`flex flex-col items-center justify-center py-1 cursor-pointer transition-colors ${
@@ -61,12 +72,11 @@ export function BottomNav() {
                 <circle cx="12" cy="7" r="4"></circle>
               </svg>
             </div>
-            <span className="text-xs font-medium">Profile</span>
+            <span className="text-xs font-medium">{profileLabel}</span>
           </button>
         </div>
       </div>
 
-      {/* Profile Dialog */}
       <ProfileDialog
         open={showProfileDialog}
         onOpenChange={setShowProfileDialog}
@@ -74,5 +84,4 @@ export function BottomNav() {
     </>
   );
 }
-
 

@@ -33,19 +33,19 @@ export function Header() {
   };
 
   return (
-    <header className="bg-gradient-to-r from-primary to-secondary text-white py-3 px-4 shadow-md z-10">
-      <div className="flex items-center">
+    <header className="z-10 shrink-0 bg-[#075E54] px-3 py-2 text-white shadow-md">
+      <div className="flex min-h-[52px] items-center gap-1">
         <button 
           onClick={handleBackToHome}
-          className="p-2 rounded-full hover:bg-white/10 mr-2" 
+          className="mr-1 shrink-0 rounded-full p-1.5 hover:bg-white/10" 
           aria-label="Back to Home"
         >
-          <span className="material-icons text-xl">arrow_back</span>
+          <span className="material-icons text-[22px]">arrow_back</span>
         </button>
         {currentRole ? (
-          <RoleAvatar role={currentRole} />
+          <RoleAvatar role={currentRole} className="h-9 w-9 [&_svg]:h-[22px] [&_svg]:w-[22px]" />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-white overflow-hidden flex-shrink-0 border-2 border-white">
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white">
             <img 
               src={botAvatar} 
               alt="Profile picture" 
@@ -61,29 +61,31 @@ export function Header() {
             />
           </div>
         )}
-        <div className="ml-3 flex-grow">
-          <h1 className="font-semibold text-lg">{botName}</h1>
-          <div className="flex items-center text-xs opacity-80">
-            <span className="h-2 w-2 rounded-full bg-green-400 inline-block mr-1"></span>
-            <span>Online Now</span>
+        <div className="min-w-0 flex-1 pl-1">
+          <h1 className="line-clamp-1 text-[17px] font-semibold leading-tight tracking-tight">
+            {botName}
+          </h1>
+          <div className="mt-0.5 flex items-center text-[11px] text-white/80">
+            <span className="mr-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#25D366]" />
+            <span>{currentLanguage === "hindi" ? "ऑनलाइन" : "online"}</span>
           </div>
         </div>
-        <div className="flex space-x-3 items-center">
+        <div className="flex shrink-0 items-center gap-1">
           <button 
             onClick={toggleLanguage}
-            className="p-2 rounded-full hover:bg-white/10" 
+            className="rounded-full p-1.5 hover:bg-white/10" 
             aria-label="Switch Language"
             title={currentLanguage === 'hindi' ? 'Switch to English' : 'Switch to Hindi'}
           >
-            <span className="material-icons text-xl">translate</span>
+            <span className="material-icons text-[22px]">translate</span>
           </button>
           <button 
             onClick={clearChat}
-            className="p-2 rounded-full hover:bg-white/10" 
+            className="rounded-full p-1.5 hover:bg-white/10" 
             aria-label="Clear Chat"
             title="Clear chat history"
           >
-            <span className="material-icons text-xl">delete_sweep</span>
+            <span className="material-icons text-[22px]">delete_sweep</span>
           </button>
         </div>
       </div>
