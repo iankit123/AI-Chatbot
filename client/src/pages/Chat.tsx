@@ -9,10 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DevToolsResetButton } from '@/components/DevToolsResetButton';
 import { PaymentDialog } from '@/components/PaymentDialog';
 import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
+import { CompanionPhotosTab } from "@/components/CompanionPhotosTab";
+import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
 
 export default function Chat() {
   const { 
     botName, 
+    companionId,
     showProfileDialog, 
     setShowProfileDialog, 
     showPremiumPhoto,
@@ -21,6 +24,8 @@ export default function Chat() {
     setShowPaymentDialog,
     currentPhoto,
   } = useChat();
+
+  const showPhotosTab = isRelationshipCompanion(companionId);
 
   const handleProfileComplete = () => {
     setShowProfileDialog(false);
@@ -32,13 +37,16 @@ export default function Chat() {
       <Header />
       <DevToolsResetButton />
       
-      <Tabs defaultValue="text" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 bg-white border-b shrink-0">
+      <Tabs defaultValue="text" className="flex min-h-0 flex-1 basis-0 flex-col">
+        <TabsList
+          className={`grid w-full shrink-0 border-b bg-white ${showPhotosTab ? "grid-cols-3" : "grid-cols-2"}`}
+        >
           <TabsTrigger value="text">Text Chat</TabsTrigger>
           <TabsTrigger value="voice">Voice Chat</TabsTrigger>
+          {showPhotosTab ? <TabsTrigger value="photos">Photos</TabsTrigger> : null}
         </TabsList>
         
-        <TabsContent value="text" className="flex-1 flex flex-col overflow-hidden">
+        <TabsContent value="text" className="mt-0 flex min-h-0 flex-1 basis-0 flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden relative">
             <ChatArea />
           </div>
@@ -47,12 +55,21 @@ export default function Chat() {
           </div>
         </TabsContent>
         
-        <TabsContent value="voice" className="flex-1 overflow-hidden h-full relative">
+        <TabsContent value="voice" className="relative mt-0 flex min-h-0 flex-1 basis-0 overflow-hidden">
           <div className="relative h-full flex flex-col">
             <div className="flex-1"></div>
           </div>
           <VoiceChatFixed />
         </TabsContent>
+
+        {showPhotosTab ? (
+          <TabsContent
+            value="photos"
+            className="relative mt-0 flex min-h-0 flex-1 basis-0 flex-col overflow-hidden"
+          >
+            <CompanionPhotosTab companionId={companionId} companionDisplayName={botName} />
+          </TabsContent>
+        ) : null}
       </Tabs>
       
       <BottomNav />

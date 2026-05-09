@@ -11,8 +11,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const NAINA_INSTAGRAM_URL = "https://www.instagram.com/nainasha1998/";
+
 export function Header() {
-  const { botName, botAvatar, currentLanguage, toggleLanguage, startFreshChat } = useChat();
+  const { botName, botAvatar, companionId, currentLanguage, toggleLanguage, startFreshChat } =
+    useChat();
   const [, setLocation] = useLocation();
   const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
 
@@ -31,7 +34,7 @@ export function Header() {
     } catch {
       setCurrentRole(null);
     }
-  }, [botName]);
+  }, [botName, companionId]);
 
   const handleBackToHome = () => {
     setLocation('/');
@@ -81,34 +84,55 @@ export function Header() {
             <span>{currentLanguage === "hindi" ? "ऑनलाइन" : "online"}</span>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex shrink-0 rounded-full p-1.5 hover:bg-white/10"
-              aria-label={currentLanguage === "hindi" ? "चैट विकल्प" : "Chat options"}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {companionId === "naina" ? (
+            <a
+              href={NAINA_INSTAGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex shrink-0 rounded-full p-1.5 hover:bg-white/10 active:bg-white/15"
+              aria-label={
+                currentLanguage === "hindi"
+                  ? "इंस्टाग्राम पर नैना खोलें"
+                  : "Open Naina on Instagram"
+              }
             >
-              <span className="material-icons text-[22px]">more_vert</span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[180px]">
-            <DropdownMenuItem
-              onSelect={() => {
-                startFreshChat();
-              }}
-            >
-              {newChatLabel}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => {
-                toggleLanguage();
-              }}
-            >
-              {languageItemLabel}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <img
+                src="/images/instagram-icon-naina.png"
+                alt=""
+                className="h-7 w-7 rounded-lg object-cover shadow-sm ring-1 ring-white/30"
+              />
+            </a>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex shrink-0 rounded-full p-1.5 hover:bg-white/10"
+                aria-label={currentLanguage === "hindi" ? "चैट विकल्प" : "Chat options"}
+              >
+                <span className="material-icons text-[22px]">more_vert</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[180px]">
+              <DropdownMenuItem
+                onSelect={() => {
+                  startFreshChat();
+                }}
+              >
+                {newChatLabel}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  toggleLanguage();
+                }}
+              >
+                {languageItemLabel}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   );

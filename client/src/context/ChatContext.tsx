@@ -47,6 +47,8 @@ interface ChatContextType {
   currentLanguage: "hindi" | "english";
   botName: string;
   botAvatar: string;
+  /** Selected companion id (e.g. naina, doctor). */
+  companionId: string;
   messageCount: number;
   showProfileDialog: boolean;
   showRechargeDialog: boolean;
@@ -1192,6 +1194,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         currentLanguage,
         botName,
         botAvatar,
+        companionId,
         messageCount,
         showProfileDialog,
         showRechargeDialog,

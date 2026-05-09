@@ -265,7 +265,7 @@ export default function Home() {
           parentingOverlayTitle: "बेबी केयर सलाह लें",
           financeOverlayTitle: "फाइनेंस मदद पाएं",
           careerOverlayTitle: "करियर गाइडेंस लें",
-          relationshipOverlayTitle: "रिलेशनशिप कोच से बात करें",
+          relationshipOverlayTitle: "रिलेशनशिप की बात करें",
           krishnaOverlayTitle: "कृष्ण से मार्गदर्शन लें",
           englishOverlayTitle: "अंग्रेजी सीखें",
           overlaySubtitle: "24/7 आपके लिए उपलब्ध",

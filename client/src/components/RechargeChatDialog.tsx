@@ -17,6 +17,7 @@ import {
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
 import { ArrowRight } from "lucide-react";
+import { ROLE_ADVISOR_COMPANION_IDS } from "@/lib/relationshipPhotoGallery";
 
 const RATE_NOTE = "Approx. ₹5 per minute of chat";
 
@@ -32,17 +33,6 @@ const PACKS: { rupees: number; bonus: string; highlight?: boolean }[] = [
   { rupees: 500, bonus: "50% Extra" },
   { rupees: 1000, bonus: "5% Extra" },
 ];
-
-/** Matches role routes (doctor, kundli, …) — not virtual girlfriend personas (naina, priya, …). */
-const ROLE_ADVISOR_IDS = new Set<string>([
-  "doctor",
-  "kundli",
-  "parenting",
-  "finance",
-  "career",
-  "krishna",
-  "english",
-]);
 
 function getCompanionContextForBilling(): {
   companionId: string | null;
@@ -63,7 +53,7 @@ function getCompanionContextForBilling(): {
     const c = JSON.parse(raw) as { id?: string; name?: string; avatar?: string };
     const id = c.id != null ? String(c.id) : null;
     const chatSurface: "relationship_companion" | "role_advisor" | "unknown" =
-      !id ? "unknown" : ROLE_ADVISOR_IDS.has(id) ? "role_advisor" : "relationship_companion";
+      !id ? "unknown" : ROLE_ADVISOR_COMPANION_IDS.has(id) ? "role_advisor" : "relationship_companion";
     return {
       companionId: id,
       companionName: c.name != null ? String(c.name) : null,
