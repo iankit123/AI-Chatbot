@@ -19,6 +19,7 @@ const AFFIRMATIVE_WORDS = [
 ];
 
 const PREMIUM_PHOTOS: Record<string, string[]> = {
+  naina: ["/images/naina.png"],
   priya: [
     "/images/premium/priya.jpg",
     "/images/premium/priya4.jpg",

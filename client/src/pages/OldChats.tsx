@@ -21,6 +21,7 @@ const ROLE_NAMES: Record<string, string> = {
   parenting: 'Parenting and Baby Care Assistant',
   finance: 'Personal Finance Help',
   career: 'Career and Job Helper',
+  naina: 'Naina',
   priya: 'Priya',
   ananya: 'Ananya',
   meera: 'Meera',

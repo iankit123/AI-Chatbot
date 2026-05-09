@@ -10,6 +10,18 @@ export interface CompanionPhoto {
 
 // Define photo collections by companion ID
 export const companionPhotos: Record<string, CompanionPhoto[]> = {
+  naina: [
+    {
+      id: "naina1",
+      companionId: "naina",
+      url: "/images/naina.png",
+      description: "Golden hour on the terrace—one of my calm moments",
+      prompt:
+        "I have a photo from a quiet evening on the terrace—want to see?",
+      response:
+        "This is one of my favorite peaceful moments. I love when the light is soft like this. What kind of moments calm you down?",
+    },
+  ],
   // Priya's photos
   priya: [
     {
