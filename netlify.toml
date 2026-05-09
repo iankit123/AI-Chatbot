@@ -7,6 +7,18 @@
   NODE_VERSION = "18"
   GROQ_API_KEY = "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"
 
+# Supabase-backed persistence (Express has these on dev; Netlify needs explicit routes
+# because /api/chat/messages would otherwise map to a non-existent function "chat/messages".)
+[[redirects]]
+  from = "/api/chat/messages"
+  to = "/.netlify/functions/chat-messages"
+  status = 200
+
+[[redirects]]
+  from = "/api/chat/conversations"
+  to = "/.netlify/functions/chat-conversations"
+  status = 200
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
