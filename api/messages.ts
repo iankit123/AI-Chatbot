@@ -1,7 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  COMPANION_PERSONALITY_PROMPTS,
+  RELATIONSHIP_SYSTEM_PROMPT,
+  ROLE_SYSTEM_PROMPTS,
+  type RolePromptId,
+} from '../server/prompts/chatbots';
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Simple in-memory storage
 const messages: any[] = [];
@@ -60,27 +66,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(201).json({ userMessage, botMessage });
       }
       
-      // Generate response with Groq using fetch
+      // Generate response with OpenRouter
       try {
-        if (!GROQ_API_KEY) {
-          throw new Error('GROQ_API_KEY not configured');
+        if (!OPENROUTER_API_KEY) {
+          throw new Error('OPENROUTER_API_KEY not configured');
         }
         
-        // Choose prompt based on companion
-        let companionPrompt = "";
-        switch (companionId) {
-          case "priya":
-            companionPrompt = "You are Priya, a 25-year-old Indian woman who is friendly, caring, and playful. You work as a fashion designer in Mumbai.";
-            break;
-          case "ananya":
-            companionPrompt = "You are Ananya, a 23-year-old college student who is intellectual, empathetic, and slightly shy. You enjoy deep conversations.";
-            break;
-          case "meera":
-            companionPrompt = "You are Meera, a 28-year-old yoga instructor who is calm, philosophical, and spiritual. You often share wisdom about life.";
-            break;
-          default:
-            companionPrompt = "You are Priya, a 25-year-old Indian woman who is friendly, caring, and playful.";
-        }
+        const roleIds: RolePromptId[] = ['doctor', 'kundli', 'parenting', 'finance', 'career', 'krishna', 'english'];
+        const isRoleBased = roleIds.includes(companionId as RolePromptId);
+        const companionPrompt =
+          COMPANION_PERSONALITY_PROMPTS[companionId] || COMPANION_PERSONALITY_PROMPTS.default;
         
         // Language instruction
         const languageInstruction = language === 'hindi' 
@@ -100,21 +95,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const apiMessages = [
           {
             role: 'system',
-            content: `${companionPrompt}\n${languageInstruction}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
+            content: isRoleBased
+              ? `${ROLE_SYSTEM_PROMPTS[companionId as RolePromptId]}\n${languageInstruction}`
+              : `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPrompt}\n${languageInstruction}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
           },
           ...chatHistory
         ];
         
-        console.log("Calling Groq API with messages:", JSON.stringify(apiMessages));
-        
+        console.log("Calling OpenRouter API with messages:", JSON.stringify(apiMessages));
+            
         // Model selection with fallback options
-        // Primary: llama3-8b-8192 (fast, good rate limits)
-        // Fallback 1: llama-3.1-8b-instant (fastest, highest rate limits)
-        // Fallback 2: llama-3.1-70b-versatile (better quality if available)
         const models = [
-          process.env.GROQ_MODEL || 'llama3-8b-8192',
-          'llama-3.1-8b-instant',
-          'llama-3.1-70b-versatile'
+          process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct',
+          'meta-llama/llama-3.1-8b-instruct',
+          'meta-llama/llama-3.1-70b-instruct'
         ];
         
         let lastError: Error | null = null;
@@ -125,23 +119,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           try {
             console.log(`[API] Attempting to use model: ${model}`);
             
-            // Call Groq API
-            const response = await fetch(GROQ_API_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${GROQ_API_KEY}`
-              },
-              body: JSON.stringify({
+        // Call OpenRouter API
+        const response = await fetch(OPENROUTER_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'HTTP-Referer': 'https://ai-chatbot.app',
+            'X-Title': 'AI Chatbot'
+          },
+          body: JSON.stringify({
                 model,
-                messages: apiMessages,
-                temperature: 0.7,
-                max_tokens: 500
-              })
-            });
-            
-            if (!response.ok) {
-              const errorText = await response.text();
+            messages: apiMessages,
+            temperature: 0.7,
+            max_tokens: 500,
+            provider: {
+              order: ['Nebius', 'Novita', 'Fireworks'],
+              allow_fallbacks: true
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
               let errorJson;
               try {
                 errorJson = JSON.parse(errorText);
@@ -152,15 +152,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               // If rate limit error, try next model
               if (response.status === 429) {
                 console.warn(`[API] Rate limit hit for model ${model}, trying fallback...`);
-                lastError = new Error(`Groq API error: ${response.status} - ${errorText}`);
+                lastError = new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
                 continue; // Try next model
               }
               
               // For other errors, throw immediately
-              throw new Error(`Groq API error: ${response.status} - ${errorText}`);
-            }
-            
-            const data = await response.json();
+          throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
             responseContent = data.choices[0]?.message?.content || "Sorry, I couldn't process your message.";
             console.log(`[API] Successfully used model: ${model}`);
             break; // Success, exit loop

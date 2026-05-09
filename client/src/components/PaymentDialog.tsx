@@ -3,7 +3,7 @@ import { useChat } from '@/context/ChatContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { auth, logPaymentRequest } from '@/lib/firebase';
+import { auth, logPaymentRequest } from '@/lib/supabase';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -18,7 +18,7 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
   const handlePayment = async () => {
     try {
       setProcessing(true);
-      // Require live Firebase auth user
+      // Require a signed-in user.
       const user = auth.currentUser;
       if (!user) {
         setProcessing(false);
@@ -34,7 +34,6 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
       const companionId = (botName || '').toLowerCase() || 'unknown';
       const imageUrl = currentPhoto || '';
       
-      // Log payment request to Firebase (same as voice flow)
       await logPaymentRequest(user.uid, userEmail, 'premium_photo', {
         companionId,
         imageUrl,

@@ -9,9 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { database, logPaymentRequest } from '@/lib/firebase';
-import { ref, push, set } from 'firebase/database';
-import { auth } from '@/lib/firebase';
+import { auth, logPaymentRequest } from '@/lib/supabase';
 import { Lock } from 'lucide-react';
 
 interface PremiumPhotoDialogProps {
@@ -43,7 +41,6 @@ export function PremiumPhotoDialog({
   
   const handlePayment = async () => {
     setProcessing(true);
-    // Use up-to-date Firebase Auth user (do not fallback)
     const user = auth.currentUser;
     if (!user) {
       setProcessing(false);
@@ -73,20 +70,19 @@ export function PremiumPhotoDialog({
         description: 'Your payment request has been logged.'
       });
       onOpenChange(false); // Close dialog after success
-    } catch (firebaseError) {
+    } catch (paymentError) {
       toast({
         title: 'Payment failed!',
         description: 'Unable to log payment request. Please try again.',
         variant: 'destructive'
       });
-      console.error('[PHOTO PAYMENT] Error logging payment request:', firebaseError);
+      console.error('[PHOTO PAYMENT] Error logging payment request:', paymentError);
     } finally {
       setProcessing(false);
     }
   };
   
   const handleDecline = async () => {
-    // Log the decline action in Firebase
     try {
       const authUser = localStorage.getItem('authUser');
       if (authUser) {
@@ -104,7 +100,7 @@ export function PremiumPhotoDialog({
             status: 'declined' // Mark as declined
           }
         );
-        console.log("Premium photo decline logged to Firebase");
+        console.log("Premium photo decline logged");
       }
     } catch (error) {
       console.error('Error logging premium photo decline:', error);

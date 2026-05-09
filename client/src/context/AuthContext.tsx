@@ -1,26 +1,25 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
-  auth, 
   signInWithGoogle, 
   createUser, 
   signIn, 
   signOutUser,
   saveUserProfile,
   getUserProfile,
-  type FirebaseUser
-} from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+  subscribeToAuthChanges,
+  type AppUser
+} from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
-  currentUser: FirebaseUser | null;
+  currentUser: AppUser | null;
   isAuthenticated: boolean;
   userProfile: UserProfile | null;
   loading: boolean;
   messageLimit: number;
-  signInWithGooglePopup: () => Promise<FirebaseUser>;
-  signUpWithEmail: (email: string, password: string) => Promise<FirebaseUser>;
-  loginWithEmail: (email: string, password: string) => Promise<FirebaseUser>;
+  signInWithGooglePopup: () => Promise<AppUser>;
+  signUpWithEmail: (email: string, password: string) => Promise<AppUser>;
+  loginWithEmail: (email: string, password: string) => Promise<AppUser>;
   logout: () => Promise<void>;
   updateProfile: (profile: UserProfile) => Promise<void>;
 }
@@ -48,14 +47,14 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const messageLimit = 3; // Free message limit before requiring login
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = subscribeToAuthChanges(async (user) => {
       setCurrentUser(user);
       
       if (user) {
@@ -64,7 +63,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           try {
             const profile = await getUserProfile(user.uid);
             console.log("User profile loaded:", profile);
-            setUserProfile(profile);
+            setUserProfile(profile ? {
+              name: profile.name || user.displayName || user.email?.split('@')[0] || 'User',
+              email: profile.email || user.email || '',
+              age: profile.age,
+              ...profile,
+            } : null);
           } catch (profileError) {
             console.warn("No user profile found, creating default profile");
             // Create a default profile if it doesn't exist
@@ -85,9 +89,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUserProfile(null);
       }
       
-      setLoading(false);
-    }, (error) => {
-      console.error("Auth state change error:", error);
       setLoading(false);
     });
 

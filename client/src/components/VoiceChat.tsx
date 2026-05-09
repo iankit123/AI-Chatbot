@@ -3,8 +3,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useChat } from "@/context/ChatContext";
 import { Lock } from "lucide-react";
-import { database } from "@/lib/firebase"; 
-import { ref, push, set } from "firebase/database";
+import { logPaymentRequest } from "@/lib/supabase";
 
 export function VoiceChat() {
   const [requesting, setRequesting] = useState(false);
@@ -28,17 +27,18 @@ export function VoiceChat() {
       paymentRequests.push(requestData);
       localStorage.setItem('paymentRequests', JSON.stringify(paymentRequests));
       
-      // Also save to Firebase if user is authenticated
       const authUser = localStorage.getItem('authUser');
       if (authUser) {
         try {
           const user = JSON.parse(authUser);
-          const paymentsRef = ref(database, `payments/${user.uid}`);
-          const newPaymentRef = push(paymentsRef);
-          set(newPaymentRef, requestData);
-        } catch (firebaseError) {
-          console.error('Error saving to Firebase:', firebaseError);
-          // Continue with local storage only
+          void logPaymentRequest(
+            user.uid,
+            user.email || 'unknown@example.com',
+            'voice_chat',
+            requestData,
+          );
+        } catch (paymentError) {
+          console.error('Error logging voice chat payment request:', paymentError);
         }
       }
     } catch (error) {

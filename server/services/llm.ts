@@ -1,16 +1,22 @@
 import fetch from "node-fetch";
-import { BOT_SYSTEM_PROMPT } from "@/lib/constants";
+import type { RoleType } from "@/lib/constants";
+import {
+  COMPANION_PERSONALITY_PROMPTS,
+  RELATIONSHIP_SYSTEM_PROMPT,
+  ROLE_SYSTEM_PROMPTS,
+  type RolePromptId,
+} from "../prompts/chatbots";
 
-// Groq API configuration
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-console.log("GROQ_API_KEY loaded:", GROQ_API_KEY ? "Present" : "Missing");
-if (GROQ_API_KEY) {
-  console.log("GROQ_API_KEY preview:", GROQ_API_KEY.substring(0, 15) + "...");
-  console.log("GROQ_API_KEY length:", GROQ_API_KEY.length);
+// OpenRouter API configuration
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
+console.log("OPENROUTER_API_KEY loaded:", OPENROUTER_API_KEY ? "Present" : "Missing");
+if (OPENROUTER_API_KEY) {
+  console.log("OPENROUTER_API_KEY preview:", OPENROUTER_API_KEY.substring(0, 15) + "...");
+  console.log("OPENROUTER_API_KEY length:", OPENROUTER_API_KEY.length);
 } else {
-  console.error("GROQ_API_KEY not found in environment variables");
+  console.error("OPENROUTER_API_KEY not found in environment variables");
 }
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -24,6 +30,10 @@ interface ChatCompletionRequest {
   max_tokens?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
+  provider?: {
+    order: string[];
+    allow_fallbacks: boolean;
+  };
 }
 
 interface ChatCompletionResponse {
@@ -58,6 +68,10 @@ export async function generateResponse(
   contextOptions: ContextOptions = {},
 ): Promise<string> {
   try {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY is missing or empty");
+    }
+
     // Create system message with natural Hinglish instruction and first-person emphasis
     const languageInstruction =
       language === "hindi"
@@ -102,31 +116,27 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
       firstConversationContext = `IMPORTANT: This is the FIRST message from the user. You are starting a NEW conversation. Do NOT reference any previous messages or conversations. Do NOT say things like "tum itne baar hi kyun kah rahe ho" (why are you saying hi so many times) or similar phrases that imply repetition. This is the very first interaction.`;
     }
 
-    // Select companion-specific personality
-    let companionPersonality = "";
-    if (contextOptions.companionId) {
-      switch (contextOptions.companionId) {
-        case "priya":
-          companionPersonality =
-            "You are Priya, a 25-year-old modern Indian woman who is flirtatious, caring, and romantic. You have a playful sense of humor and enjoy teasing. You work as a fashion designer in Mumbai.";
-          break;
-        case "ananya":
-          companionPersonality =
-            "You are Ananya, a 23-year-old college girl student studying psychology who is intellectual, empathetic, and slightly shy. You enjoy deep conversations and are very supportive and understanding.";
-          break;
-        case "meera":
-          companionPersonality =
-            "You are Meera, a 28-year-old girl yoga instructor and spiritual guide who is calm, mysterious, and philosophical. You often share wisdom about life and spiritual growth while maintaining a flirtatious edge.";
-          break;
-        default:
-          companionPersonality =
-            "You are Priya, a 25-year-old modern Indian girl woman who is flirtatious, caring, and romantic.";
-      }
+    // Check if this is a role-based chat
+    const roleTypes: RoleType[] = ['doctor', 'kundli', 'parenting', 'finance', 'career', 'krishna', 'english'];
+    const isRoleBased = contextOptions.companionId && roleTypes.includes(contextOptions.companionId as RoleType);
+    
+    let systemPromptContent = "";
+    
+    if (isRoleBased && contextOptions.companionId !== 'relationship') {
+      // Use role-specific prompt
+      const roleId = contextOptions.companionId as RolePromptId;
+      const rolePrompt = ROLE_SYSTEM_PROMPTS[roleId];
+      systemPromptContent = `${rolePrompt}\n${userContext}\n${firstConversationContext}`;
+    } else {
+      const companionPersonality =
+        COMPANION_PERSONALITY_PROMPTS[contextOptions.companionId || ""] ||
+        COMPANION_PERSONALITY_PROMPTS.default;
+      systemPromptContent = `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${firstConversationContext}\n${languageInstruction}`;
     }
 
     const systemMessage: ChatMessage = {
       role: "system",
-      content: `${BOT_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${firstConversationContext}\n${languageInstruction}`,
+      content: systemPromptContent,
     };
 
     // Build anti-repetition guard using last 3 assistant messages
@@ -158,12 +168,17 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
     // Fallback 1: llama-3.1-70b-versatile (similar quality, better rate limits)
     // Fallback 2: llama-3.1-8b-instant (fast, highest rate limits)
     const models = [
-      process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-      "llama-3.1-70b-versatile",
-      "llama-3.1-8b-instant"
+      process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct",
+      "meta-llama/llama-3.1-70b-instruct",
+      "meta-llama/llama-3.1-8b-instruct",
     ];
 
     let lastError: Error | null = null;
+
+    // Determine max_tokens based on chat type
+    // Role-based chats need longer responses for detailed guidance
+    // Relationship chats should be short and concise
+    const maxTokens = isRoleBased ? 600 : 150;
 
     // Try each model in order until one works
     for (const model of models) {
@@ -173,19 +188,25 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
           model,
           messages,
           temperature: 0.6, // focused, concise responses
-          max_tokens: 150, // SHORT responses
+          max_tokens: maxTokens, // Longer for role-based, shorter for relationship chats
           frequency_penalty: 0.9, // discourage repeating tokens/phrases
           presence_penalty: 0.6, // encourage introducing new ideas
+          provider: {
+            order: ["Nebius", "Novita", "Fireworks"],
+            allow_fallbacks: true,
+          },
         };
 
-        console.log(`[LLM] Attempting to use model: ${model}`);
+        console.log(`[LLM] Attempting to use OpenRouter model: ${model}`);
 
-        // Make request to Groq API
-        const response = await fetch(GROQ_API_URL, {
+        // Make request to OpenRouter API
+        const response = await fetch(OPENROUTER_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${GROQ_API_KEY}`,
+            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            "HTTP-Referer": "https://ai-chatbot.app",
+            "X-Title": "AI Chatbot",
           },
           body: JSON.stringify(requestBody),
         });
@@ -203,20 +224,31 @@ Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Ro
           // If rate limit error, try next model
           if (response.status === 429) {
             console.warn(`[LLM] Rate limit hit for model ${model}, trying fallback...`);
-            lastError = new Error(`Groq API Error: ${response.status} - ${errorData}`);
+            lastError = new Error(`OpenRouter API Error: ${response.status} - ${errorData}`);
             continue; // Try next model
           }
 
           // For other errors, throw immediately
-          throw new Error(`Groq API Error: ${response.status} - ${errorData}`);
+          throw new Error(`OpenRouter API Error: ${response.status} - ${errorData}`);
         }
 
         // Parse the response
         const data = (await response.json()) as ChatCompletionResponse;
-        console.log(`[LLM] Successfully used model: ${model}`);
+        console.log(`[LLM] Successfully used OpenRouter model: ${model}`);
+        
+        // Log response details for debugging
+        const responseContent = data.choices[0].message.content;
+        const wordCount = responseContent.split(/\s+/).length;
+        const finishReason = data.choices[0].finish_reason;
+        console.log(`[LLM] Response word count: ${wordCount}, finish_reason: ${finishReason}, tokens used: ${data.usage?.total_tokens || 'N/A'}`);
+        
+        // Warn if response was truncated due to max_tokens
+        if (finishReason === 'length') {
+          console.warn(`[LLM] WARNING: Response was truncated due to max_tokens limit (${maxTokens}). Consider increasing max_tokens.`);
+        }
 
         // Extract and return the generated text
-        return data.choices[0].message.content;
+        return responseContent;
       } catch (error) {
         // If it's a rate limit error, continue to next model
         if (error instanceof Error && error.message.includes("429")) {

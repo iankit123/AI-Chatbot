@@ -1,5 +1,5 @@
 import { useChat } from "@/context/ChatContext";
-import { logPaymentRequest } from "@/lib/firebase";
+import { logPaymentRequest } from "@/lib/supabase";
 
 export function VoiceChatFixed() {
   const { botName } = useChat();
@@ -21,7 +21,6 @@ export function VoiceChatFixed() {
       paymentRequests.push(requestData);
       localStorage.setItem("paymentRequests", JSON.stringify(paymentRequests));
 
-      // Also log to Firebase if user is authenticated
       const authUser = localStorage.getItem("authUser");
       if (authUser) {
         try {
@@ -38,8 +37,8 @@ export function VoiceChatFixed() {
               amount: 99
             }
           );
-        } catch (firebaseError) {
-          console.error('Error logging payment request to Firebase:', firebaseError);
+        } catch (paymentError) {
+          console.error('Error logging payment request:', paymentError);
         }
       }
 

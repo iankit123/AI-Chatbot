@@ -12,9 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithGoogle, createUser, signIn } from '@/lib/firebase';
-import { getDatabase, ref, push, set } from 'firebase/database';
-import { FirebaseError } from 'firebase/app';
+import { signInWithGoogle, createUser, signIn } from '@/lib/supabase';
 
 interface AuthDialogProps {
   open: boolean;
@@ -46,87 +44,21 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
   
   const { toast } = useToast();
   
-  // Helper function to format Firebase auth errors into user-friendly messages
-  const formatFirebaseError = (error: any): string => {
-    if (error instanceof FirebaseError) {
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          return 'This email is already registered. Please try logging in instead.';
-        case 'auth/invalid-email':
-          return 'Please enter a valid email address.';
-        case 'auth/user-disabled':
-          return 'This account has been disabled. Please contact support.';
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-          return 'Invalid email or password. Please try again.';
-        case 'auth/too-many-requests':
-          return 'Too many failed login attempts. Please try again later.';
-        case 'auth/weak-password':
-          return 'Password should be at least 6 characters long.';
-        case 'auth/operation-not-allowed':
-          return 'This login method is not allowed.';
-        case 'auth/popup-closed-by-user':
-          return 'Sign-in was cancelled. Please try again.';
-        case 'auth/configuration-not-found':
-          return 'Authentication service is being set up. Using offline mode for now.';
-        default:
-          console.error('Firebase error:', error.code, error.message);
-          return `Authentication error: ${error.message}`;
-      }
+  const formatAuthError = (error: any): string => {
+    const message = error?.message || 'An unexpected error occurred. Please try again.';
+    if (message.toLowerCase().includes('already registered')) {
+      return 'This email is already registered. Please try logging in instead.';
     }
-    return error?.message || 'An unexpected error occurred. Please try again.';
+    if (message.toLowerCase().includes('invalid')) {
+      return 'Invalid email or password. Please try again.';
+    }
+    if (message.toLowerCase().includes('password')) {
+      return 'Password should be at least 6 characters long.';
+    }
+    return message;
   };
   
-  // Track activation request when auth dialog opens (triggered by message limit)
-  useEffect(() => {
-    if (open) {
-      try {
-        // Try to log this activation request to Firebase if possible
-        const database = getDatabase();
-        const authData = localStorage.getItem('authUser');
-        
-        if (authData) {
-          // If there's already some auth data, track it properly
-          try {
-            const user = JSON.parse(authData);
-            const userId = user.uid;
-            
-            // Log activation prompt event
-            const activationRef = ref(database, `users/${userId}/activationRequests`);
-            const newRequestRef = push(activationRef);
-            set(newRequestRef, {
-              timestamp: new Date().toISOString(),
-              status: 'prompted',
-              source: 'message_limit_reached'
-            }).then(() => {
-              console.log('Activation request logged to Firebase');
-            }).catch(error => {
-              console.error('Error logging activation request:', error);
-            });
-          } catch (e) {
-            console.error('Error parsing auth data:', e);
-          }
-        } else {
-          // If there's no auth data, still track as anonymous
-          const anonymousRef = ref(database, 'anonymous_activation_requests');
-          const newRequestRef = push(anonymousRef);
-          set(newRequestRef, {
-            timestamp: new Date().toISOString(),
-            status: 'prompted',
-            source: 'message_limit_reached'
-          }).then(() => {
-            console.log('Anonymous activation request logged to Firebase');
-          }).catch(error => {
-            console.error('Error logging anonymous activation request:', error);
-          });
-        }
-      } catch (error) {
-        console.error('Firebase activation tracking error:', error);
-      }
-    }
-  }, [open]);
-  
-  // Simplified local auth handling as fallback if Firebase fails
+  // Simplified local auth handling as fallback if auth is unavailable.
   const simulateEmailLogin = async (email: string, password: string) => {
     return new Promise<void>((resolve) => {
       // Simple validation
@@ -137,7 +69,7 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       // Generate a pseudo-unique ID for the guest
       const guestId = `guest-${new Date().getTime()}`;
       
-      // Save the user info in localStorage as a JSON object (same format as Firebase)
+      // Save the user info in localStorage.
       localStorage.setItem('authUser', JSON.stringify({
         uid: guestId,
         email: email,
@@ -166,7 +98,7 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       // Generate a pseudo-unique ID for the guest
       const guestId = `guest-${new Date().getTime()}`;
       
-      // Save the user info in localStorage as a JSON object (same format as Firebase)
+      // Save the user info in localStorage.
       localStorage.setItem('authUser', JSON.stringify({
         uid: guestId,
         email: email,
@@ -192,7 +124,7 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       const email = `user${randomId}@gmail.com`;
       const guestId = `google-${randomId}`;
       
-      // Save the user info in localStorage as a JSON object (same format as Firebase)
+      // Save the user info in localStorage.
       localStorage.setItem('authUser', JSON.stringify({
         uid: guestId,
         email: email,
@@ -221,11 +153,10 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       setError('');
       
       try {
-        console.log("[AuthDialog] Attempting Firebase Google sign-in...");
-        // Try Firebase Google sign in
+        console.log("[AuthDialog] Attempting Google sign-in...");
         const user = await signInWithGoogle();
         
-        console.log("[AuthDialog] Firebase sign-in successful, user:", user.uid);
+        console.log("[AuthDialog] Sign-in successful, user:", user.uid);
         
         // Save user to localStorage for easy access
         localStorage.setItem('authUser', JSON.stringify({
@@ -243,27 +174,23 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
           localStorage.setItem('guestProfile', JSON.stringify(profile));
         }
         
-        console.log("[AuthDialog] Successfully authenticated with Google via Firebase:", user.uid);
+        console.log("[AuthDialog] Successfully authenticated with Google:", user.uid);
         
         toast({
           title: "Successfully signed in",
           description: "Welcome! You now have unlimited access."
         });
-      } catch (firebaseError: any) {
+      } catch (authError: any) {
         // Format error message for display
-        const errorMsg = formatFirebaseError(firebaseError);
-        console.error("[AuthDialog] Firebase Google sign-in failed");
-        console.error("[AuthDialog] Error code:", firebaseError?.code);
-        console.error("[AuthDialog] Error message:", firebaseError?.message);
-        console.error("[AuthDialog] Full error:", firebaseError);
-        
-        // For configuration errors, we use fallback but show a specific message
-        // IMPORTANT: Do NOT use fallback for user cancellation - user should remain unauthenticated
-        if (firebaseError instanceof FirebaseError && 
-            (firebaseError.code === 'auth/configuration-not-found' || 
-             firebaseError.code === 'auth/popup-blocked')) {
-          
-          // Only use fallback for configuration errors, not user cancellation
+        const errorMsg = formatAuthError(authError);
+        console.error("[AuthDialog] Google sign-in failed:", authError);
+
+        if (errorMsg.includes('redirect started')) {
+          setLoading(false);
+          return;
+        }
+
+        if (errorMsg.toLowerCase().includes('not configured')) {
           console.log("[AuthDialog] Using fallback offline mode for configuration error");
           
           toast({
@@ -271,28 +198,13 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
             description: "Google sign-in unavailable. Using local storage for now.",
           });
           
-          // Use fallback authentication if Firebase fails due to configuration
           await simulateGoogleSignIn();
           
           toast({
             title: "Signed in (offline mode)",
             description: "Welcome! You've been signed in using offline mode."
           });
-        } else if (firebaseError instanceof FirebaseError && 
-                   (firebaseError.code === 'auth/cancelled-popup-request' ||
-                    firebaseError.code === 'auth/popup-closed-by-user')) {
-          // User cancelled or closed the popup - do NOT authenticate them
-          console.log("[AuthDialog] User cancelled sign-in, not authenticating");
-          
-          // Clear any stale auth state
-          localStorage.removeItem('authUser');
-          
-          // Don't show error, just quietly return - user intentionally cancelled
-          setError('');
-          setLoading(false);
-          return; // Exit early, don't call onAuthComplete
         } else {
-          // For other errors, display them to the user and don't use fallback
           console.error("[AuthDialog] Not using fallback, error:", errorMsg);
           setError(errorMsg);
           throw new Error(errorMsg);
@@ -332,14 +244,12 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
       
       try {
         if (activeTab === 'login') {
-          // Try Firebase email/password login
           user = await signIn(email, password);
           toast({
             title: "Welcome back!",
             description: "You've been successfully logged in."
           });
         } else {
-          // Try Firebase email/password registration
           user = await createUser(email, password);
           toast({
             title: "Account created",
@@ -354,22 +264,18 @@ export function AuthDialog({ open, onOpenChange, onAuthComplete }: AuthDialogPro
           displayName: user.displayName
         }));
         
-        console.log("Successfully authenticated with Firebase:", user.uid);
-      } catch (firebaseError) {
+        console.log("Successfully authenticated:", user.uid);
+      } catch (authError) {
         // Format error message for display
-        const errorMsg = formatFirebaseError(firebaseError);
-        console.warn("Firebase auth failed:", errorMsg);
+        const errorMsg = formatAuthError(authError);
+        console.warn("Auth failed:", errorMsg);
         
-        // For configuration errors, we use fallback but show a specific message
-        if (firebaseError instanceof FirebaseError && 
-            firebaseError.code === 'auth/configuration-not-found') {
-          
+        if (errorMsg.toLowerCase().includes('not configured')) {
           toast({
             title: "Using offline mode",
             description: "Authentication service is being set up. Using local storage for now.",
           });
           
-          // Use fallback authentication if Firebase fails
           if (activeTab === 'login') {
             await simulateEmailLogin(email, password);
             toast({

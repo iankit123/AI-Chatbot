@@ -12,7 +12,7 @@ import { Message } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getRandomPhotoPrompt } from "@/lib/companionPhotos";
-import { saveChatMessage, getFirebaseMessages, auth } from "@/lib/firebase";
+import { auth, saveChatMessage, getChatMessages, getAnonymousUserId } from "@/lib/supabase";
 
 const AFFIRMATIVE_WORDS = [
   "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
@@ -52,7 +52,9 @@ interface ChatContextType {
   setCurrentPhoto: (url: string | null) => void;
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
+  startFreshChat: () => void;
   toggleLanguage: () => void;
+  setLanguage: (language: "hindi" | "english") => void;
   userProfile: { name: string; age: string } | null;
   setUserProfile: (profile: { name: string; age: string }) => void;
 }
@@ -74,7 +76,10 @@ interface ChatProviderProps {
 export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<"hindi" | "english">("hindi");
+  const [currentLanguage, setCurrentLanguage] = useState<"hindi" | "english">(() => {
+    const saved = localStorage.getItem("chatLanguage");
+    return saved === "english" ? "english" : "hindi";
+  });
   const [messageCount, setMessageCount] = useState(0);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
@@ -126,6 +131,15 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       return "priya";
     } catch { return "priya"; }
   });
+  const companionIdRef = useRef(companionId);
+  const botNameRef = useRef(botName);
+  const botAvatarRef = useRef(botAvatar);
+
+  useEffect(() => {
+    companionIdRef.current = companionId;
+    botNameRef.current = botName;
+    botAvatarRef.current = botAvatar;
+  }, [companionId, botName, botAvatar]);
 
   // Listen for changes to selectedCompanion in localStorage
   useEffect(() => {
@@ -136,32 +150,30 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         const savedCompanion = localStorage.getItem("selectedCompanion");
         if (savedCompanion) {
           const companion = JSON.parse(savedCompanion);
-            
-            console.log("[ChatContext] Updating companion data:", {
-              previous: { id: companionId, name: botName, avatar: botAvatar },
-              new: companion
-            });
-            
+
             // Check if companion actually changed
-            const companionChanged = companion.id !== companionId;
+            const companionChanged = companion.id !== companionIdRef.current;
+            const companionDataChanged =
+              companionChanged ||
+              companion.name !== botNameRef.current ||
+              companion.avatar !== botAvatarRef.current;
+
+            if (!companionDataChanged) {
+              return;
+            }
             
             // Important: Actually update all state values with the new data
             // This ensures the UI reflects the selected companion
-          setBotName(companion.name);
-          setBotAvatar(companion.avatar);
+            setBotName(companion.name);
+            setBotAvatar(companion.avatar);
             setCompanionId(companion.id);
             
           // Only reset messages when companion actually changes (not when navigating back to same companion)
           if (companionChanged) {
-            console.log("[ChatContext] Companion changed, clearing messages");
             setMessages([]);
             // Clear welcome message tracking for the old companion (it will be reset when new companion loads)
             // Note: We don't clear the entire set, just let it accumulate. The welcome message will only be added once per companion.
-          } else {
-            console.log("[ChatContext] Same companion selected, keeping messages");
           }
-            
-            console.log("[ChatContext] Companion updated successfully to:", companion.name);
           }
         } catch (error) {
           console.error("[ChatContext] Error updating companion from localStorage:", error);
@@ -171,7 +183,6 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     // Create a more specific handler for the custom event  
     const handleCompanionSelected = () => {
-      console.log("[ChatContext] Companion selection event received, updating companion");
       handleStorageChange(null);
     };
     
@@ -188,7 +199,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('companion-selected', handleCompanionSelected);
     };
-  }, [companionId, botName, botAvatar]);
+  }, []);
 
   // On mount, load user profile if exists
   useEffect(() => {
@@ -207,8 +218,22 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     setMessageCount(savedCount ? parseInt(savedCount, 10) : 0);
   }, [companionId]);
 
+  // Track if we should clear chat on mount (for new chat sessions)
+  const shouldClearChatRef = useRef(false);
+  
   // Load previous chat history for authenticated and anonymous users
+  // Only load if not explicitly cleared (for new chat sessions)
   useEffect(() => {
+    // Check if we should start a fresh chat (cleared flag)
+    if (shouldClearChatRef.current) {
+      console.log("[ChatContext] Starting fresh chat - clearing messages");
+      setMessages([]);
+      setMessageCount(0);
+      welcomeMessageAddedRef.current.clear();
+      shouldClearChatRef.current = false;
+      return;
+    }
+    
     const loadChatHistory = async () => {
       try {
         let userId: string | null = null;
@@ -222,12 +247,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             console.log("[ChatContext] Loading chat history for authenticated user:", userId, "with companion:", companionId);
           }
         } else {
-          // For anonymous users, get their anonymous ID
-          const anonymousId = localStorage.getItem("anonymousUserId");
-          if (anonymousId) {
-            userId = anonymousId;
-            console.log("[ChatContext] Loading chat history for anonymous user:", userId, "with companion:", companionId);
-          }
+          userId = getAnonymousUserId();
+          console.log("[ChatContext] Loading chat history for anonymous user:", userId, "with companion:", companionId);
         }
         
         if (!userId) {
@@ -235,21 +256,19 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           return;
         }
         
-        // Load messages from Firebase (works for both authenticated and anonymous users)
-        const firebaseMessages = await getFirebaseMessages(userId, companionId);
-        if (firebaseMessages && firebaseMessages.length > 0) {
-          console.log("[ChatContext] Found previous chat history with", firebaseMessages.length, "messages");
+        const storedMessages = await getChatMessages(userId, companionId);
+        if (storedMessages && storedMessages.length > 0) {
+          console.log("[ChatContext] Found previous chat history with", storedMessages.length, "messages");
           
-          // Convert Firebase messages format to app Message format
-          const convertedMessages: Message[] = firebaseMessages.map((msg: any) => ({
+          const convertedMessages: Message[] = storedMessages.map((msg: any) => ({
             id: msg.id || -Math.floor(Math.random() * 1000000000),
             content: msg.content,
             role: msg.role,
             companionId: companionId,
-            timestamp: new Date(msg.timestamp),
-            photoUrl: msg.photoUrl || null,
-            isPremium: msg.isPremium || null,
-            contextInfo: msg.contextInfo || null,
+            timestamp: new Date(msg.created_at || msg.timestamp),
+            photoUrl: msg.photo_url || msg.photoUrl || null,
+            isPremium: msg.is_premium ?? msg.isPremium ?? null,
+            contextInfo: msg.context_info || msg.contextInfo || null,
           }));
           
           // Filter out duplicate "Hi" messages from assistant (keep only the first one)
@@ -333,9 +352,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             
             console.log("[ChatContext] Adding first welcome message for companion:", companionId);
             
-            // Save welcome message to Firebase if user is authenticated or anonymous
             saveChatMessage(welcomeMessage).catch((error) => {
-              console.error("[ChatContext] Error saving welcome message to Firebase:", error);
+              console.error("[ChatContext] Error saving welcome message:", error);
             });
             
             return [welcomeMessage];
@@ -389,16 +407,12 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   }, [showAuthDialog]);
 
   // Helper: check if user is authenticated
-  // IMPORTANT: Only check Firebase auth.currentUser, NOT localStorage
+  // IMPORTANT: Only check active auth state, NOT localStorage alone.
   // Anonymous user IDs should NEVER be considered authenticated
   const isAuthenticated = () => {
     try {
-      // Use Firebase auth state, not localStorage
-      // localStorage can have stale data or anonymous IDs
       const currentUser = auth.currentUser;
       
-      // Only return true if there's a real Firebase authenticated user
-      // and it's NOT an anonymous ID
       if (!currentUser) return false;
       
       // Ensure the user ID is not an anonymous ID
@@ -410,7 +424,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         return false;
       }
       
-      // Verify user has an email (real Firebase users have emails)
+      // Verify user has an email.
       // Anonymous IDs wouldn't have real emails
       const hasRealEmail = currentUser.email && !currentUser.email.includes('anonymous');
       
@@ -610,8 +624,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         };
         setMessages((prev) => [...prev, premiumMsg]);
         
-        // Save assistant message to Firebase
-        saveChatMessage(premiumMsg);
+        void saveChatMessage(premiumMsg).catch((error) => {
+          console.error("[ChatContext] Error saving premium photo message:", error);
+        });
         
         // Also send user's message
         const tempId = -Math.floor(Math.random() * 1000000000);
@@ -626,7 +641,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           contextInfo: null
         };
         setMessages((prev) => [...prev, userMessage]);
-        saveChatMessage(userMessage);
+        void saveChatMessage(userMessage).catch((error) => {
+          console.error("[ChatContext] Error saving user photo request:", error);
+        });
         
         // Update message count
         setMessageCount((c) => {
@@ -716,8 +733,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           };
           setMessages((prev) => [...prev, userMessage]);
           
-          // Save user message to Firebase
-          saveChatMessage(userMessage);
+          void saveChatMessage(userMessage).catch((error) => {
+            console.error("[ChatContext] Error saving user message:", error);
+          });
         }
         
         // Check if the message we just sent to trigger the premium offer was already affirmative
@@ -849,8 +867,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     };
     setMessages((prev) => [...prev, userMessage]);
     
-    // Save user message to Firebase
-    saveChatMessage(userMessage);
+    void saveChatMessage(userMessage).catch((error) => {
+      console.error("[ChatContext] Error saving user message:", error);
+    });
     
     try {
       // Get the last message to check if there was a photo in the conversation context
@@ -959,8 +978,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         botMessageToAddRef.current = botMessage;
         console.log("[ChatContext] Bot message stored in ref, will add after typing completes");
         
-        // Save assistant message to Firebase
-        saveChatMessage(botMessage);
+        void saveChatMessage(botMessage).catch((error) => {
+          console.error("[ChatContext] Error saving assistant message:", error);
+        });
       } else {
         console.log("[ChatContext] No bot message found in response:", data);
       }
@@ -980,8 +1000,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       botMessageToAddRef.current = errorMsg;
       console.log("[ChatContext] Error message stored in ref, will add after typing completes");
       
-      // Save error message to Firebase
-      saveChatMessage(errorMsg);
+      void saveChatMessage(errorMsg).catch((saveError) => {
+        console.error("[ChatContext] Error saving fallback assistant message:", saveError);
+      });
     } finally {
       // Ensure typing indicator is visible for minimum duration
       const elapsedTime = Date.now() - typingStartTime;
@@ -1106,6 +1127,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     return complexMatches.some(pattern => pattern.test(lowerContent));
   };
 
+  // Start fresh chat (clears chat when landing on chat screen)
+  const startFreshChat = useCallback(() => {
+    shouldClearChatRef.current = true;
+    setMessages([]);
+    setMessageCount(0);
+    welcomeMessageAddedRef.current.clear();
+    // Clear message count from localStorage
+    if (companionIdRef.current) {
+      localStorage.setItem(`messageCount_${companionIdRef.current}`, "0");
+    }
+  }, []);
+
   // Clear chat
   const clearChat = async () => {
     // Clear messages from API
@@ -1132,7 +1165,14 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   };
 
   // Language toggle
-  const toggleLanguage = () => setCurrentLanguage(l => l === "hindi" ? "english" : "hindi");
+  const setLanguage = (language: "hindi" | "english") => {
+    setCurrentLanguage(language);
+    localStorage.setItem("chatLanguage", language);
+  };
+  const toggleLanguage = () => {
+    const next = currentLanguage === "hindi" ? "english" : "hindi";
+    setLanguage(next);
+  };
 
   // Payment dialog logic (UI should call setShowPaymentDialog(true) on photo click)
 
@@ -1159,7 +1199,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         setCurrentPhoto,
         sendMessage,
         clearChat,
+        startFreshChat,
         toggleLanguage,
+        setLanguage,
         userProfile,
         setUserProfile,
       }}

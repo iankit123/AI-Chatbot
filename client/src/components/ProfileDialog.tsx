@@ -25,19 +25,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   // This avoids the dependency on AuthContext completely
   useEffect(() => {
     try {
-      // Check Firebase auth in localStorage (using a more generic approach)
       let userId = localStorage.getItem('authUser');
-      
-      // If not found, scan localStorage for Firebase auth keys
-      if (!userId) {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('firebase:authUser:')) {
-            userId = localStorage.getItem(key);
-            break;
-          }
-        }
-      }
       
       const isAuth = !!userId;
       setIsAuthenticated(isAuth);
@@ -81,14 +69,6 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
     // Clear auth data from localStorage
     localStorage.removeItem('authUser');
     localStorage.removeItem('guestProfile');
-    
-    // Clear any Firebase auth keys if they exist
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('firebase:authUser:')) {
-        localStorage.removeItem(key);
-      }
-    }
     
     // Update state
     setIsAuthenticated(false);

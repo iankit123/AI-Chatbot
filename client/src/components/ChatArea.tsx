@@ -3,12 +3,37 @@ import { ChatMessage } from './ChatMessage';
 import { TypingIndicator } from './TypingIndicator';
 import { formatDate } from '@/lib/dates';
 import { useChat } from '@/context/ChatContext';
+import { ROLE_SUGGESTIONS, type RoleType } from '@/lib/constants';
 
 export function ChatArea() {
-  const { messages, isTyping, botAvatar } = useChat();
+  const { messages, isTyping, botAvatar, sendMessage } = useChat();
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [previousMessagesLength, setPreviousMessagesLength] = useState(0);
+  
+  // Get current role from companionId
+  const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
+  
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("selectedCompanion");
+      if (saved) {
+        const companion = JSON.parse(saved);
+        const roleTypes: RoleType[] = ['doctor', 'kundli', 'parenting', 'finance', 'career'];
+        if (roleTypes.includes(companion.id as RoleType)) {
+          setCurrentRole(companion.id as RoleType);
+        } else {
+          setCurrentRole(null);
+        }
+      }
+    } catch {
+      setCurrentRole(null);
+    }
+  }, [messages]);
+  
+  const handleSuggestionClick = async (suggestion: string) => {
+    await sendMessage(suggestion);
+  };
   
   // Force scroll on both message changes and typing indicator changes
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -55,6 +80,24 @@ export function ChatArea() {
       <div className="text-center text-neutral-700 text-sm my-4">
         <p>Aaj ka din - <span>{formatDate(new Date(), 'en-IN')}</span></p>
       </div>
+      
+      {/* Show suggestions for role-based chats - always visible at top */}
+      {currentRole && ROLE_SUGGESTIONS[currentRole] && (
+        <div className="mb-6">
+          <p className="text-neutral-600 text-sm mb-3 text-center">Try asking:</p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {ROLE_SUGGESTIONS[currentRole].map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="px-4 py-2 bg-white border border-neutral-200 rounded-full text-sm text-neutral-700 hover:bg-neutral-50 hover:border-primary transition-colors shadow-sm"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       
       {/* Chat messages */}
       {messages.map((message) => (

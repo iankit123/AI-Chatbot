@@ -5,10 +5,99 @@ import { z } from 'zod';
 import { generateResponse } from './services/llm';
 import express from "express";
 import path from "path";
+import {
+  getChatConversationsFromSupabase,
+  getChatMessagesFromSupabase,
+  saveChatMessageToSupabase,
+} from "./services/supabaseChat";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve static files from the client/public directory
   app.use(express.static(path.join(process.cwd(), 'client/public')));
+
+  const ownerSchema = z.object({
+    userId: z.string().nullable().optional(),
+    anonymousUserId: z.string().nullable().optional(),
+  });
+
+  app.post('/api/chat/messages', async (req, res) => {
+    try {
+      const chatMessageSchema = ownerSchema.extend({
+        companionId: z.string().min(1),
+        companionName: z.string().nullable().optional(),
+        companionAvatar: z.string().nullable().optional(),
+        userName: z.string().nullable().optional(),
+        userAge: z.number().nullable().optional(),
+        role: z.enum(['user', 'assistant']),
+        content: z.string().min(1),
+        language: z.enum(['hindi', 'english']).nullable().optional(),
+        photoUrl: z.string().nullable().optional(),
+        isPremium: z.boolean().nullable().optional(),
+        contextInfo: z.string().nullable().optional(),
+        metadata: z.record(z.unknown()).optional(),
+      });
+
+      const data = chatMessageSchema.parse(req.body);
+      const message = await saveChatMessageToSupabase(data);
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error saving chat message:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid chat message', errors: error.errors });
+      }
+      res.status(500).json({
+        message: 'Failed to save chat message',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.get('/api/chat/messages', async (req, res) => {
+    try {
+      const query = ownerSchema.extend({
+        companionId: z.string().min(1),
+      }).parse(req.query);
+
+      const messages = await getChatMessagesFromSupabase(
+        query.companionId,
+        query.userId,
+        query.anonymousUserId,
+      );
+
+      res.json(messages);
+    } catch (error) {
+      console.error('Error loading chat messages:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid chat query', errors: error.errors });
+      }
+      res.status(500).json({
+        message: 'Failed to load chat messages',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.get('/api/chat/conversations', async (req, res) => {
+    try {
+      const query = ownerSchema.parse(req.query);
+      const conversations = await getChatConversationsFromSupabase(
+        query.userId,
+        query.anonymousUserId,
+      );
+
+      res.json(conversations);
+    } catch (error) {
+      console.error('Error loading chat conversations:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid conversations query', errors: error.errors });
+      }
+      res.status(500).json({
+        message: 'Failed to load chat conversations',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
   // Get messages - can filter by companion ID
   app.get('/api/messages', async (req, res) => {
     try {

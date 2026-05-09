@@ -61,7 +61,7 @@ export function UserProfileDialog({
     }
     
     try {
-      // If user is logged in, save to Firebase
+      // If user is logged in, save to the active auth profile.
       if (currentUser) {
         if (!currentUser.email) {
           setError('Your email is not available, cannot save profile.');
