@@ -20,6 +20,7 @@ import {
   getPersistedChatUserId,
 } from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
+import { FREE_USER_MESSAGE_ALLOWANCE } from "@/lib/chatPaywall";
 import { RechargeChatDialog } from "@/components/RechargeChatDialog";
 
 const AFFIRMATIVE_WORDS = [
@@ -536,8 +537,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         console.log("[ChatContext] Saved userProfile to localStorage and closed profile dialog:", userProfile);
       }
 
-      // 3. Paywall: first 2 user messages free; attempting the 3rd opens recharge (all chats, signed-in or guest)
-      if (messageCount >= 2) {
+      // 3. Paywall: see FREE_USER_MESSAGE_ALLOWANCE in @/lib/chatPaywall.ts (default 3 → wall on 4th send)
+      if (messageCount >= FREE_USER_MESSAGE_ALLOWANCE) {
         console.log("[ChatContext] Paywall — message limit reached for this session segment");
         localStorage.removeItem("recharge_dialog_dismissed");
         setShowRechargeDialog(true);

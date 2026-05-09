@@ -10,6 +10,7 @@ import {
   type AppUser
 } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { FREE_USER_MESSAGE_ALLOWANCE } from '@/lib/chatPaywall';
 
 interface AuthContextType {
   currentUser: AppUser | null;
@@ -51,7 +52,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const messageLimit = 3; // Free message limit before requiring login
+  /** Mirror of recharge gate in ChatContext; single source: `@/lib/chatPaywall`. */
+  const messageLimit = FREE_USER_MESSAGE_ALLOWANCE;
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthChanges(async (user) => {
