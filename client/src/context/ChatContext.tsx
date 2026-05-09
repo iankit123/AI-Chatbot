@@ -45,6 +45,10 @@ interface ChatContextType {
   showPremiumPhoto: boolean;
   showPaymentDialog: boolean;
   currentPhoto: string | null;
+  /** Shared text field value (suggestion chips and composer stay in sync; fixes mobile + multi-pane issues). */
+  composerDraft: string;
+  setComposerDraft: (value: string) => void;
+  composerInputRef: React.RefObject<HTMLInputElement>;
   setShowProfileDialog: (show: boolean) => void;
   setShowAuthDialog: (show: boolean) => void;
   setShowPremiumTease: (show: boolean) => void;
@@ -89,6 +93,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<{ name: string; age: string } | null>(null);
+  const [composerDraft, setComposerDraft] = useState("");
+  const composerInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const premiumOfferMadeRef = useRef(false);
   
@@ -1133,6 +1139,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     shouldClearChatRef.current = true;
     setMessages([]);
     setMessageCount(0);
+    setComposerDraft("");
     welcomeMessageAddedRef.current.clear();
     // Clear message count from localStorage
     if (companionIdRef.current) {
@@ -1147,6 +1154,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     // Clear messages from local state
       setMessages([]);
+      setComposerDraft("");
 
     // If not authenticated, reset message count to 0
     // For authenticated users, we'll keep the count in localStorage
@@ -1198,6 +1206,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         setShowPremiumPhoto,
         setShowPaymentDialog,
         setCurrentPhoto,
+        composerDraft,
+        setComposerDraft,
+        composerInputRef,
         sendMessage,
         clearChat,
         startFreshChat,

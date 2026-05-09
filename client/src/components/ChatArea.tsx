@@ -6,7 +6,7 @@ import { useChat } from '@/context/ChatContext';
 import { ROLE_SUGGESTIONS, type RoleType } from '@/lib/constants';
 
 export function ChatArea() {
-  const { messages, isTyping, botAvatar, sendMessage } = useChat();
+  const { messages, isTyping, botAvatar, setComposerDraft, composerInputRef } = useChat();
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [previousMessagesLength, setPreviousMessagesLength] = useState(0);
@@ -31,8 +31,21 @@ export function ChatArea() {
     }
   }, [messages]);
   
-  const handleSuggestionClick = async (suggestion: string) => {
-    await sendMessage(suggestion);
+  const handleSuggestionTap = (suggestion: string) => {
+    setComposerDraft(suggestion);
+    const focusComposer = () => {
+      const el = composerInputRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      try {
+        const len = suggestion.length;
+        el.setSelectionRange(len, len);
+      } catch {
+        /* setSelectionRange can throw on some mobile browsers if not focused yet */
+      }
+    };
+    requestAnimationFrame(focusComposer);
+    window.setTimeout(focusComposer, 80);
   };
   
   // Force scroll on both message changes and typing indicator changes
@@ -89,8 +102,10 @@ export function ChatArea() {
             {ROLE_SUGGESTIONS[currentRole].map((suggestion, index) => (
               <button
                 key={index}
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="px-4 py-2 bg-white border border-neutral-200 rounded-full text-sm text-neutral-700 hover:bg-neutral-50 hover:border-primary transition-colors shadow-sm"
+                type="button"
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={() => handleSuggestionTap(suggestion)}
+                className="touch-manipulation select-none px-4 py-2 bg-white border border-neutral-200 rounded-full text-sm text-neutral-700 hover:bg-neutral-50 hover:border-primary active:bg-neutral-100 transition-colors shadow-sm"
               >
                 {suggestion}
               </button>

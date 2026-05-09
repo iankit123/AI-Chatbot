@@ -1,14 +1,13 @@
-import { useState, KeyboardEvent } from 'react';
+import { KeyboardEvent } from 'react';
 import { useChat } from '@/context/ChatContext';
 
 export function ChatInput() {
-  const [message, setMessage] = useState('');
-  const { sendMessage, clearChat, currentLanguage, showAuthDialog } = useChat();
+  const { sendMessage, clearChat, currentLanguage, showAuthDialog, composerDraft, setComposerDraft, composerInputRef } = useChat();
 
   const handleSend = async () => {
-    if (message.trim() && !showAuthDialog) {
-      const trimmedMessage = message.trim();
-      setMessage(''); // Clear input immediately
+    if (composerDraft.trim() && !showAuthDialog) {
+      const trimmedMessage = composerDraft.trim();
+      setComposerDraft(''); // Clear input immediately
       await sendMessage(trimmedMessage);
     }
   };
@@ -33,8 +32,9 @@ export function ChatInput() {
         <div className="relative flex-grow rounded-full bg-neutral-100 overflow-hidden">
           <input 
             type="text" 
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            ref={composerInputRef}
+            value={composerDraft}
+            onChange={(e) => setComposerDraft(e.target.value)}
             onKeyUp={handleKeyPress}
             className="w-full px-4 py-2 bg-transparent text-neutral-900 outline-none" 
             placeholder={currentLanguage === 'hindi' ? "Apna message yahan likho..." : "Type your message here..."}
