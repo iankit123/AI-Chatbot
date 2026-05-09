@@ -6,6 +6,9 @@ export const LANGUAGE_OPTIONS = {
   ENGLISH: 'english'
 } as const;
 
+/** Voice tab — premium activation amount shown in UI and logged to payment_attempts */
+export const VOICE_CHAT_ACTIVATION_RUPEES = 299;
+
 export type RoleType = 'doctor' | 'kundli' | 'parenting' | 'finance' | 'career' | 'relationship' | 'krishna' | 'english';
 
 // Role-specific suggestion prompts

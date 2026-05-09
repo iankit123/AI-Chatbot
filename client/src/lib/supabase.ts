@@ -33,6 +33,49 @@ export const normalizeIndianPhone = (input: string): string | null => {
   return digits.length === 10 ? digits : null;
 };
 
+/** `selectedCompanion.id` from localStorage, if set */
+export function getSelectedCompanionId(): string | null {
+  try {
+    const raw = localStorage.getItem("selectedCompanion");
+    if (!raw) return null;
+    const id = JSON.parse(raw)?.id;
+    return id != null ? String(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 10-digit mobile already stored from phone sign-in or guest profile */
+export function getStoredBillingPhoneDigits(): string | null {
+  try {
+    const raw = localStorage.getItem("authUser");
+    if (raw) {
+      const u = JSON.parse(raw) as { uid?: string; email?: string };
+      const uid = String(u.uid || "");
+      if (uid.startsWith("phone-")) {
+        const d = uid.slice("phone-".length).replace(/\D/g, "");
+        if (d.length === 10) return d;
+      }
+      const email = String(u.email || "");
+      const m = email.match(/^(\d{10})@phone\.local$/);
+      if (m) return m[1];
+    }
+    const g = localStorage.getItem("guestProfile");
+    if (g) {
+      const p = JSON.parse(g) as { phone?: string };
+      const d = String(p.phone ?? "").replace(/\D/g, "");
+      if (d.length >= 10) return d.slice(-10);
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+export function notifyLocalAuthListeners() {
+  window.dispatchEvent(new Event("local-storage-auth"));
+}
+
 export const isSignedInLocally = (): boolean => {
   try {
     const raw = localStorage.getItem(AUTH_USER_KEY);
@@ -40,17 +83,28 @@ export const isSignedInLocally = (): boolean => {
     const u = JSON.parse(raw) as AppUser;
     if (!u?.uid || String(u.uid).startsWith("anonymous-")) return false;
     const email = u.email ? String(u.email) : "";
+    /** Phone sign-in uses `${digits}@phone.local` */
+    const isPhoneLocalUser = /^\d{10}@phone\.local$/i.test(email);
     const pseudoEmail =
-      email && !email.includes("anonymous") && !email.endsWith("@phone.local");
-    return pseudoEmail || !!u.displayName;
+      email && !email.includes("anonymous") && !isPhoneLocalUser;
+    return pseudoEmail || !!u.displayName?.trim() || isPhoneLocalUser;
   } catch {
     return false;
   }
 };
 
-const notifyLocalAuthListeners = () => {
-  window.dispatchEvent(new Event("local-storage-auth"));
-};
+/** Phone auth or guest profile with valid 10-digit phone — bottom nav + profile sheet */
+export function isUserRegisteredLocally(): boolean {
+  if (isSignedInLocally()) return true;
+  try {
+    const raw = localStorage.getItem("guestProfile");
+    if (!raw) return false;
+    const p = JSON.parse(raw) as { phone?: string };
+    return normalizeIndianPhone(String(p.phone ?? "")) !== null;
+  } catch {
+    return false;
+  }
+}
 
 /** Marks the user signed-in locally using phone (no OTP). Syncs guestProfile.name if missing. */
 export const signInWithPhoneLocal = (name: string, phoneDigits: string): AppUser => {
@@ -116,12 +170,17 @@ export async function logPaymentAttemptOnServer(payload: {
   companion_id?: string | null;
   rate_note?: string | null;
   metadata?: Record<string, unknown>;
-}) {
-  await fetch("/api/billing/payment-attempt", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(payload),
-  });
+}): Promise<boolean> {
+  try {
+    const res = await fetch("/api/billing/payment-attempt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 const toAppUser = (user: any): AppUser => ({
@@ -135,7 +194,7 @@ const toAppUser = (user: any): AppUser => ({
   photoURL: user.user_metadata?.avatar_url || null,
 });
 
-const getStoredAuthUser = (): AppUser | null => {
+export function getStoredAuthUser(): AppUser | null {
   try {
     const raw = localStorage.getItem(AUTH_USER_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -271,12 +330,6 @@ export const getAnonymousUserId = (): string => {
 /** Stable browser id for guests (same key as anonymous chat owner). */
 export const getDeviceId = (): string => getAnonymousUserId();
 
-const getOwnerIds = () => {
-  const user = auth.currentUser || getStoredAuthUser();
-  if (user?.uid) return { userId: user.uid, anonymousUserId: null };
-  return { userId: null, anonymousUserId: getAnonymousUserId() };
-};
-
 const getGuestProfile = () => {
   try {
     const raw = localStorage.getItem("guestProfile");
@@ -286,8 +339,25 @@ const getGuestProfile = () => {
   }
 };
 
+/** Same criteria as bottom nav "Profile" vs "Sign in" — used for server-backed chat history. */
+export function getPersistedChatUserId(): string | null {
+  if (!isUserRegisteredLocally()) return null;
+
+  const stored = getStoredAuthUser();
+  if (stored?.uid && !String(stored.uid).startsWith("anonymous-")) {
+    return stored.uid;
+  }
+
+  const digits = getStoredBillingPhoneDigits();
+  return digits ? `phone-${digits}` : null;
+}
+
 export const saveChatMessage = async (message: any) => {
-  const owner = getOwnerIds();
+  const userId = getPersistedChatUserId();
+  if (!userId) {
+    return null;
+  }
+
   const profile = getGuestProfile();
   const selectedCompanion = localStorage.getItem("selectedCompanion");
   const companion = selectedCompanion ? JSON.parse(selectedCompanion) : null;
@@ -299,7 +369,8 @@ export const saveChatMessage = async (message: any) => {
       Accept: "application/json",
     },
     body: JSON.stringify({
-      ...owner,
+      userId,
+      anonymousUserId: null,
       companionId: message.companionId || companion?.id || "unknown",
       companionName: companion?.name || null,
       companionAvatar: companion?.avatar || null,

@@ -4,7 +4,7 @@ import { BottomNav } from "@/components/BottomNav";
 import {
   auth,
   getUserProfile,
-  isSignedInLocally,
+  isUserRegisteredLocally,
   signOutUser,
 } from "@/lib/supabase";
 import { useChat } from "@/context/ChatContext";
@@ -16,13 +16,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CreditCard, LogOut, MessageCircle, Zap } from "lucide-react";
+import { CreditCard, LogOut, MessageCircle, Wallet, Zap } from "lucide-react";
 import { ProfileDialog } from "@/components/ProfileDialog";
+import { LegalFooter } from "@/components/LegalFooter";
+
+/** Title-case a full name for display (each word: Ankit Goyal). */
+function capitalizeDisplayName(full: string): string {
+  const t = full.trim();
+  if (!t) return "";
+  return t
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ""))
+    .join(" ");
+}
 
 function firstNameOnly(full: string): string {
   const t = full.trim();
   if (!t) return "";
-  return t.split(/\s+/)[0];
+  const word = t.split(/\s+/)[0];
+  return word ? capitalizeDisplayName(word) : "";
 }
 
 function formatPhoneDisplay(raw: string): string {
@@ -138,11 +150,11 @@ export default function Home() {
   const [userPhoto, setUserPhoto] = useState<string>("");
   const [userPhone, setUserPhone] = useState<string>("");
   const [walletCredits, setWalletCredits] = useState<number>(0);
-  const [signedIn, setSignedIn] = useState(isSignedInLocally);
+  const [userRegistered, setUserRegistered] = useState(isUserRegisteredLocally);
   const [headerProfileOpen, setHeaderProfileOpen] = useState(false);
 
   useEffect(() => {
-    const refreshSignedIn = () => setSignedIn(isSignedInLocally());
+    const refreshSignedIn = () => setUserRegistered(isUserRegisteredLocally());
     window.addEventListener("local-storage-auth", refreshSignedIn);
     return () => window.removeEventListener("local-storage-auth", refreshSignedIn);
   }, []);
@@ -154,7 +166,7 @@ export default function Home() {
         let photo = "";
         let phone = "";
 
-        setSignedIn(isSignedInLocally());
+        setUserRegistered(isUserRegisteredLocally());
         try {
           setWalletCredits(Number(localStorage.getItem("wallet_credits") || "0"));
         } catch {
@@ -211,7 +223,7 @@ export default function Home() {
     });
     localStorage.removeItem("guestProfile");
     window.dispatchEvent(new Event("local-storage-auth"));
-    setSignedIn(false);
+    setUserRegistered(false);
     setUserName("");
     setUserPhoto("");
     setUserPhone("");
@@ -362,7 +374,7 @@ export default function Home() {
 
         {/* Welcome Section */}
         <div className="relative z-20 mb-2 flex items-start justify-between gap-2">
-          {signedIn ? (
+          {userRegistered ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -396,7 +408,7 @@ export default function Home() {
                 className="z-[100] w-[min(calc(100vw-2rem),18rem)] p-0 shadow-lg"
               >
                 <div className="border-b border-border px-4 py-3">
-                  <p className="font-semibold text-slate-900">{userName.trim() || "User"}</p>
+                  <p className="font-semibold text-slate-900">{capitalizeDisplayName(userName) || "User"}</p>
                   <p className="text-sm text-slate-500 tabular-nums">{formatPhoneDisplay(userPhone)}</p>
                 </div>
                 <div className="px-1 py-1">
@@ -489,18 +501,12 @@ export default function Home() {
             </div>
             <button
               type="button"
-              className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-white/95 text-slate-700 shadow-sm backdrop-blur"
-              aria-label="Notifications"
+              onClick={() => setShowRechargeDialog(true)}
+              className="flex h-8 min-w-[3.25rem] items-center justify-center gap-1 rounded-xl bg-white/95 px-2 text-slate-700 shadow-sm backdrop-blur"
+              aria-label={currentLanguage === "hindi" ? "वॉलेट बैलेंस" : "Wallet balance"}
             >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.8}
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9"
-                />
-              </svg>
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-violet-500 ring-2 ring-white" />
+              <Wallet className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="text-xs font-semibold tabular-nums">₹{walletCredits}</span>
             </button>
           </div>
         </div>
@@ -581,7 +587,9 @@ export default function Home() {
           })}
         </div>
       </div>
-      
+
+      <LegalFooter />
+
       <ProfileDialog open={headerProfileOpen} onOpenChange={setHeaderProfileOpen} />
 
       <BottomNav />

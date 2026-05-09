@@ -1,15 +1,17 @@
 import { useLocation } from 'wouter';
 import { ProfileDialog } from './ProfileDialog';
 import { useEffect, useState } from 'react';
-import { isSignedInLocally } from '@/lib/supabase';
+import { isUserRegisteredLocally } from '@/lib/supabase';
+import { useChat } from '@/context/ChatContext';
 
 export function BottomNav() {
   const [location, setLocation] = useLocation();
   const [showProfileDialog, setShowProfileDialog] = useState(false);
-  const [signedIn, setSignedIn] = useState(isSignedInLocally);
+  const [registered, setRegistered] = useState(isUserRegisteredLocally);
+  const { currentLanguage } = useChat();
 
   useEffect(() => {
-    const refresh = () => setSignedIn(isSignedInLocally());
+    const refresh = () => setRegistered(isUserRegisteredLocally());
     window.addEventListener('local-storage-auth', refresh);
     window.addEventListener('storage', refresh);
     return () => {
@@ -25,7 +27,13 @@ export function BottomNav() {
     return location.startsWith(path);
   };
 
-  const profileLabel = signedIn ? 'Profile' : 'Sign in';
+  const profileLabel = registered
+    ? currentLanguage === 'hindi'
+      ? 'प्रोफ़ाइल'
+      : 'Profile'
+    : currentLanguage === 'hindi'
+      ? 'साइन इन'
+      : 'Sign in';
 
   return (
     <>
@@ -84,4 +92,3 @@ export function BottomNav() {
     </>
   );
 }
-

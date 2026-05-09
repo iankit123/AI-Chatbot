@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { BottomNav } from "@/components/BottomNav";
+import { LegalFooter } from "@/components/LegalFooter";
 import { useChat } from "@/context/ChatContext";
 
 interface CompanionProfile {
@@ -209,6 +210,8 @@ export default function LandingPage() {
           ))}
         </div>
       </main>
+
+      <LegalFooter />
 
       <BottomNav />
     </div>

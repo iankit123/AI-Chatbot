@@ -3,13 +3,19 @@ import { useLocation } from 'wouter';
 import { RoleAvatar } from './RoleAvatar';
 import { useState, useEffect } from 'react';
 import type { RoleType } from '@/lib/constants';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function Header() {
-  const { botName, botAvatar, currentLanguage, toggleLanguage, clearChat } = useChat();
+  const { botName, botAvatar, currentLanguage, toggleLanguage, startFreshChat } = useChat();
   const [, setLocation] = useLocation();
   const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
 
-  // Check if this is a role-based chat
   useEffect(() => {
     try {
       const saved = localStorage.getItem("selectedCompanion");
@@ -28,17 +34,23 @@ export function Header() {
   }, [botName]);
 
   const handleBackToHome = () => {
-    // Just navigate back without clearing chat
     setLocation('/');
   };
+
+  const newChatLabel = currentLanguage === "hindi" ? "नई चैट" : "New chat";
+  const languageItemLabel =
+    currentLanguage === "hindi"
+      ? "भाषा — अंग्रेज़ी"
+      : "Language — Hindi";
 
   return (
     <header className="z-10 shrink-0 bg-[#075E54] px-3 py-2 text-white shadow-md">
       <div className="flex min-h-[52px] items-center gap-1">
-        <button 
+        <button
           onClick={handleBackToHome}
-          className="mr-1 shrink-0 rounded-full p-1.5 hover:bg-white/10" 
+          className="mr-1 shrink-0 rounded-full p-1.5 hover:bg-white/10"
           aria-label="Back to Home"
+          type="button"
         >
           <span className="material-icons text-[22px]">arrow_back</span>
         </button>
@@ -46,12 +58,11 @@ export function Header() {
           <RoleAvatar role={currentRole} className="h-9 w-9 [&_svg]:h-[22px] [&_svg]:w-[22px]" />
         ) : (
           <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white">
-            <img 
-              src={botAvatar} 
-              alt="Profile picture" 
+            <img
+              src={botAvatar}
+              alt="Profile picture"
               className="w-full h-full object-cover"
               onError={(e) => {
-                // Fallback to a default avatar if image fails to load
                 e.currentTarget.style.display = 'none';
                 const parent = e.currentTarget.parentElement;
                 if (parent) {
@@ -70,24 +81,34 @@ export function Header() {
             <span>{currentLanguage === "hindi" ? "ऑनलाइन" : "online"}</span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button 
-            onClick={toggleLanguage}
-            className="rounded-full p-1.5 hover:bg-white/10" 
-            aria-label="Switch Language"
-            title={currentLanguage === 'hindi' ? 'Switch to English' : 'Switch to Hindi'}
-          >
-            <span className="material-icons text-[22px]">translate</span>
-          </button>
-          <button 
-            onClick={clearChat}
-            className="rounded-full p-1.5 hover:bg-white/10" 
-            aria-label="Clear Chat"
-            title="Clear chat history"
-          >
-            <span className="material-icons text-[22px]">delete_sweep</span>
-          </button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex shrink-0 rounded-full p-1.5 hover:bg-white/10"
+              aria-label={currentLanguage === "hindi" ? "चैट विकल्प" : "Chat options"}
+            >
+              <span className="material-icons text-[22px]">more_vert</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[180px]">
+            <DropdownMenuItem
+              onSelect={() => {
+                startFreshChat();
+              }}
+            >
+              {newChatLabel}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                toggleLanguage();
+              }}
+            >
+              {languageItemLabel}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

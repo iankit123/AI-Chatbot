@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
+import { notifyLocalAuthListeners } from '@/lib/supabase';
 
 interface UserProfileDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function UserProfileDialog({
     authContext = {
       updateProfile: (profile: any) => {
         localStorage.setItem('guestProfile', JSON.stringify(profile));
+        notifyLocalAuthListeners();
         return Promise.resolve();
       },
       currentUser: null
@@ -71,6 +73,7 @@ export function UserProfileDialog({
       } else {
         // For guest users, just save to localStorage
         localStorage.setItem('guestProfile', JSON.stringify({ name, age: ageNum }));
+        notifyLocalAuthListeners();
       }
       
       setError('');

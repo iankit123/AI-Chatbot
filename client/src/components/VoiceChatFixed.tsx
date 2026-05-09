@@ -1,53 +1,83 @@
 import { useChat } from "@/context/ChatContext";
-import { logPaymentRequest } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getDeviceId,
+  getSelectedCompanionId,
+  getStoredBillingPhoneDigits,
+  logPaymentAttemptOnServer,
+} from "@/lib/supabase";
+import { VOICE_CHAT_ACTIVATION_RUPEES } from "@/lib/constants";
 
 export function VoiceChatFixed() {
   const { botName } = useChat();
+  const { toast } = useToast();
 
-  const handleRequestActivation = () => {
+  const handleRequestActivation = async () => {
+    const phone = getStoredBillingPhoneDigits();
+    if (!phone) {
+      toast({
+        title: "फ़ोन नंबर चाहिए",
+        description:
+          "वॉइस चैट एक्टिवेशन के लिए पहले प्रोफाइल में 10 अंकों का मोबाइल नंबर सेव करें या फिर से साइन इन करें।",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const companionId = getSelectedCompanionId();
+    const requestData = {
+      type: "voice_chat" as const,
+      timestamp: new Date().toISOString(),
+      amount: VOICE_CHAT_ACTIVATION_RUPEES,
+      companionId: companionId ?? botName,
+      phone,
+    };
+
     try {
-      // Record request in localStorage
-      const requestData = {
-        type: "voice_chat",
-        timestamp: new Date().toISOString(),
-        amount: 99,
-        companionId: botName.toLowerCase(),
-      };
+      const saved = await logPaymentAttemptOnServer({
+        device_id: getDeviceId(),
+        phone_number: phone,
+        amount_rupees: VOICE_CHAT_ACTIVATION_RUPEES,
+        companion_id: companionId,
+        rate_note: "Voice chat activation request",
+        metadata: {
+          source: "voice_chat_activation_request",
+          product: "voice_chat",
+          bot_display_name: botName,
+          client_timestamp_iso: new Date().toISOString(),
+        },
+      });
 
-      // Store in localStorage
       const paymentRequests = JSON.parse(
         localStorage.getItem("paymentRequests") || "[]",
       );
       paymentRequests.push(requestData);
       localStorage.setItem("paymentRequests", JSON.stringify(paymentRequests));
 
-      const authUser = localStorage.getItem("authUser");
-      if (authUser) {
-        try {
-          const user = JSON.parse(authUser);
-          const userEmail = user.email || 'unknown@example.com';
-          
-          // Log with our dedicated function for consistency
-          logPaymentRequest(
-            user.uid, 
-            userEmail, 
-            'voice_chat', 
-            {
-              companionId: botName.toLowerCase(),
-              amount: 99
-            }
-          );
-        } catch (paymentError) {
-          console.error('Error logging payment request:', paymentError);
-        }
+      if (!saved) {
+        toast({
+          title: "सेव नहीं हो सका",
+          description: "कृपया कुछ देर बाद दोबारा कोशिश करें।",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Show message
-      alert("Request recorded! You will be contacted soon.");
+      toast({
+        title: "अनुरोध दर्ज हो गया",
+        description: "जल्द ही वॉइस चैट एक्टिवेट करने की प्रक्रिया शुरू होगी।",
+      });
     } catch (error) {
-      console.error("Error processing request:", error);
+      console.error("Voice activation request:", error);
+      toast({
+        title: "त्रुटि",
+        description: "अनुरोध सेव नहीं हो सका। बाद में कोशिश करें।",
+        variant: "destructive",
+      });
     }
   };
+
+  const rupees = VOICE_CHAT_ACTIVATION_RUPEES;
 
   return (
     <div className="fixed top-[125px] left-0 right-0 z-50">
@@ -74,19 +104,21 @@ export function VoiceChatFixed() {
               Voice Chat: Premium Feature
             </h3>
             <p className="text-gray-600 mb-5">
-              Only for selected members at ₹99. Talk to {botName} and hear her
+              Only for selected members at ₹{rupees}. Talk to {botName} and hear her
               sweet voice.
             </p>
 
             <div className="w-full space-y-3">
               <button
-                onClick={handleRequestActivation}
+                type="button"
+                onClick={() => void handleRequestActivation()}
                 className="w-full py-3 px-4 rounded-md text-white font-medium bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
-                Request Activation • ₹99
+                Request Activation • ₹{rupees}
               </button>
 
               <button
+                type="button"
                 onClick={() => (window.location.href = "/")}
                 className="w-full py-2 px-4 rounded-md border border-gray-300 text-gray-700 font-medium hover:bg-gray-50"
               >

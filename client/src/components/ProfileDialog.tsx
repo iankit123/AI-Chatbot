@@ -8,7 +8,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PhoneNameSignInFields } from "@/components/PhoneNameSignInDialog";
-import { auth, isSignedInLocally, signOutUser } from "@/lib/supabase";
+import {
+  auth,
+  getStoredAuthUser,
+  getStoredBillingPhoneDigits,
+  isUserRegisteredLocally,
+  notifyLocalAuthListeners,
+  signOutUser,
+} from "@/lib/supabase";
 
 interface ProfileDialogProps {
   open: boolean;
@@ -24,13 +31,18 @@ function parseGuestProfile(): { name?: string; age?: number; phone?: string } | 
   }
 }
 
+function formatPhone10(raw: string | undefined): string {
+  const d = String(raw ?? "").replace(/\D/g, "").slice(-10);
+  return d.length === 10 ? d : "—";
+}
+
 export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
-  const [signedIn, setSignedIn] = useState(isSignedInLocally);
+  const [registered, setRegistered] = useState(isUserRegisteredLocally);
   const [profile, setProfile] = useState<{ name?: string; age?: number; phone?: string } | null>(null);
   const [guestView, setGuestView] = useState<"account" | "phone">("account");
 
   const refresh = () => {
-    setSignedIn(isSignedInLocally());
+    setRegistered(isUserRegisteredLocally());
     setProfile(parseGuestProfile());
   };
 
@@ -58,8 +70,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       localStorage.removeItem("authUser");
     });
     localStorage.removeItem("guestProfile");
-    setSignedIn(false);
+    setRegistered(false);
     setProfile(null);
+    notifyLocalAuthListeners();
     onOpenChange(false);
     window.location.href = "/";
   };
@@ -76,7 +89,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       }}
     >
       <DialogContent className="sm:max-w-[425px]">
-        {signedIn ? (
+        {registered ? (
           <>
             <DialogHeader>
               <DialogTitle className="text-xl">Your profile</DialogTitle>
@@ -86,20 +99,40 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               <div className="flex justify-center mb-2">
                 <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-2xl font-semibold text-primary">
-                    {(profile?.name || auth.currentUser?.displayName || "U").charAt(0).toUpperCase()}
+                    {(() => {
+                      const stored = getStoredAuthUser();
+                      const label =
+                        profile?.name?.trim() ||
+                        stored?.displayName?.trim() ||
+                        auth.currentUser?.displayName?.trim() ||
+                        "U";
+                      return label.charAt(0).toUpperCase();
+                    })()}
                   </span>
                 </div>
               </div>
               <div className="bg-muted/50 p-4 rounded-lg space-y-1">
                 <p className="text-xs text-muted-foreground">Name</p>
-                <p className="font-medium">{profile?.name || auth.currentUser?.displayName || "—"}</p>
+                <p className="font-medium">
+                  {profile?.name?.trim() ||
+                    getStoredAuthUser()?.displayName?.trim() ||
+                    auth.currentUser?.displayName?.trim() ||
+                    "—"}
+                </p>
               </div>
-              {profile?.phone ? (
-                <div className="bg-muted/50 p-4 rounded-lg space-y-1">
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="font-medium tabular-nums">{profile.phone}</p>
-                </div>
-              ) : null}
+              {(() => {
+                const digits =
+                  profile?.phone ||
+                  getStoredBillingPhoneDigits() ||
+                  "";
+                const shown = formatPhone10(digits);
+                return shown !== "—" ? (
+                  <div className="bg-muted/50 p-4 rounded-lg space-y-1">
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="font-medium tabular-nums">{shown}</p>
+                  </div>
+                ) : null;
+              })()}
               <Button onClick={() => void handleSignOut()} variant="destructive" className="w-full">
                 Sign out
               </Button>

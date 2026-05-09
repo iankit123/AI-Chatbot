@@ -14,15 +14,18 @@ import {
   getDeviceId,
   logPaymentAttemptOnServer,
   normalizeIndianPhone,
-  signInWithPhoneLocal,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 const RATE_NOTE = "Approx. ₹5 per minute of chat";
 
+/** Until PSP confirms payment, user always sees this and stays behind the paywall. */
+const PAYMENT_UX_ERROR =
+  "Technical error in payment. Please try again in sometime.";
+
 const PACKS: { rupees: number; bonus: string; highlight?: boolean }[] = [
-  { rupees: 10, bonus: "100% Extra" },
+  { rupees: 40, bonus: "100% Extra" },
   { rupees: 50, bonus: "100% Extra" },
   { rupees: 100, bonus: "100% Extra", highlight: true },
   { rupees: 200, bonus: "50% Extra" },
@@ -30,14 +33,86 @@ const PACKS: { rupees: number; bonus: string; highlight?: boolean }[] = [
   { rupees: 1000, bonus: "5% Extra" },
 ];
 
-function getCompanionId(): string | null {
+/** Matches role routes (doctor, kundli, …) — not virtual girlfriend personas (naina, priya, …). */
+const ROLE_ADVISOR_IDS = new Set<string>([
+  "doctor",
+  "kundli",
+  "parenting",
+  "finance",
+  "career",
+  "krishna",
+  "english",
+]);
+
+function getCompanionContextForBilling(): {
+  companionId: string | null;
+  companionName: string | null;
+  companionAvatar: string | null;
+  chatSurface: "relationship_companion" | "role_advisor" | "unknown";
+} {
   try {
     const raw = localStorage.getItem("selectedCompanion");
-    if (!raw) return null;
-    return JSON.parse(raw)?.id ?? null;
+    if (!raw) {
+      return {
+        companionId: null,
+        companionName: null,
+        companionAvatar: null,
+        chatSurface: "unknown",
+      };
+    }
+    const c = JSON.parse(raw) as { id?: string; name?: string; avatar?: string };
+    const id = c.id != null ? String(c.id) : null;
+    const chatSurface: "relationship_companion" | "role_advisor" | "unknown" =
+      !id ? "unknown" : ROLE_ADVISOR_IDS.has(id) ? "role_advisor" : "relationship_companion";
+    return {
+      companionId: id,
+      companionName: c.name != null ? String(c.name) : null,
+      companionAvatar: c.avatar != null ? String(c.avatar) : null,
+      chatSurface,
+    };
   } catch {
-    return null;
+    return {
+      companionId: null,
+      companionName: null,
+      companionAvatar: null,
+      chatSurface: "unknown",
+    };
   }
+}
+
+function getBillingMetadata(selectedRupees: number): Record<string, unknown> {
+  const pack = PACKS.find((p) => p.rupees === selectedRupees);
+  const ctx = getCompanionContextForBilling();
+  let authUid: string | null = null;
+  try {
+    const au = localStorage.getItem("authUser");
+    if (au) authUid = (JSON.parse(au) as { uid?: string }).uid ?? null;
+  } catch {
+    /* ignore */
+  }
+
+  return {
+    source: "chat_recharge_gate",
+    payment_integration: "none",
+    /** PSP fields reserved for Razorpay / Stripe etc. */
+    card_brand: null,
+    card_last_four: null,
+    payment_method: null,
+    payment_capture_note:
+      "App does not collect card/UPI yet; this row logs the chosen top-up pack and chat context only.",
+    plan_amount_rupees: selectedRupees,
+    plan_bonus_label: pack?.bonus ?? null,
+    plan_was_highlight_recommended: pack?.highlight === true,
+    chat_surface: ctx.chatSurface,
+    companion_display_name: ctx.companionName,
+    companion_avatar_token: ctx.companionAvatar,
+    ui_language: typeof localStorage !== "undefined" ? localStorage.getItem("chatLanguage") || "hindi" : "hindi",
+    guest_profile_name: guestDisplayName(),
+    auth_uid_before_completion: authUid,
+    client_timestamp_iso: new Date().toISOString(),
+    user_agent:
+      typeof navigator !== "undefined" && navigator.userAgent ? navigator.userAgent : null,
+  };
 }
 
 function guestDisplayName(): string {
@@ -102,7 +177,7 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
 
     setBusy(true);
     const deviceId = getDeviceId();
-    const companionId = getCompanionId();
+    const billingCtx = getCompanionContextForBilling();
     const name = guestDisplayName();
 
     try {
@@ -110,41 +185,32 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
         device_id: deviceId,
         phone_number: normalized,
         amount_rupees: selectedRupees,
-        companion_id: companionId,
+        companion_id: billingCtx.companionId,
         rate_note: RATE_NOTE,
-        metadata: { source: "chat_recharge_gate" },
+        metadata: getBillingMetadata(selectedRupees),
       }).catch(() => {});
-      signInWithPhoneLocal(name, normalized);
+
       await upsertAppProfileOnServer(deviceId, {
         phone: normalized,
         name,
       }).catch(() => {});
+    } catch {
+      /* best-effort logging only */
     } finally {
+      toast({
+        description: PAYMENT_UX_ERROR,
+        variant: "destructive",
+      });
+      closeAfterSuccess();
+      /* Do not call onComplete() — messageCount stays ≥ paywall so the next send opens recharge again. */
       setBusy(false);
     }
-
-    toast({
-      title: "Something went wrong",
-      description: "Some technical error occurred. Please try again later.",
-      variant: "destructive",
-    });
-
-    closeAfterSuccess();
-    onComplete();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto p-0 gap-0 border-0 shadow-xl">
         <div className="h-1.5 w-full bg-gradient-to-r from-pink-400 via-rose-500 to-orange-400 rounded-t-lg" />
-        <button
-          type="button"
-          className="absolute right-3 top-5 rounded-sm opacity-70 hover:opacity-100 z-10"
-          onClick={() => closeAfterDismiss()}
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
 
         <div className="p-6 pt-8">
           <DialogHeader className="text-left space-y-1">
@@ -209,11 +275,17 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
                     <Input
                       id="recharge-phone"
                       inputMode="numeric"
+                      type="tel"
+                      maxLength={10}
+                      pattern="\d{10}"
                       className="flex-1"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setPhone(digits);
+                      }}
                       placeholder="98XXXXXXXX"
-                      autoComplete="tel"
+                      autoComplete="tel-national"
                     />
                   </div>
                 </div>
@@ -227,7 +299,7 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
                 </Button>
                 <Button
                   className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700"
-                  disabled={busy}
+                  disabled={busy || phone.length !== 10}
                   type="button"
                   onClick={() => void runPaymentFlow()}
                 >

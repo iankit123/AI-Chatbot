@@ -49,6 +49,7 @@ export interface LogPaymentAttemptInput {
   amountRupees: number;
   companionId?: string | null;
   rateNote?: string | null;
+  /** Arbitrary JSON (plan labels, companion name/surface, future card refs). Stored in `payment_attempts.metadata`. */
   metadata?: Record<string, unknown>;
 }
 

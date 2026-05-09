@@ -11,6 +11,11 @@ import FinanceChat from "./pages/FinanceChat";
 import CareerChat from "./pages/CareerChat";
 import KrishnaChat from "./pages/KrishnaChat";
 import EnglishChat from "./pages/EnglishChat";
+import AboutUs from "./pages/AboutUs";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsAndConditions from "./pages/TermsAndConditions";
+import RefundPolicy from "./pages/RefundPolicy";
+import ContactUs from "./pages/ContactUs";
 import { ChatProvider } from "./context/ChatContext";
 
 function Router() {
@@ -27,6 +32,11 @@ function Router() {
       <Route path="/career" component={CareerChat} />
       <Route path="/krishna" component={KrishnaChat} />
       <Route path="/english" component={EnglishChat} />
+      <Route path="/about" component={AboutUs} />
+      <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/terms" component={TermsAndConditions} />
+      <Route path="/refund" component={RefundPolicy} />
+      <Route path="/contact" component={ContactUs} />
       <Route component={NotFound} />
     </Switch>
   );

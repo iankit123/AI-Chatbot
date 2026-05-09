@@ -12,7 +12,13 @@ import { Message } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getRandomPhotoPrompt } from "@/lib/companionPhotos";
-import { auth, saveChatMessage, getChatMessages, getAnonymousUserId } from "@/lib/supabase";
+import {
+  auth,
+  saveChatMessage,
+  getChatMessages,
+  notifyLocalAuthListeners,
+  getPersistedChatUserId,
+} from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
 import { RechargeChatDialog } from "@/components/RechargeChatDialog";
 
@@ -145,6 +151,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const companionIdRef = useRef(companionId);
   const botNameRef = useRef(botName);
   const botAvatarRef = useRef(botAvatar);
+  /** Bumped when user explicitly starts a new chat so the history effect re-runs without loading from server. */
+  const [historySessionKey, setHistorySessionKey] = useState(0);
+  const shouldClearChatRef = useRef(false);
 
   useEffect(() => {
     companionIdRef.current = companionId;
@@ -229,15 +238,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     setMessageCount(savedCount ? parseInt(savedCount, 10) : 0);
   }, [companionId]);
 
-  // Track if we should clear chat on mount (for new chat sessions)
-  const shouldClearChatRef = useRef(false);
-  
   // Load previous chat history for authenticated and anonymous users
-  // Only load if not explicitly cleared (for new chat sessions)
+  // Skip server load once after explicit "New chat" (shouldClearChatRef)
   useEffect(() => {
-    // Check if we should start a fresh chat (cleared flag)
     if (shouldClearChatRef.current) {
-      console.log("[ChatContext] Starting fresh chat - clearing messages");
+      console.log("[ChatContext] Starting fresh chat - skipping history reload");
       setMessages([]);
       setMessageCount(0);
       welcomeMessageAddedRef.current.clear();
@@ -247,26 +252,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     const loadChatHistory = async () => {
       try {
-        let userId: string | null = null;
-        
-        // Get user ID - either authenticated or anonymous
-        if (isAuthenticated()) {
-          const authUser = localStorage.getItem("authUser");
-          if (authUser) {
-            const { uid } = JSON.parse(authUser);
-            userId = uid;
-            console.log("[ChatContext] Loading chat history for authenticated user:", userId, "with companion:", companionId);
-          }
-        } else {
-          userId = getAnonymousUserId();
-          console.log("[ChatContext] Loading chat history for anonymous user:", userId, "with companion:", companionId);
-        }
-        
+        const userId = getPersistedChatUserId();
         if (!userId) {
-          console.log("[ChatContext] No user ID found, not loading chat history");
+          console.log(
+            "[ChatContext] User not registered for persisted chat — skipping server history load",
+          );
           return;
         }
-        
+
+        console.log(
+          "[ChatContext] Loading chat history for user:",
+          userId,
+          "with companion:",
+          companionId,
+        );
+
         const storedMessages = await getChatMessages(userId, companionId);
         if (storedMessages && storedMessages.length > 0) {
           console.log("[ChatContext] Found previous chat history with", storedMessages.length, "messages");
@@ -329,9 +329,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       }
     };
     
-    // Load chat history when component mounts or companion changes
     loadChatHistory();
-  }, [companionId]);
+  }, [companionId, historySessionKey]);
 
   // Add first welcome message when chat starts (only for new chats, not when loading history)
   // Only add once per companion per session
@@ -389,31 +388,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     }
   }, [messages.length, companionId, botName, currentLanguage]);
 
-  // Track authentication state changes
   useEffect(() => {
-    // Setup a listener for changes to localStorage authUser
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'authUser') {
-        // User just logged in or out
-        if (e.newValue && !e.oldValue) {
-          console.log("[ChatContext] User logged in, resetting message count");
-          // Reset message count after login
-          setMessageCount(0);
-          localStorage.setItem(`messageCount_${companionId}`, "0");
-        }
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also run once on mount to check if user just logged in
     const authState = isAuthenticated();
     console.log("[ChatContext] Initial auth state:", authState);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [companionId]);
+  }, []);
 
   // Reset message processing refs when auth dialog opens/closes or authentication changes
   useEffect(() => {
@@ -553,49 +531,19 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // 2. Save profile if just filled
       if (!isAuthenticated() && messageCount === 0 && userProfile) {
         localStorage.setItem("guestProfile", JSON.stringify(userProfile));
+        notifyLocalAuthListeners();
         setShowProfileDialog(false);
         console.log("[ChatContext] Saved userProfile to localStorage and closed profile dialog:", userProfile);
       }
-  
-      // 3. Normal chat up to 3rd message
-      if (!isAuthenticated() && messageCount < 3) {
-        console.log("[ChatContext] Normal chat branch (unsigned, <3 messages)");
-        await handleSend(trimmedContent);
-        setMessageCount((c) => {
-          const newCount = c + 1;
-          localStorage.setItem(`messageCount_${companionId}`, newCount.toString());
-          return newCount;
-        });
-        return;
-      }
-  
-      // 4. On 4th message (messageCount is 3, as it's 0-indexed), show login/signup popup for non-authenticated users
-      // For cases where messageCount is already high, use modulus to catch every 4th message
-      // Also check if user previously dismissed the dialog and should be prompted again
-      const wasDialogDismissed = localStorage.getItem('recharge_dialog_dismissed') === 'true';
-      const isAuth4thMessage = !isAuthenticated() && (
-        (messageCount === 3) || 
-        (messageCount > 3 && messageCount % 4 === 3) ||
-        wasDialogDismissed
-      );
 
-      console.log("[ChatContext] Auth dialog check:", {
-        isAuthenticated: isAuthenticated(),
-        messageCount,
-        wasDialogDismissed,
-        isFirstAuth4thMessage: messageCount === 3,
-        is4thMessageOrMultiple: messageCount > 3 && messageCount % 4 === 3,
-        shouldShowRechargeDialog: isAuth4thMessage
-      });
-
-      if (isAuth4thMessage) {
-        console.log("[ChatContext] Triggering setShowRechargeDialog(true) for recharge");
-        // Clear the dismissed flag when showing the dialog again
-        localStorage.removeItem('recharge_dialog_dismissed');
+      // 3. Paywall: first 2 user messages free; attempting the 3rd opens recharge (all chats, signed-in or guest)
+      if (messageCount >= 2) {
+        console.log("[ChatContext] Paywall — message limit reached for this session segment");
+        localStorage.removeItem("recharge_dialog_dismissed");
         setShowRechargeDialog(true);
         return;
       }
-      
+
       // Check if this message is affirmative regardless of where in the flow we are
       const isAffirmativeResponse = isAffirmative(trimmedContent);
       console.log("[ChatContext] Affirmative response check:", {
@@ -1150,17 +1098,18 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     return complexMatches.some(pattern => pattern.test(lowerContent));
   };
 
-  // Start fresh chat (clears chat when landing on chat screen)
+  // Start fresh chat (explicit user action — clears UI and skips loading prior thread once)
   const startFreshChat = useCallback(() => {
     shouldClearChatRef.current = true;
     setMessages([]);
     setMessageCount(0);
     setComposerDraft("");
     welcomeMessageAddedRef.current.clear();
-    // Clear message count from localStorage
-    if (companionIdRef.current) {
-      localStorage.setItem(`messageCount_${companionIdRef.current}`, "0");
+    const cid = companionIdRef.current;
+    if (cid) {
+      localStorage.setItem(`messageCount_${cid}`, "0");
     }
+    setHistorySessionKey((k) => k + 1);
   }, []);
 
   const seedConversation = useCallback((msgs: Message[]) => {

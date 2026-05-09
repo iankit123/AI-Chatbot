@@ -3,7 +3,6 @@ import { Header } from '@/components/Header';
 import { ChatArea } from '@/components/ChatArea';
 import { ChatInput } from '@/components/ChatInput';
 import { BottomNav } from '@/components/BottomNav';
-import { useChat } from '@/context/ChatContext';
 import type { RoleType } from '@/lib/constants';
 
 interface RoleChatProps {
@@ -13,18 +12,15 @@ interface RoleChatProps {
 }
 
 export default function RoleChat({ role, roleName, roleIcon }: RoleChatProps) {
-  const { startFreshChat } = useChat();
-
   useEffect(() => {
     localStorage.setItem('selectedCompanion', JSON.stringify({
       id: role,
       name: roleName,
       avatar: roleIcon
     }));
-    
-    startFreshChat();
+
     window.dispatchEvent(new Event('companion-selected'));
-  }, [role, roleName, roleIcon, startFreshChat]);
+  }, [role, roleName, roleIcon]);
 
   return (
     <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-[#e5ddd5] chat-page">
