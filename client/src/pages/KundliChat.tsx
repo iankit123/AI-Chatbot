@@ -14,7 +14,7 @@ import {
 } from "@/lib/kundliBirthStorage";
 
 const ROLE_NAME = "Kundli Bhavishya Checker";
-const ROLE_ICON = "🔮";
+const ROLE_ICON = "/images/kundali-card.png";
 
 export default function KundliChat() {
   const {
