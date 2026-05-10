@@ -1,5 +1,4 @@
 import fetch from "node-fetch";
-import type { RoleType } from "@/lib/constants";
 import {
   COMPANION_PERSONALITY_PROMPTS,
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
@@ -9,6 +8,15 @@ import {
   ROLE_SYSTEM_PROMPTS,
   type RolePromptId,
 } from "../prompts/chatbots";
+
+type CompanionRoleId =
+  | "doctor"
+  | "kundli"
+  | "parenting"
+  | "finance"
+  | "career"
+  | "krishna"
+  | "english";
 
 // OpenRouter API configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
@@ -122,8 +130,17 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
     }
 
     // Check if this is a role-based chat
-    const roleTypes: RoleType[] = ['doctor', 'kundli', 'parenting', 'finance', 'career', 'krishna', 'english'];
-    const isRoleBased = contextOptions.companionId && roleTypes.includes(contextOptions.companionId as RoleType);
+    const roleTypes: CompanionRoleId[] = [
+      "doctor",
+      "kundli",
+      "parenting",
+      "finance",
+      "career",
+      "krishna",
+      "english",
+    ];
+    const isRoleBased =
+      contextOptions.companionId && roleTypes.includes(contextOptions.companionId as CompanionRoleId);
     
     let systemPromptContent = "";
     

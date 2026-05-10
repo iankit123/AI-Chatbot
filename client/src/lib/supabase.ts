@@ -330,6 +330,16 @@ export const getAnonymousUserId = (): string => {
 /** Stable browser id for guests (same key as anonymous chat owner). */
 export const getDeviceId = (): string => getAnonymousUserId();
 
+function stringifyApiErrorPart(v: unknown): string {
+  if (v === undefined || v === null) return "";
+  if (typeof v === "string") return v;
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
 const getGuestProfile = () => {
   try {
     const raw = localStorage.getItem("guestProfile");
@@ -398,8 +408,13 @@ export const saveChatMessage = async (message: any) => {
     const text = await response.text();
     let detail = text;
     try {
-      const j = JSON.parse(text) as { error?: string; hint?: string; message?: string };
-      detail = [j.message, j.error, j.hint].filter(Boolean).join(" — ") || text;
+      const j = JSON.parse(text) as {
+        error?: unknown;
+        hint?: string;
+        message?: string;
+      };
+      detail =
+        [j.message, stringifyApiErrorPart(j.error), j.hint].filter(Boolean).join(" — ") || text;
     } catch {
       /* raw text */
     }
@@ -418,7 +433,22 @@ export const getChatMessages = async (
   if (owner.userId) params.set("userId", owner.userId);
   if (owner.anonymousUserId) params.set("anonymousUserId", owner.anonymousUserId);
   const response = await fetch(`/api/chat/messages?${params.toString()}`);
-  if (!response.ok) throw new Error("Failed to load chat messages");
+  if (!response.ok) {
+    const text = await response.text();
+    let detail = text;
+    try {
+      const j = JSON.parse(text) as {
+        error?: unknown;
+        hint?: string;
+        message?: string;
+      };
+      detail =
+        [j.message, stringifyApiErrorPart(j.error), j.hint].filter(Boolean).join(" — ") || text;
+    } catch {
+      /* raw text */
+    }
+    throw new Error(`Failed to load chat messages: ${detail}`);
+  }
   return response.json();
 };
 

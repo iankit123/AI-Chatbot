@@ -52,6 +52,11 @@ function isMissingDbRelation(error: unknown): boolean {
   return false;
 }
 
+function isSupabaseConfigError(error: unknown): boolean {
+  const msg = serializeSupabaseError(error);
+  return msg.includes("SUPABASE_URL") || msg.includes("SUPABASE_SERVICE_ROLE_KEY");
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve static files from the client/public directory
   app.use(express.static(path.join(process.cwd(), 'client/public')));
@@ -87,6 +92,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid chat message', errors: error.errors });
       }
       const detail = serializeSupabaseError(error);
+      if (isSupabaseConfigError(error)) {
+        return res.status(503).json({
+          message:
+            "Chat persistence unavailable — add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to your server environment (e.g. Vercel project env).",
+          error: detail,
+        });
+      }
       const hint = isMissingDbRelation(error)
         ? "Ensure Supabase has the chat tables from migrations/0001_chat_storage.sql applied."
         : undefined;
@@ -115,6 +127,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error loading chat messages:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid chat query', errors: error.errors });
+      }
+      if (isSupabaseConfigError(error)) {
+        return res.status(503).json({
+          message:
+            "Chat persistence unavailable — add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to your server environment (e.g. Vercel project env).",
+          error: serializeSupabaseError(error),
+        });
       }
       res.status(500).json({
         message: "Failed to load chat messages",
@@ -210,6 +229,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error loading chat conversations:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid conversations query', errors: error.errors });
+      }
+      if (isSupabaseConfigError(error)) {
+        return res.status(503).json({
+          message:
+            "Chat persistence unavailable — add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to your server environment (e.g. Vercel project env).",
+          error: serializeSupabaseError(error),
+        });
       }
       res.status(500).json({
         message: "Failed to load chat conversations",
