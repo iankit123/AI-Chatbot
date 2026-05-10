@@ -1,12 +1,20 @@
 import express from 'express';
 import { registerRoutes } from '../server/routes';
-import { log } from '../server/vite';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Create Express app
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Vercel can set req.url to `/api/index`; Express matches mounted routes using req.url.
+app.use((req, _res, next) => {
+  const orig = (req as { originalUrl?: string }).originalUrl;
+  if (typeof orig === 'string' && orig.startsWith('/api')) {
+    (req as { url: string }).url = orig;
+  }
+  next();
+});
 
 let initialized = false;
 
@@ -17,7 +25,7 @@ async function initialize() {
   await registerRoutes(app);
   initialized = true;
   
-  log('Vercel API handler initialized');
+  console.log('[vercel] API handler initialized');
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

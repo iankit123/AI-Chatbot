@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "scripts": {
     "prebuild": "echo 'Node version:' && node -v && npm -v && npm ls @vitejs/plugin-react || true && ls -l node_modules/@vitejs/plugin-react || true",
@@ -104,6 +104,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.13",
+    "@vercel/node": "^5.7.16",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
