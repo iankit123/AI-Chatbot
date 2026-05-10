@@ -271,6 +271,10 @@ export async function registerRoutes(
     console.log('Params:', JSON.stringify(req.params, null, 2));
     console.log('========================');
     try {
+      const conversationTurnSchema = z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      });
       // Validate request body with extended schema for premium photos
       const messageSchema = z.object({
         content: z.string().min(1),
@@ -282,7 +286,9 @@ export async function registerRoutes(
         skipUserMessage: z.boolean().optional(),
         role: z.enum(['user', 'assistant']).optional(), // Add role to schema
         messageCount: z.number().optional(), // Add message count to schema
-        isAuthenticated: z.boolean().optional() // Add auth state to schema
+        isAuthenticated: z.boolean().optional(), // Add auth state to schema
+        /** Prior turns from the client (required on serverless — seeded UI messages are not in MemStorage). */
+        conversationHistory: z.array(conversationTurnSchema).max(40).optional(),
       });
       
       const validatedData = messageSchema.parse(req.body);
@@ -433,12 +439,19 @@ export async function registerRoutes(
           console.log('[DEBUG] Companion messages after filter:', filteredMessages.map(m => ({ role: m.role, content: m.content })));
         }
         
-        const conversationHistory = filteredMessages.map(msg => ({
+        const historyFromStorage = filteredMessages.map((msg) => ({
           role: msg.role as 'user' | 'assistant',
-          content: msg.content
+          content: msg.content,
         }));
+        const fromClient = validatedData.conversationHistory;
+        const conversationHistory =
+          fromClient && fromClient.length > 0 ? fromClient.slice(-40) : historyFromStorage;
         
         console.log('[DEBUG] Conversation history being sent to LLM:', conversationHistory);
+        console.log(
+          '[DEBUG] History source:',
+          fromClient && fromClient.length > 0 ? 'client' : 'storage',
+        );
         console.log('[DEBUG] Is first user message:', isFirstUserMessage);
         
         // Generate AI response with additional context

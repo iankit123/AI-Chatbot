@@ -133,6 +133,10 @@ export default function LandingPage() {
       ? "बातचीत शुरू करने के लिए किसी एक को चुनें"
       : "Pick someone to start chatting";
 
+  const heroLineBefore =
+    currentLanguage === "hindi" ? "Baat karne ke liye " : "Choose your ";
+  const heroLineAfter = currentLanguage === "hindi" ? " chune" : " to chat";
+
   return (
     <div className="flex min-h-screen flex-col bg-white pb-20">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur">
@@ -155,6 +159,19 @@ export default function LandingPage() {
       </header>
 
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-4">
+        <section
+          className="mb-6 text-center"
+          aria-label={currentLanguage === "hindi" ? "मुख्य संदेश" : "Hero"}
+        >
+          <p className="font-outfit text-[22px] font-extrabold leading-snug tracking-tight text-slate-900 sm:text-[26px]">
+            {heroLineBefore}
+            <span className="bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-500 bg-clip-text text-transparent">
+              Saathi
+            </span>
+            {heroLineAfter}
+          </p>
+        </section>
+
         <div className="grid grid-cols-1 gap-5">
           {companions.map((companion) => (
             <div
@@ -206,7 +223,7 @@ export default function LandingPage() {
                   <button
                     type="button"
                     onClick={() => handleSelectCompanion(companion)}
-                    className="mt-4 w-full rounded-full border-2 border-indigo-600 bg-white py-2.5 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-indigo-600 hover:text-white"
+                    className="mt-4 w-full rounded-full bg-gradient-to-r from-fuchsia-600 via-rose-500 to-orange-500 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/35 transition hover:brightness-110 active:brightness-95"
                   >
                     {currentLanguage === "hindi" ? "चैट शुरू करें" : "Chat now"}
                   </button>
@@ -229,6 +246,11 @@ export default function LandingPage() {
             const role = HOME_ROLE_CARD_BY_ID[roleId];
             if (!role) return null;
             const p = getRoleCardPresentation(currentLanguage, roleId);
+            const ctaClass =
+              role.ctaClass === "bg-slate-950"
+                ? "bg-gradient-to-r from-cyan-500 to-teal-500"
+                : role.ctaClass;
+
             return (
               <HomeRoleCard
                 key={roleId}
@@ -237,7 +259,7 @@ export default function LandingPage() {
                 badge={p.badge}
                 overlayTitle={p.overlayTitle}
                 description={p.description}
-                ctaClass={role.ctaClass}
+                ctaClass={ctaClass}
                 badgeTone={role.badgeTone}
                 startChatLabel={p.startChat}
                 onClick={() => setLocation(role.route)}

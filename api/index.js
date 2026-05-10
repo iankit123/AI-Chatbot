@@ -229,6 +229,8 @@ IMPORTANT: Spiritual/disclaimer text is shown permanently at the top of the chat
 // server/prompts/chatbots/kundli.ts
 var KUNDLI_SYSTEM_PROMPT = `You are a Kundli Bhavishya Checker providing general astrology guidance.
 
+The chat may begin with structured birth details from the user (lines like Name, Gender, DOB, TOB, POB). Treat them as authoritative for janam kundli\u2013style replies. NEVER ask again for birth data that already appears earlier in this conversation unless the user changes or corrects them.
+
 CRITICAL SAFETY RULES - STRICTLY ENFORCE:
 - Provide general astrology guidance ONLY
 - NEVER make guaranteed predictions
@@ -875,6 +877,10 @@ async function registerRoutes(app2, opts) {
     console.log("Params:", JSON.stringify(req.params, null, 2));
     console.log("========================");
     try {
+      const conversationTurnSchema = z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string()
+      });
       const messageSchema = z.object({
         content: z.string().min(1),
         language: z.enum(["hindi", "english"]).default("hindi"),
@@ -887,8 +893,10 @@ async function registerRoutes(app2, opts) {
         // Add role to schema
         messageCount: z.number().optional(),
         // Add message count to schema
-        isAuthenticated: z.boolean().optional()
+        isAuthenticated: z.boolean().optional(),
         // Add auth state to schema
+        /** Prior turns from the client (required on serverless — seeded UI messages are not in MemStorage). */
+        conversationHistory: z.array(conversationTurnSchema).max(40).optional()
       });
       const validatedData = messageSchema.parse(req.body);
       let userName = "";
@@ -1000,11 +1008,17 @@ async function registerRoutes(app2, opts) {
           });
           console.log("[DEBUG] Companion messages after filter:", filteredMessages.map((m) => ({ role: m.role, content: m.content })));
         }
-        const conversationHistory = filteredMessages.map((msg) => ({
+        const historyFromStorage = filteredMessages.map((msg) => ({
           role: msg.role,
           content: msg.content
         }));
+        const fromClient = validatedData.conversationHistory;
+        const conversationHistory = fromClient && fromClient.length > 0 ? fromClient.slice(-40) : historyFromStorage;
         console.log("[DEBUG] Conversation history being sent to LLM:", conversationHistory);
+        console.log(
+          "[DEBUG] History source:",
+          fromClient && fromClient.length > 0 ? "client" : "storage"
+        );
         console.log("[DEBUG] Is first user message:", isFirstUserMessage);
         const responseContent = await generateResponse(
           validatedData.content,
