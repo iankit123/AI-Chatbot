@@ -9,7 +9,8 @@
   "scripts": {
     "prebuild": "echo 'Node version:' && node -v && npm -v && npm ls @vitejs/plugin-react || true && ls -l node_modules/@vitejs/plugin-react || true",
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "npm run prebuild && vite build && tsc",
+    "build": "npm run prebuild && npm run build:vercel-api && vite build && tsc",
+    "build:vercel-api": "node scripts/build-vercel-api.mjs",
     "start": "NODE_ENV=production node dist/server/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push"

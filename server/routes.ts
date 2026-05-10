@@ -57,7 +57,10 @@ function isSupabaseConfigError(error: unknown): boolean {
   return msg.includes("SUPABASE_URL") || msg.includes("SUPABASE_SERVICE_ROLE_KEY");
 }
 
-export async function registerRoutes(app: Express): Promise<Server | undefined> {
+export async function registerRoutes(
+  app: Express,
+  opts?: { createHttpServer?: boolean },
+): Promise<Server | undefined> {
   // Serve static files from the client/public directory
   app.use(express.static(path.join(process.cwd(), 'client/public')));
 
@@ -508,8 +511,9 @@ export async function registerRoutes(app: Express): Promise<Server | undefined> 
     }
   });
 
-  // Vercel sets VERCEL=1 when system env is enabled. You can also set DISABLE_HTTP_SERVER=1 manually.
-  if (process.env.VERCEL === "1" || process.env.DISABLE_HTTP_SERVER === "1") {
+  // Never attach http.Server unless explicitly requested (`tsx server/index.ts`).
+  // Vercel bundle (`api/index.js` from `server/vercel-express.ts`) passes `{ createHttpServer: false }`.
+  if (opts?.createHttpServer !== true) {
     return undefined;
   }
 

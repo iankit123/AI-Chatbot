@@ -1,12 +1,15 @@
+/**
+ * Vercel serverless entry for Express — source for esbuild → api/index.js.
+ * (Do not import this from server/index.ts; local dev uses server/index.ts only.)
+ */
 import express, { type NextFunction, type Request, type Response } from "express";
-import { registerRoutes } from "../server/routes";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { registerRoutes } from "./routes";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 
-// Vercel may omit originalUrl or set req.url to `/api/index`; Express matches routes using req.url.
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const orig = req.originalUrl;
   const cur = req.url ?? "";
@@ -23,7 +26,7 @@ let initialized = false;
 async function initialize() {
   if (initialized) return;
 
-  await registerRoutes(app);
+  await registerRoutes(app, { createHttpServer: false });
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     console.error("[api] Express error middleware:", err);
@@ -43,7 +46,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (initErr) {
     console.error("[vercel] Init error:", initErr);
     const msg = initErr instanceof Error ? initErr.message : String(initErr);
-    return res.status(500).json({ message: "API failed to initialize", error: msg });
+    if (!res.headersSent) {
+      const body = JSON.stringify({ message: "API failed to initialize", error: msg });
+      res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(body);
+    }
+    return;
   }
 
   const expressReq = req as unknown as Request;
@@ -78,7 +86,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("[vercel] Dispatch fatal:", fatal);
     const msg = fatal instanceof Error ? fatal.message : String(fatal);
     if (!expressRes.headersSent) {
-      expressRes.status(500).json({ message: "Internal server error", error: msg });
+      const body = JSON.stringify({ message: "Internal server error", error: msg });
+      expressRes.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+      expressRes.end(body);
     }
   }
 }

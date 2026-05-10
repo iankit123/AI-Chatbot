@@ -90,7 +90,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  const server = await registerRoutes(app, { createHttpServer: true });
   if (!server) {
     throw new Error("registerRoutes did not create an HTTP server (unexpected outside Vercel)");
   }
