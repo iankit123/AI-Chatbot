@@ -1,21 +1,9 @@
 {
-  "version": 2,
-  "routes": [
-    {
-      "src": "/api/ping",
-      "dest": "/api/ping"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/"
-    }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "rewrites": [
+    { "source": "/api/ping", "destination": "/api/ping" },
+    { "source": "/api/(.*)", "destination": "/api/index" }
   ],
   "env": {
     "NODE_ENV": "production"

@@ -2,8 +2,15 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const peek = res.clone();
+    const raw = ((await peek.text()) || res.statusText).slice(0, 800);
+    let detail = raw;
+    try {
+      detail = JSON.stringify(JSON.parse(raw));
+    } catch {
+      /* keep raw snippet (e.g. HTML error page) */
+    }
+    throw new Error(`${res.status}: ${detail}`);
   }
 }
 
@@ -51,27 +58,7 @@ export async function apiRequest(
     });
 
     console.log(`[apiRequest] Response status: ${res.status} ${res.statusText}`);
-    
-    // Log response headers for debugging
-    const responseHeaders: Record<string, string> = {};
-    res.headers.forEach((value, key) => {
-      responseHeaders[key] = value;
-    });
-    console.log('[apiRequest] Response headers:', JSON.stringify(responseHeaders, null, 2));
-    
-    // Clone the response so we can read it multiple times if needed
-    const responseClone = res.clone();
-    
-    try {
-      // Try to parse the response as JSON for better error messages
-      const responseData = await responseClone.json();
-      console.log('[apiRequest] Response data:', JSON.stringify(responseData, null, 2));
-    } catch (e) {
-      // If it's not JSON, log as text
-      const text = await responseClone.text();
-      console.log('[apiRequest] Response text:', text);
-    }
-    
+
     await throwIfResNotOk(res);
     return res;
   } catch (error) {
