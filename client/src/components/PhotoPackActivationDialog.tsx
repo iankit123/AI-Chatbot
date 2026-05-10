@@ -18,6 +18,7 @@ import {
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
 import { Lock, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const PHOTO_PACK_ACTIVATION_RUPEES = 299;
 
@@ -47,18 +48,21 @@ export function PhotoPackActivationDialog({
 }: PhotoPackActivationDialogProps) {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [phoneFieldError, setPhoneFieldError] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       const d = getStoredBillingPhoneDigits();
       setPhone(d ?? "");
+      setPhoneFieldError(false);
     }
   }, [open]);
 
   const handleActivate = async () => {
     const normalized = normalizeIndianPhone(phone);
     if (!normalized) {
+      setPhoneFieldError(true);
       toast({
         title: "Invalid phone",
         description: "Enter a valid 10-digit Indian mobile number.",
@@ -66,6 +70,8 @@ export function PhotoPackActivationDialog({
       });
       return;
     }
+
+    setPhoneFieldError(false);
 
     setBusy(true);
     const deviceId = getDeviceId();
@@ -127,15 +133,28 @@ export function PhotoPackActivationDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="mt-6 space-y-2 text-left">
-            <Label htmlFor="photo-pack-phone">Mobile number</Label>
+            <Label
+              htmlFor="photo-pack-phone"
+              className={cn(phoneFieldError && "text-red-600")}
+            >
+              Mobile number
+            </Label>
             <Input
               id="photo-pack-phone"
               inputMode="numeric"
               autoComplete="tel"
               placeholder="10-digit mobile number"
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-              className="bg-white"
+              aria-invalid={phoneFieldError}
+              onChange={(e) => {
+                setPhoneFieldError(false);
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+              }}
+              className={cn(
+                "bg-white transition-colors",
+                phoneFieldError &&
+                  "border-2 border-red-500 ring-2 ring-red-200 focus-visible:border-red-500 focus-visible:ring-red-300",
+              )}
             />
           </div>
         </div>

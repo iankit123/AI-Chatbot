@@ -1,29 +1,85 @@
+import { useEffect, useState } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   getDeviceId,
   getSelectedCompanionId,
   getStoredBillingPhoneDigits,
   logPaymentAttemptOnServer,
+  normalizeIndianPhone,
+  notifyLocalAuthListeners,
+  upsertAppProfileOnServer,
 } from "@/lib/supabase";
 import { VOICE_CHAT_ACTIVATION_RUPEES } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+
+function guestDisplayName(): string {
+  try {
+    const raw = localStorage.getItem("guestProfile");
+    if (!raw) return "User";
+    const p = JSON.parse(raw) as { name?: string };
+    return p.name?.trim() || "User";
+  } catch {
+    return "User";
+  }
+}
 
 export function TopVoiceChat() {
-  const { botName } = useChat();
+  const { botName, currentLanguage } = useChat();
   const { toast } = useToast();
   const rupees = VOICE_CHAT_ACTIVATION_RUPEES;
+  const [phone, setPhone] = useState("");
+  const [phoneFieldError, setPhoneFieldError] = useState(false);
+
+  useEffect(() => {
+    setPhone(getStoredBillingPhoneDigits() ?? "");
+    setPhoneFieldError(false);
+  }, []);
+
+  const phoneLabel =
+    currentLanguage === "hindi" ? "मोबाइल नंबर" : "Mobile number";
+  const phonePlaceholder =
+    currentLanguage === "hindi" ? "10 अंकों का नंबर" : "10-digit mobile number";
 
   const handleRequestActivation = async () => {
-    const phone = getStoredBillingPhoneDigits();
-    if (!phone) {
+    const normalized = normalizeIndianPhone(phone);
+    if (!normalized) {
+      setPhoneFieldError(true);
       toast({
-        title: "फ़ोन नंबर चाहिए",
-        description:
-          "वॉइस चैट एक्टिवेशन के लिए पहले प्रोफाइल में 10 अंकों का मोबाइल नंबर सेव करें।",
         variant: "destructive",
+        title:
+          currentLanguage === "hindi"
+            ? "गलत नंबर"
+            : "Invalid phone number",
+        description:
+          currentLanguage === "hindi"
+            ? "वैध 10 अंकों का भारतीय मोबाइल नंबर दर्ज करें।"
+            : "Enter a valid 10-digit Indian mobile number.",
       });
       return;
     }
+
+    setPhoneFieldError(false);
+
+    try {
+      const raw = localStorage.getItem("guestProfile");
+      const prev = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      localStorage.setItem(
+        "guestProfile",
+        JSON.stringify({ ...prev, phone: normalized }),
+      );
+      notifyLocalAuthListeners();
+    } catch {
+      /* ignore */
+    }
+
+    const deviceId = getDeviceId();
+    await upsertAppProfileOnServer(deviceId, {
+      phone: normalized,
+      name: guestDisplayName(),
+    }).catch(() => {});
 
     const companionId = getSelectedCompanionId();
     const requestData = {
@@ -31,13 +87,13 @@ export function TopVoiceChat() {
       timestamp: new Date().toISOString(),
       amount: rupees,
       companionId: companionId ?? botName,
-      phone,
+      phone: normalized,
     };
 
     try {
       const saved = await logPaymentAttemptOnServer({
-        device_id: getDeviceId(),
-        phone_number: phone,
+        device_id: deviceId,
+        phone_number: normalized,
         amount_rupees: rupees,
         companion_id: companionId,
         rate_note: "Voice chat activation request",
@@ -107,6 +163,35 @@ export function TopVoiceChat() {
               Only for selected members at ₹{rupees}. Talk to {botName} and hear her
               sweet voice.
             </p>
+          </div>
+
+          <div className="w-full space-y-2 text-left">
+            <Label
+              htmlFor="top-voice-phone"
+              className={cn(
+                "text-slate-700",
+                phoneFieldError && "text-red-600",
+              )}
+            >
+              {phoneLabel}
+            </Label>
+            <Input
+              id="top-voice-phone"
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder={phonePlaceholder}
+              value={phone}
+              aria-invalid={phoneFieldError}
+              onChange={(e) => {
+                setPhoneFieldError(false);
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+              }}
+              className={cn(
+                "bg-white transition-colors",
+                phoneFieldError &&
+                  "border-2 border-red-500 ring-2 ring-red-200 focus-visible:border-red-500 focus-visible:ring-red-300",
+              )}
+            />
           </div>
 
           <button
