@@ -5,7 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  GROQ_API_KEY = "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"
+  # Do not commit API keys here. In Netlify: Site settings → Environment variables, set at least:
+  # OPENROUTER_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 # Supabase-backed persistence (Express has these on dev; Netlify needs explicit routes
 # because /api/chat/messages would otherwise map to a non-existent function "chat/messages".)

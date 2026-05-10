@@ -1,51 +1,87 @@
-import { Handler } from '@netlify/functions';
-import { generateResponse } from '../../server/services/llm';
-import { z } from 'zod';
+import type { Handler } from "@netlify/functions";
+import { generateResponse } from "../../server/services/llm";
+import { z } from "zod";
+
+const jsonHeaders = { "Content-Type": "application/json; charset=utf-8" };
+
+const conversationTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
 
 const handler: Handler = async (event) => {
-  // Handle both /api/messages and /api/ routes
-  if (event.httpMethod === 'POST' && (event.path === '/api/messages' || event.path === '/api/')) {
-    try {
-      const body = JSON.parse(event.body || '{}');
-      
-      // Validate request body
-      const messageSchema = z.object({
-        content: z.string().min(1),
-        language: z.enum(['hindi', 'english']).default('hindi'),
-        companionId: z.string().default('priya'),
-        photoUrl: z.string().optional(),
-        isPremium: z.boolean().optional(),
-        skipUserMessage: z.boolean().optional()
-      });
-      
-      const validatedData = messageSchema.parse(body);
-      
-      // Generate AI response
-      const responseContent = await generateResponse(
-        validatedData.content,
-        [], // Empty conversation history for now
-        validatedData.language,
-        { 
-          companionId: validatedData.companionId
-        }
-      );
-      
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ content: responseContent })
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to process message' })
-      };
-    }
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: jsonHeaders, body: "" };
   }
 
-  return {
-    statusCode: 405,
-    body: JSON.stringify({ error: 'Method not allowed' })
-  };
+  // Stateless Netlify: no shared DB like Express memory — client must send prior turns.
+  if (event.httpMethod === "DELETE") {
+    return {
+      statusCode: 200,
+      headers: jsonHeaders,
+      body: JSON.stringify({ message: "All messages cleared" }),
+    };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers: jsonHeaders,
+      body: JSON.stringify({ error: "Method not allowed" }),
+    };
+  }
+
+  try {
+    const body = JSON.parse(event.body || "{}");
+
+    const messageSchema = z.object({
+      content: z.string().min(1),
+      language: z.enum(["hindi", "english"]).default("hindi"),
+      companionId: z.string().default("priya"),
+      photoUrl: z.string().optional(),
+      isPremium: z.boolean().optional(),
+      skipUserMessage: z.boolean().optional(),
+      /** Prior turns for this companion (excludes the message in `content`; LLM appends it). */
+      conversationHistory: z.array(conversationTurnSchema).max(40).optional(),
+      messageCount: z.number().optional(),
+      isAuthenticated: z.boolean().optional(),
+      recentPhotoContext: z.record(z.unknown()).nullable().optional(),
+      role: z.enum(["user", "assistant"]).optional(),
+    });
+
+    const validatedData = messageSchema.parse(body);
+
+    const history = validatedData.conversationHistory ?? [];
+
+    const responseContent = await generateResponse(
+      validatedData.content,
+      history,
+      validatedData.language,
+      {
+        companionId: validatedData.companionId,
+      },
+    );
+
+    return {
+      statusCode: 200,
+      headers: jsonHeaders,
+      body: JSON.stringify({ content: responseContent }),
+    };
+  } catch (error) {
+    console.error("[messages]", error);
+    if (error instanceof z.ZodError) {
+      return {
+        statusCode: 400,
+        headers: jsonHeaders,
+        body: JSON.stringify({ error: "Invalid request", errors: error.errors }),
+      };
+    }
+    return {
+      statusCode: 500,
+      headers: jsonHeaders,
+      body: JSON.stringify({ error: "Failed to process message" }),
+    };
+  }
 };
 
-export { handler }; 
+export { handler };

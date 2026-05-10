@@ -840,23 +840,31 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     });
     
     try {
-      // Get the last message to check if there was a photo in the conversation context
-      const lastMessages = [...messages].slice(-3); // Get up to 3 recent messages for context
-      const lastPhotoMessage = lastMessages.find(msg => msg.photoUrl && msg.isPremium);
-      
-      // Include this context in the API request
+      const threadMessages = messages.filter(
+        (m) => !companionId || !m.companionId || m.companionId === companionId,
+      );
+      const conversationHistory = threadMessages
+        .slice(-24)
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+      const lastMessages = [...messages, userMessage].slice(-5);
+      const lastPhotoMessage = lastMessages.find((msg) => msg.photoUrl && msg.isPremium);
+
       const res = await apiRequest("POST", "/api/messages", {
         content,
         language: currentLanguage,
         companionId,
+        conversationHistory,
         messageCount: messageCount + 1,
         isAuthenticated: isAuthenticated(),
-        recentPhotoContext: lastPhotoMessage ? {
-          photoSent: true,
-          photoUrl: lastPhotoMessage.photoUrl,
-          photoMessage: lastPhotoMessage.content,
-          timeElapsed: Math.floor((Date.now() - lastPhotoMessage.timestamp.getTime()) / 1000) // seconds since photo was sent
-        } : null,
+        recentPhotoContext: lastPhotoMessage
+          ? {
+              photoSent: true,
+              photoUrl: lastPhotoMessage.photoUrl,
+              photoMessage: lastPhotoMessage.content,
+              timeElapsed: Math.floor((Date.now() - lastPhotoMessage.timestamp.getTime()) / 1000),
+            }
+          : null,
       });
       
       // Check for rate limiting or error responses
