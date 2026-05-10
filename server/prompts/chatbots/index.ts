@@ -5,7 +5,6 @@ import { ENGLISH_SYSTEM_PROMPT } from "./english";
 import { KRISHNA_SYSTEM_PROMPT } from "./krishna";
 import { KUNDLI_SYSTEM_PROMPT } from "./kundli";
 import { PARENTING_SYSTEM_PROMPT } from "./parenting";
-import { RELATIONSHIP_SYSTEM_PROMPT } from "./relationship";
 
 export type RolePromptId = "doctor" | "kundli" | "parenting" | "finance" | "career" | "krishna" | "english";
 
@@ -19,7 +18,7 @@ export const ROLE_SYSTEM_PROMPTS: Record<RolePromptId, string> = {
   english: ENGLISH_SYSTEM_PROMPT,
 };
 
-export { RELATIONSHIP_SYSTEM_PROMPT };
+export { RELATIONSHIP_SYSTEM_PROMPT, RELATIONSHIP_HINDI_STYLE_APPENDIX } from "./relationship";
 export { COMPANION_PERSONALITY_PROMPTS } from "./companions";
 export {
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,

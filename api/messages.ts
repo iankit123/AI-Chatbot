@@ -3,6 +3,7 @@ import {
   COMPANION_PERSONALITY_PROMPTS,
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
   ENGLISH_UI_LANGUAGE_APPENDIX_HINDI,
+  RELATIONSHIP_HINDI_STYLE_APPENDIX,
   RELATIONSHIP_SYSTEM_PROMPT,
   ROLE_SYSTEM_PROMPTS,
   type RolePromptId,
@@ -90,6 +91,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               : ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH
             : languageInstructionNonEnglishRole;
         
+        const relationshipLanguageAppendix =
+          language === 'hindi'
+            ? RELATIONSHIP_HINDI_STYLE_APPENDIX
+            : languageInstructionNonEnglishRole;
+
         // Get chat history
         const chatHistory = messages
           .filter(m => m.companionId === companionId)
@@ -105,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             role: 'system',
             content: isRoleBased
               ? `${ROLE_SYSTEM_PROMPTS[companionId as RolePromptId]}\n${languageInstructionForRole(companionId)}`
-              : `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPrompt}\n${languageInstructionNonEnglishRole}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
+              : `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPrompt}\n${relationshipLanguageAppendix}\nYou are a female chatting with a man. Be friendly, engaging, and respond in first person.`
           },
           ...chatHistory
         ];

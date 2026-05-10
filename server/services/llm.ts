@@ -4,6 +4,7 @@ import {
   COMPANION_PERSONALITY_PROMPTS,
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
   ENGLISH_UI_LANGUAGE_APPENDIX_HINDI,
+  RELATIONSHIP_HINDI_STYLE_APPENDIX,
   RELATIONSHIP_SYSTEM_PROMPT,
   ROLE_SYSTEM_PROMPTS,
   type RolePromptId,
@@ -100,7 +101,9 @@ VARIETY AND NATURAL CONVERSATION:
 - Ask different questions each time to keep the conversation engaging
 - Do NOT repeat greetings like "Main Priya hun... Tum kaise ho?"; pick a new angle if user sends short replies.
 
-Respond as if you are a Female chatting with a Man. Use AT LEAST 95% Hindi in Roman script. Only 5% English for common words like "office", "traffic", "hours". Use casual everyday Hindi grammar as spoken by young Indians.`
+${RELATIONSHIP_HINDI_STYLE_APPENDIX}
+
+Respond as if you are a female chatting with a man — still follow feminine Hindi verb forms above.`
         : "Respond as if you are a Female, and chatting with a Man. Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal? Keep responses SHORT - maximum 2-3 sentences.";
 
     // ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself.

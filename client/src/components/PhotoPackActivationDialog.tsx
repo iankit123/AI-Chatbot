@@ -71,8 +71,9 @@ export function PhotoPackActivationDialog({
     const deviceId = getDeviceId();
     const name = guestDisplayName();
 
+    let paymentLogged = false;
     try {
-      await logPaymentAttemptOnServer({
+      paymentLogged = await logPaymentAttemptOnServer({
         device_id: deviceId,
         phone_number: normalized,
         amount_rupees: PHOTO_PACK_ACTIVATION_RUPEES,
@@ -85,7 +86,7 @@ export function PhotoPackActivationDialog({
           ui_language: localStorage.getItem("chatLanguage") || "hindi",
           client_timestamp_iso: new Date().toISOString(),
         },
-      }).catch(() => {});
+      });
 
       await upsertAppProfileOnServer(deviceId, {
         phone: normalized,
@@ -93,12 +94,20 @@ export function PhotoPackActivationDialog({
       }).catch(() => {});
     } finally {
       setBusy(false);
-      toast({
-        title: "Activation recorded",
-        description:
-          "We've logged your ₹299 photo pack request. Complete payment when checkout is available.",
-      });
-      onOpenChange(false);
+      if (paymentLogged) {
+        toast({
+          title: "Activation recorded",
+          description:
+            "We've logged your ₹299 photo pack request. Complete payment when checkout is available.",
+        });
+        onOpenChange(false);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Could not save request",
+          description: "Check your connection and try again.",
+        });
+      }
     }
   };
 

@@ -20,6 +20,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/billing/payment-attempt"
+  to = "/.netlify/functions/billing-payment-attempt"
+  status = 200
+
+[[redirects]]
+  from = "/api/profiles/upsert"
+  to = "/.netlify/functions/profiles-upsert"
+  status = 200
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
