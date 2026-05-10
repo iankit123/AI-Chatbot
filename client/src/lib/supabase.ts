@@ -352,11 +352,20 @@ export function getPersistedChatUserId(): string | null {
   return digits ? `phone-${digits}` : null;
 }
 
-export const saveChatMessage = async (message: any) => {
-  const userId = getPersistedChatUserId();
-  if (!userId) {
-    return null;
+/** Owner tuple for `/api/chat/*` — signed-in uses userId; guests use stable device anonymous id. */
+export function getChatPersistenceOwner(): {
+  userId: string | null;
+  anonymousUserId: string | null;
+} {
+  const persisted = getPersistedChatUserId();
+  if (persisted) {
+    return { userId: persisted, anonymousUserId: null };
   }
+  return { userId: null, anonymousUserId: getAnonymousUserId() };
+}
+
+export const saveChatMessage = async (message: any) => {
+  const owner = getChatPersistenceOwner();
 
   const profile = getGuestProfile();
   const selectedCompanion = localStorage.getItem("selectedCompanion");
@@ -369,8 +378,8 @@ export const saveChatMessage = async (message: any) => {
       Accept: "application/json",
     },
     body: JSON.stringify({
-      userId,
-      anonymousUserId: null,
+      userId: owner.userId,
+      anonymousUserId: owner.anonymousUserId,
       companionId: message.companionId || companion?.id || "unknown",
       companionName: companion?.name || null,
       companionAvatar: companion?.avatar || null,
@@ -401,15 +410,25 @@ export const saveChatMessage = async (message: any) => {
   return data.id;
 };
 
-export const getChatMessages = async (userId: string, companionId: string) => {
-  const params = new URLSearchParams({ userId, companionId });
+export const getChatMessages = async (
+  companionId: string,
+  owner: { userId: string | null; anonymousUserId: string | null },
+) => {
+  const params = new URLSearchParams({ companionId });
+  if (owner.userId) params.set("userId", owner.userId);
+  if (owner.anonymousUserId) params.set("anonymousUserId", owner.anonymousUserId);
   const response = await fetch(`/api/chat/messages?${params.toString()}`);
   if (!response.ok) throw new Error("Failed to load chat messages");
   return response.json();
 };
 
-export const getAllUserChats = async (userId: string) => {
-  const params = new URLSearchParams({ userId });
+export const getAllUserChats = async (owner: {
+  userId: string | null;
+  anonymousUserId: string | null;
+}) => {
+  const params = new URLSearchParams();
+  if (owner.userId) params.set("userId", owner.userId);
+  if (owner.anonymousUserId) params.set("anonymousUserId", owner.anonymousUserId);
   const response = await fetch(`/api/chat/conversations?${params.toString()}`);
   if (!response.ok) throw new Error("Failed to load chat conversations");
   return response.json();

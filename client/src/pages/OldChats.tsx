@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
 import { BottomNav } from '@/components/BottomNav';
 import { LegalFooter } from '@/components/LegalFooter';
-import { getAllUserChats, getPersistedChatUserId } from '@/lib/supabase';
+import { getAllUserChats, getChatPersistenceOwner } from '@/lib/supabase';
 import { formatTime } from '@/lib/dates';
 import { useChat } from '@/context/ChatContext';
 
@@ -37,25 +37,17 @@ export default function OldChats() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [needsRegistration, setNeedsRegistration] = useState(false);
-
   const ui =
     currentLanguage === 'hindi'
       ? {
           title: 'पुरानी चैट',
           loading: 'लोड हो रहा है…',
-          signInTitle: 'पुरानी चैट देखने के लिए साइन इन करें',
-          signInBody:
-            'अपना फ़ोन और नाम जोड़ें ताकि हम आपकी बातचीत सुरक्षित रख सकें। नीचे प्रोफ़ाइल (साइन इन) खोलें।',
           emptyTitle: 'कोई चैट इतिहास नहीं',
           emptyBody: 'नई बातचीत शुरू करें — वह यहाँ दिखेगी।',
         }
       : {
           title: 'Old chats',
           loading: 'Loading your chats…',
-          signInTitle: 'Sign in to keep your chat history',
-          signInBody:
-            'Add your name and phone number so we can save your conversations. Open Profile / Sign in below.',
           emptyTitle: 'No chat history yet',
           emptyBody: 'Start a new chat — it will show up here.',
         };
@@ -65,15 +57,8 @@ export default function OldChats() {
       setLoading(true);
       setError(null);
 
-      const userId = getPersistedChatUserId();
-      if (!userId) {
-        setChats([]);
-        setNeedsRegistration(true);
-        return;
-      }
-
-      setNeedsRegistration(false);
-      const userChats = await getAllUserChats(userId);
+      const owner = getChatPersistenceOwner();
+      const userChats = await getAllUserChats(owner);
       setChats(userChats);
     } catch (err) {
       console.error('Error loading chats:', err);
@@ -138,24 +123,7 @@ export default function OldChats() {
           </div>
         )}
 
-        {!loading && !error && needsRegistration && (
-          <div className="text-center py-12 px-2">
-            <div className="text-gray-400 mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-            </div>
-            <p className="text-gray-800 text-lg font-semibold">{ui.signInTitle}</p>
-            <p className="text-gray-500 text-sm mt-3 max-w-sm mx-auto leading-relaxed">{ui.signInBody}</p>
-          </div>
-        )}
-
-        {!loading && !error && !needsRegistration && chats.length === 0 && (
+        {!loading && !error && chats.length === 0 && (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
               <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,7 +135,7 @@ export default function OldChats() {
           </div>
         )}
 
-        {!loading && !error && !needsRegistration && chats.length > 0 && (
+        {!loading && !error && chats.length > 0 && (
           <div className="space-y-3">
             {chats.map((chat) => (
               <div

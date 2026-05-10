@@ -17,7 +17,7 @@ import {
   saveChatMessage,
   getChatMessages,
   notifyLocalAuthListeners,
-  getPersistedChatUserId,
+  getChatPersistenceOwner,
 } from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
 import { FREE_USER_MESSAGE_ALLOWANCE } from "@/lib/chatPaywall";
@@ -255,22 +255,15 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     const loadChatHistory = async () => {
       try {
-        const userId = getPersistedChatUserId();
-        if (!userId) {
-          console.log(
-            "[ChatContext] User not registered for persisted chat — skipping server history load",
-          );
-          return;
-        }
-
+        const owner = getChatPersistenceOwner();
         console.log(
-          "[ChatContext] Loading chat history for user:",
-          userId,
-          "with companion:",
+          "[ChatContext] Loading chat history (persisted owner:",
+          owner.userId ? `userId:${owner.userId}` : `anonymous:${owner.anonymousUserId}`,
+          ") with companion:",
           companionId,
         );
 
-        const storedMessages = await getChatMessages(userId, companionId);
+        const storedMessages = await getChatMessages(companionId, owner);
         if (storedMessages && storedMessages.length > 0) {
           console.log("[ChatContext] Found previous chat history with", storedMessages.length, "messages");
           
