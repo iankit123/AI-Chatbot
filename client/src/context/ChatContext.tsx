@@ -528,6 +528,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       if (!isAuthenticated() && messageCount === 0 && !userProfile) {
         console.log("[ChatContext] Triggering setShowProfileDialog(true) for name/age input");
         setShowProfileDialog(true);
+        lastProcessedMessageRef.current = "";
         return;
       }
   
