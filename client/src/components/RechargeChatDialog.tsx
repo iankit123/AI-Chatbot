@@ -26,7 +26,7 @@ const PAYMENT_UX_ERROR =
   "Technical error in payment. Please try again in sometime.";
 
 const PACKS: { rupees: number; bonus: string; highlight?: boolean }[] = [
-  { rupees: 40, bonus: "100% Extra" },
+  { rupees: 20, bonus: "100% Extra" },
   { rupees: 50, bonus: "100% Extra" },
   { rupees: 100, bonus: "100% Extra", highlight: true },
   { rupees: 200, bonus: "50% Extra" },

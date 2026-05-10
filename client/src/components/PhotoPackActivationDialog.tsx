@@ -160,11 +160,12 @@ export function PhotoPackActivationDialog({
         </div>
         <Button
           type="button"
+          variant="ghost"
           disabled={busy}
-          className="w-full gap-2 rounded-none bg-black py-6 text-base font-semibold text-white hover:bg-zinc-900"
+          className="h-auto w-full gap-2 rounded-none bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 py-6 text-base font-semibold text-white shadow-md hover:bg-gradient-to-r hover:from-violet-500 hover:via-fuchsia-500 hover:to-pink-500 hover:text-white disabled:opacity-60"
           onClick={() => void handleActivate()}
         >
-          <Sparkles className="h-5 w-5 text-amber-300" />
+          <Sparkles className="h-5 w-5 text-amber-200" />
           {busy ? "Please wait…" : `Activate for ₹${PHOTO_PACK_ACTIVATION_RUPEES}`}
         </Button>
       </DialogContent>
