@@ -3,7 +3,8 @@
   "buildCommand": "npm run build",
   "rewrites": [
     { "source": "/api/ping", "destination": "/api/ping" },
-    { "source": "/api/(.*)", "destination": "/api" }
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
     "NODE_ENV": "production"
