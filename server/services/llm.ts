@@ -1,4 +1,3 @@
-import fetch from "node-fetch";
 import {
   COMPANION_PERSONALITY_PROMPTS,
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,

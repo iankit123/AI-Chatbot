@@ -65,6 +65,9 @@ echo "BASE_URL=$BASE_URL"
 echo "COMPANION_ID=$COMPANION_ID"
 echo "ANON_ID=$ANON_ID"
 
+say "0) GET /api/ping (no Express — confirms routing)"
+curl_json "${BASE_URL}/api/ping" || failures=$((failures + 1))
+
 say "1) GET /api/chat/messages (empty or existing history)"
 if ! curl_json "${BASE_URL}/api/chat/messages?companionId=${COMPANION_ID}&anonymousUserId=${ANON_ID}"; then
   echo "(non-2xx — check Supabase env + migrations on the server)" >&2

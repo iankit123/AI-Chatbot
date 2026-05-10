@@ -57,7 +57,7 @@ function isSupabaseConfigError(error: unknown): boolean {
   return msg.includes("SUPABASE_URL") || msg.includes("SUPABASE_SERVICE_ROLE_KEY");
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<Server | undefined> {
   // Serve static files from the client/public directory
   app.use(express.static(path.join(process.cwd(), 'client/public')));
 
@@ -507,6 +507,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to clear messages' });
     }
   });
+
+  // Vercel sets VERCEL=1 when system env is enabled. You can also set DISABLE_HTTP_SERVER=1 manually.
+  if (process.env.VERCEL === "1" || process.env.DISABLE_HTTP_SERVER === "1") {
+    return undefined;
+  }
 
   const httpServer = createServer(app);
   return httpServer;
