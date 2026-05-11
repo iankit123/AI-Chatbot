@@ -20,7 +20,7 @@ import {
 import { Lock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const PHOTO_PACK_ACTIVATION_RUPEES = 299;
+export const PHOTO_PACK_ACTIVATION_RUPEES = 29;
 
 interface PhotoPackActivationDialogProps {
   open: boolean;
@@ -104,7 +104,7 @@ export function PhotoPackActivationDialog({
         toast({
           title: "Activation recorded",
           description:
-            "We've logged your ₹299 photo pack request. Complete payment when checkout is available.",
+            "We've logged your ₹29 photo pack request. Complete payment when checkout is available.",
         });
         onOpenChange(false);
       } else {

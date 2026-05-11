@@ -39,11 +39,33 @@ export default function Chat() {
       
       <Tabs defaultValue="text" className="flex min-h-0 flex-1 basis-0 flex-col">
         <TabsList
-          className={`grid w-full shrink-0 border-b bg-white ${showPhotosTab ? "grid-cols-3" : "grid-cols-2"}`}
+          className={`grid h-12 w-full shrink-0 border-b bg-white p-0 ${showPhotosTab ? "grid-cols-3" : "grid-cols-2"}`}
         >
-          <TabsTrigger value="text">Text Chat</TabsTrigger>
-          <TabsTrigger value="voice">Voice Chat</TabsTrigger>
-          {showPhotosTab ? <TabsTrigger value="photos">Photos</TabsTrigger> : null}
+          <TabsTrigger
+            value="text"
+            className="h-full rounded-none border-b-2 border-transparent text-base text-muted-foreground data-[state=active]:border-[#128C7E] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#128C7E] data-[state=active]:shadow-none"
+          >
+            Text Chat
+          </TabsTrigger>
+          <TabsTrigger
+            value="voice"
+            className="h-full rounded-none border-b-2 border-transparent text-base text-muted-foreground data-[state=active]:border-[#128C7E] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#128C7E] data-[state=active]:shadow-none"
+          >
+            Voice Chat
+          </TabsTrigger>
+          {showPhotosTab ? (
+            <TabsTrigger
+              value="photos"
+              className="h-full rounded-none border-b-2 border-transparent text-base text-muted-foreground data-[state=active]:border-[#128C7E] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#128C7E] data-[state=active]:shadow-none"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                Photos
+                <span className="rounded-full bg-[#128C7E] px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none text-white">
+                  New
+                </span>
+              </span>
+            </TabsTrigger>
+          ) : null}
         </TabsList>
         
         <TabsContent value="text" className="mt-0 flex min-h-0 flex-1 basis-0 flex-col overflow-hidden">

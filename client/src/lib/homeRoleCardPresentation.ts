@@ -17,7 +17,7 @@ const HINDI: Record<string, RoleCardPresentation> = {
     startChat: "चैट शुरू करें",
   },
   kundli: {
-    overlayTitle: "कुंडली से भविष्य देखें",
+    overlayTitle: "ज्योतिष से बात करें",
     description: "ज्योतिष से जुड़ी जानकारी",
     badge: "विश्वसनीय मार्गदर्शन",
     startChat: "चैट शुरू करें",
@@ -47,7 +47,7 @@ const HINDI: Record<string, RoleCardPresentation> = {
     startChat: "चैट शुरू करें",
   },
   krishna: {
-    overlayTitle: "कृष्ण से मार्गदर्शन लें",
+    overlayTitle: "श्रीकृष्ण से मार्गदर्शन लें",
     description: "आध्यात्मिक मार्गदर्शन और जीवन की सीख",
     badge: "आध्यात्मिक ज्ञान",
     startChat: "चैट शुरू करें",
