@@ -19,7 +19,7 @@ import {
 import { ArrowRight } from "lucide-react";
 import { ROLE_ADVISOR_COMPANION_IDS } from "@/lib/relationshipPhotoGallery";
 
-const RATE_NOTE = "Approx. ₹5 per 60 seconds of chat";
+const RATE_NOTE = "Approx. ₹20 per 5 Minutes of chat";
 
 /** Until PSP confirms payment, user always sees this and stays behind the paywall. */
 const PAYMENT_UX_ERROR =
@@ -30,8 +30,8 @@ const PACKS: { rupees: number; bonus: string; highlight?: boolean }[] = [
   { rupees: 50, bonus: "100% Extra" },
   { rupees: 100, bonus: "100% Extra", highlight: true },
   { rupees: 200, bonus: "50% Extra" },
-  { rupees: 500, bonus: "50% Extra" },
-  { rupees: 1000, bonus: "5% Extra" },
+  // { rupees: 500, bonus: "50% Extra" },
+  // { rupees: 1000, bonus: "5% Extra" },
 ];
 
 function getCompanionContextForBilling(): {
@@ -208,7 +208,7 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
               Recharge to continue chat
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Chat usage is billed at about <span className="font-medium text-foreground">₹5 per 60 seconds</span>.
+              Chat usage is billed at about <span className="font-medium text-foreground">₹20 per 5 Minutes</span>.
               Choose a top-up amount and confirm your number to continue.
             </DialogDescription>
           </DialogHeader>
