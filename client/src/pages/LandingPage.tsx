@@ -6,6 +6,7 @@ import { HomeRoleCard } from "@/components/HomeRoleCard";
 import { useChat } from "@/context/ChatContext";
 import { HOME_ROLE_CARD_BY_ID } from "@/lib/homeRoleCards";
 import { getRoleCardPresentation } from "@/lib/homeRoleCardPresentation";
+import { isHomeAssistantCardVisible } from "@/lib/experiments";
 
 interface CompanionProfile {
   id: string;
@@ -76,7 +77,10 @@ const companions: CompanionProfile[] = [
   },
 ];
 
-/** Same assistant cards as Home (below companion profiles). Order preserved. */
+/**
+ * Same assistant cards as Home (below companion profiles). Order preserved.
+ * Each card is shown only if `isHomeAssistantCardVisible` matches Home (`@/lib/experiments`).
+ */
 const RELATIONSHIP_PAGE_EXTRA_ROLE_IDS = [
   "kundli",
   "english",
@@ -172,58 +176,68 @@ export default function LandingPage() {
           </p>
         </section>
 
-        <div className="grid grid-cols-1 gap-5">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5">
           {companions.map((companion) => (
             <div
               key={companion.id}
-              className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm"
+              className="flex gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:gap-4 sm:p-4"
             >
-              <div className="relative h-72 overflow-hidden sm:h-80">
-                <img
-                  src={companion.imageUrl}
-                  alt={companion.name}
-                  className={`h-full w-full object-cover object-center ${
-                    companion.status === "offline" ? "opacity-75 grayscale" : ""
-                  }`}
-                />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-                  <div className="flex items-center">
-                    <div
-                      className={`mr-2 h-2.5 w-2.5 rounded-full ${
-                        companion.status === "online" ? "bg-emerald-400" : "bg-slate-400"
-                      }`}
-                    />
-                    <span className="text-xs font-medium text-white">
-                      {companion.status === "online"
-                        ? currentLanguage === "hindi"
-                          ? "अभी ऑनलाइन"
-                          : "Online now"
-                        : currentLanguage === "hindi"
-                          ? "ऑफलाइन"
-                          : "Offline"}
-                    </span>
+              <div className="relative w-[min(36%,10rem)] min-w-[6.75rem] shrink-0 self-start sm:min-w-[7.5rem]">
+                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-100">
+                  <img
+                    src={companion.imageUrl}
+                    alt={companion.name}
+                    className={`h-full w-full object-cover object-center ${
+                      companion.status === "offline" ? "opacity-75 grayscale" : ""
+                    }`}
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-2 pt-6">
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className={`h-2 w-2 shrink-0 rounded-full ${
+                          companion.status === "online" ? "bg-emerald-400" : "bg-slate-400"
+                        }`}
+                      />
+                      <span className="text-[10px] font-semibold leading-tight text-white sm:text-xs">
+                        {companion.status === "online"
+                          ? currentLanguage === "hindi"
+                            ? "अभी ऑनलाइन"
+                            : "Online now"
+                          : currentLanguage === "hindi"
+                            ? "ऑफलाइन"
+                            : "Offline"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="p-4">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  {companion.name}, {companion.age}
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">{companion.description}</p>
-                <p className="mt-1 text-xs text-slate-500">{companion.descriptionHindi}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                    Hindi
-                  </span>
-                  <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700">
-                    English
-                  </span>
+
+              <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
+                <div className="min-w-0 space-y-1.5">
+                  <h2 className="text-base font-bold leading-tight text-slate-900 sm:text-lg">
+                    {companion.name}, {companion.age}
+                  </h2>
+                  <p className="line-clamp-3 text-xs leading-snug text-slate-600 sm:text-sm">
+                    {companion.description}
+                  </p>
+                  <p className="line-clamp-2 text-[11px] leading-snug text-slate-500 sm:text-xs">
+                    {companion.descriptionHindi}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 sm:text-xs">
+                      Hindi
+                    </span>
+                    <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 sm:text-xs">
+                      English
+                    </span>
+                  </div>
                 </div>
+
                 {companion.status === "online" ? (
                   <button
                     type="button"
                     onClick={() => handleSelectCompanion(companion)}
-                    className="mt-4 w-full rounded-full bg-gradient-to-r from-fuchsia-600 via-rose-500 to-orange-500 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/35 transition hover:brightness-110 active:brightness-95"
+                    className="w-full shrink-0 rounded-full bg-gradient-to-r from-fuchsia-600 via-rose-500 to-orange-500 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-500/30 transition hover:brightness-110 active:brightness-95 sm:py-3 sm:text-sm"
                   >
                     {currentLanguage === "hindi" ? "चैट शुरू करें" : "Chat now"}
                   </button>
@@ -231,7 +245,7 @@ export default function LandingPage() {
                   <button
                     type="button"
                     disabled
-                    className="mt-4 w-full cursor-not-allowed rounded-full border border-slate-200 bg-slate-50 py-2.5 text-sm font-medium text-slate-400"
+                    className="w-full shrink-0 cursor-not-allowed rounded-full border border-slate-200 bg-slate-50 py-2.5 text-xs font-medium text-slate-400 sm:text-sm"
                   >
                     {currentLanguage === "hindi" ? "अभी उपलब्ध नहीं" : "Currently unavailable"}
                   </button>
@@ -242,7 +256,9 @@ export default function LandingPage() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-5 pb-2 md:grid-cols-2 lg:grid-cols-3">
-          {RELATIONSHIP_PAGE_EXTRA_ROLE_IDS.map((roleId) => {
+          {RELATIONSHIP_PAGE_EXTRA_ROLE_IDS.filter((roleId) =>
+            isHomeAssistantCardVisible(roleId),
+          ).map((roleId) => {
             const role = HOME_ROLE_CARD_BY_ID[roleId];
             if (!role) return null;
             const p = getRoleCardPresentation(currentLanguage, roleId);
