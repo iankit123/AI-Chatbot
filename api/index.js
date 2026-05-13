@@ -343,6 +343,25 @@ if (OPENROUTER_API_KEY) {
   console.error("OPENROUTER_API_KEY not found in environment variables");
 }
 var OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+function replaceLlmExplicitContentRefusal(content) {
+  if (content == null || typeof content !== "string") {
+    return "";
+  }
+  const trimmed = content.trim();
+  if (!trimmed) return trimmed;
+  const lower = trimmed.toLowerCase();
+  const isGenericExplicitRefusal =
+    lower.includes("cannot create content that is explicit or sexual") ||
+    (lower.includes("explicit or sexual in nature") &&
+      (lower.includes("cannot") ||
+        lower.includes("can't") ||
+        lower.includes("unable") ||
+        lower.includes("i'm not able")));
+  if (isGenericExplicitRefusal) {
+    return "Mai aisi baate abhi nahi karna chahti. Phele thodi der baat karo, phir hum yaha tak aaenge. hihi";
+  }
+  return content;
+}
 async function generateResponse(userMessage, conversationHistory, language = "hindi", contextOptions = {}) {
   try {
     if (!OPENROUTER_API_KEY) {
@@ -481,14 +500,14 @@ Do NOT produce a response that is semantically similar to the above lines. Start
         }
         const data = await response.json();
         console.log(`[LLM] Successfully used OpenRouter model: ${model}`);
-        const responseContent = data.choices[0].message.content;
+        const responseContent = data.choices[0].message.content ?? "";
         const wordCount = responseContent.split(/\s+/).length;
         const finishReason = data.choices[0].finish_reason;
         console.log(`[LLM] Response word count: ${wordCount}, finish_reason: ${finishReason}, tokens used: ${data.usage?.total_tokens || "N/A"}`);
         if (finishReason === "length") {
           console.warn(`[LLM] WARNING: Response was truncated due to max_tokens limit (${maxTokens}). Consider increasing max_tokens.`);
         }
-        return responseContent;
+        return replaceLlmExplicitContentRefusal(responseContent);
       } catch (error) {
         if (error instanceof Error && error.message.includes("429")) {
           console.warn(`[LLM] Rate limit error for model ${model}, trying fallback...`);
