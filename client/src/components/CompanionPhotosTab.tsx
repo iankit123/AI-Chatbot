@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Crown, Heart, X } from "lucide-react";
 import {
+  getDailyPhotosUpdateMessage,
   getPaidPhotoUrls,
   PUBLIC_FREE_PHOTO_COUNT,
   RELATIONSHIP_PHOTO_GALLERIES,
@@ -63,6 +64,53 @@ function GalleryPhotoTile({
 
 type GalleryPhoto = { src: string; alt: string };
 
+function seedLikeCount(photoSrc: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < photoSrc.length; i++) {
+    h ^= photoSrc.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return 2100 + (Math.abs(h) % 1900);
+}
+
+function PhotoLikeButton({ photoSrc }: { photoSrc: string }) {
+  const [likeCount, setLikeCount] = useState(() => seedLikeCount(photoSrc));
+  const [liked, setLiked] = useState(false);
+
+  useEffect(() => {
+    setLikeCount(seedLikeCount(photoSrc));
+    setLiked(false);
+  }, [photoSrc]);
+
+  const onLike = useCallback(() => {
+    setLikeCount((c) => c + 1);
+    setLiked(true);
+  }, []);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onLike();
+      }}
+      className="flex shrink-0 flex-col items-center gap-0.5 rounded-tl-xl rounded-br-xl border border-white/20 bg-black/60 px-2.5 py-1.5 text-white backdrop-blur-md transition active:scale-95 hover:bg-black/70"
+      aria-label={`Like photo, ${likeCount} likes`}
+    >
+      <Heart
+        className={`h-6 w-6 transition-colors ${liked ? "fill-rose-500 text-rose-500" : "text-white"}`}
+        strokeWidth={liked ? 0 : 2}
+      />
+      <span className="text-xs font-semibold tabular-nums leading-none">
+        {likeCount.toLocaleString("en-IN")}
+      </span>
+      <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">
+        likes
+      </span>
+    </button>
+  );
+}
+
 function PhotoLightbox({
   photos,
   index,
@@ -119,39 +167,85 @@ function PhotoLightbox({
         </p>
       )}
 
-      <button
-        type="button"
-        disabled={!hasPrev}
-        onClick={(e) => {
-          e.stopPropagation();
-          onGoTo(index - 1);
-        }}
-        className={`${navBtnClass} left-3 sm:left-4`}
-        aria-label="Previous photo"
-      >
-        <ChevronLeft className="h-7 w-7" strokeWidth={2} />
-      </button>
-
-      <button
-        type="button"
-        disabled={!hasNext}
-        onClick={(e) => {
-          e.stopPropagation();
-          onGoTo(index + 1);
-        }}
-        className={`${navBtnClass} right-3 sm:right-4`}
-        aria-label="Next photo"
-      >
-        <ChevronRight className="h-7 w-7" strokeWidth={2} />
-      </button>
-
-      <img
-        key={current.src}
-        src={current.src}
-        alt={current.alt}
-        className="max-h-[80vh] max-w-[80vw] rounded-xl object-contain shadow-2xl"
+      <div
+        className="relative mx-12 flex max-h-[78vh] max-w-[min(80vw,100%)] items-center justify-center"
         onClick={(e) => e.stopPropagation()}
-      />
+      >
+        <button
+          type="button"
+          disabled={!hasPrev}
+          onClick={(e) => {
+            e.stopPropagation();
+            onGoTo(index - 1);
+          }}
+          className={`${navBtnClass} -left-11 sm:-left-12`}
+          aria-label="Previous photo"
+        >
+          <ChevronLeft className="h-7 w-7" strokeWidth={2} />
+        </button>
+
+        <div className="relative inline-block max-h-[72vh] max-w-full">
+          <img
+            key={current.src}
+            src={current.src}
+            alt={current.alt}
+            className="block max-h-[72vh] max-w-[80vw] rounded-xl object-contain shadow-2xl"
+          />
+
+          {/* Thumbnail: bottom-left. Like: bottom-right — change bottom-0 / left-0 / right-0 */}
+          <div className="pointer-events-none absolute inset-0 z-10">
+            <div className="pointer-events-auto absolute bottom-0 left-0 flex max-w-[55%] items-end gap-1 overflow-x-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {photos.length <= 2 ? (
+            <div className="relative shrink-0 overflow-hidden rounded-xl border-2 border-white shadow-lg ring-2 ring-white/40">
+              <img
+                src={current.src}
+                alt=""
+                className="h-14 w-11 object-cover object-center sm:h-16 sm:w-12"
+              />
+            </div>
+          ) : (
+            photos.map((photo, i) => (
+              <button
+                key={photo.src}
+                type="button"
+                onClick={() => onGoTo(i)}
+                className={`relative shrink-0 overflow-hidden rounded-xl border-2 transition ${
+                  i === index
+                    ? "border-white shadow-lg ring-2 ring-white/40"
+                    : "border-white/25 opacity-70 hover:opacity-100"
+                }`}
+                aria-label={`View photo ${i + 1}`}
+                aria-current={i === index ? "true" : undefined}
+              >
+                <img
+                  src={photo.src}
+                  alt=""
+                  className="h-14 w-11 object-cover object-center sm:h-16 sm:w-12"
+                />
+              </button>
+            ))
+          )}
+        </div>
+
+            <div className="pointer-events-auto absolute bottom-0 right-0">
+              <PhotoLikeButton photoSrc={current.src} />
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={!hasNext}
+          onClick={(e) => {
+            e.stopPropagation();
+            onGoTo(index + 1);
+          }}
+          className={`${navBtnClass} -right-11 sm:-right-12`}
+          aria-label="Next photo"
+        >
+          <ChevronRight className="h-7 w-7" strokeWidth={2} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -365,6 +459,12 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
                 })
               : null}
           </div>
+
+          {unlocked && packCheckDone ? (
+            <p className="mt-4 rounded-xl border border-[#128C7E]/20 bg-[#e8f5f3] px-3.5 py-3 text-center text-sm leading-snug text-slate-800">
+              {getDailyPhotosUpdateMessage(companionDisplayName)}
+            </p>
+          ) : null}
 
           {registered && !unlocked ? (
             <>

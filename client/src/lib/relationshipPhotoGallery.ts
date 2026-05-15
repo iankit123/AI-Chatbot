@@ -50,6 +50,37 @@ const NAINA_PAID_FILENAMES = [
 
 /** Premium photo teasers per companion (paths under `public/`). */
 export const RELATIONSHIP_PHOTO_GALLERIES: Partial<Record<string, CompanionGalleryConfig>> = {
+  priya: {
+    photoUrls: [
+      "/images/priya-gallery/priya-photo-1.png",
+      "/images/priya-gallery/priya-photo-2.png",
+      "/images/priya-gallery/priya-photo-3.png",
+      "/images/priya-gallery/priya-photo-4.png",
+      "/images/priya-gallery/priya-photo-5.png",
+    ],
+    promoCardTitle: "Priya ki aur 100+ photos and videos dekhe",
+  },
+  ananya: {
+    photoUrls: [
+      "/images/ananya-gallery/ananya-photo-1.png",
+      "/images/ananya-gallery/ananya-photo-2.png",
+      "/images/ananya-gallery/ananya-photo-3.png",
+      "/images/ananya-gallery/ananya-photo-4.png",
+      "/images/ananya-gallery/ananya-photo-5.png",
+      "/images/ananya-gallery/ananya-photo-6.png",
+    ],
+    promoCardTitle: "Ananya ki aur 100+ photos and videos dekhe",
+  },
+  meera: {
+    photoUrls: [
+      "/images/meera-gallery/meera-photo-1.png",
+      "/images/meera-gallery/meera-photo-2.png",
+      "/images/meera-gallery/meera-photo-3.png",
+      "/images/meera-gallery/meera-photo-4.png",
+      "/images/meera-gallery/meera-photo-5.png",
+    ],
+    promoCardTitle: "Meera ki aur 100+ photos and videos dekhe",
+  },
   naina: {
     photoUrls: [
       "/images/naina-gallery/naina-photo-1.png",
@@ -65,4 +96,10 @@ export function getPaidPhotoUrls(companionId: string): string[] {
   const filenames = RELATIONSHIP_PHOTO_GALLERIES[companionId]?.paidPhotoFilenames;
   if (!filenames?.length) return [];
   return filenames.map((name) => paidPhotoUrl(companionId, name));
+}
+
+/** Shown below the gallery grid after photo pack unlock. */
+export function getDailyPhotosUpdateMessage(companionDisplayName: string): string {
+  const name = companionDisplayName.trim() || "your companion";
+  return `Everyday 3-4 new photos are uploaded by ${name}. Check tomorrow for her latest photos`;
 }

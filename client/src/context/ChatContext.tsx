@@ -98,12 +98,19 @@ function mergePendingBotMessages(prev: Message[], toAdd: Message[]): Message[] {
 const PREMIUM_PHOTOS: Record<string, string[]> = {
   naina: ["/images/naina.png"],
   priya: [
-    "/images/premium/priya.jpg",
-    "/images/premium/priya4.jpg",
-    "/images/premium/priya5.png"
+    "/images/priya-gallery/priya-photo-1.png",
+    "/images/priya-gallery/priya-photo-2.png",
   ],
-  ananya: ["/images/premium/ananya.jpg"],
-  meera: ["/images/premium/meera.jpg"],
+  ananya: [
+    "/images/ananya-gallery/ananya-photo-1.png",
+    "/images/ananya-gallery/ananya-photo-2.png",
+    "/images/ananya-gallery/ananya-photo-3.png",
+  ],
+  meera: [
+    "/images/meera-gallery/meera-photo-1.png",
+    "/images/meera-gallery/meera-photo-2.png",
+    "/images/meera-gallery/meera-photo-3.png",
+  ],
   // Add offline companions
   riya: ["/images/premium/riya.jpg"],
   neha: ["/images/premium/neha.jpg"]

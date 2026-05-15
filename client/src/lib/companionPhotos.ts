@@ -22,37 +22,24 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
         "This is one of my favorite peaceful moments. I love when the light is soft like this. What kind of moments calm you down?",
     },
   ],
-  // Priya's photos
   priya: [
     {
       id: "priya1",
       companionId: "priya",
-      url: "/images/premium/priya.png",
-      description: "Me in a green saree at my cousin's wedding last month",
-      prompt:
-        "Would you like to see a photo from my cousin's wedding last month? I wore my favorite green saree!",
+      url: "/images/priya-gallery/priya-photo-1.png",
+      description: "Pink saree at the temple steps — one of my favourite looks",
+      prompt: "Want to see me in this pink saree? I clicked this at the temple steps 😊",
       response:
-        "I hope you like how I look in a saree! I don't dress up like this often, but special occasions call for special outfits. Do you like it?",
+        "This saree is one of my favourites — the colour just felt right that day. Do you like traditional looks on me?",
     },
     {
       id: "priya2",
       companionId: "priya",
-      url: "/images/premium/priya.png",
-      description: "My new pink dress I bought for my birthday",
-      prompt:
-        "I just bought a new pink dress for my birthday next week. Want to see how it looks?",
+      url: "/images/priya-gallery/priya-photo-2.png",
+      description: "Evening out in my black dress",
+      prompt: "Getting ready for a night out — want a quick peek? 😄",
       response:
-        "This is what I'll be wearing on my birthday! Do you think pink suits me? I was a bit nervous about the color at first!",
-    },
-    {
-      id: "priya3",
-      companionId: "priya",
-      url: "/images/premium/priya.png",
-      description: "Just woke up, feeling a bit lazy today",
-      prompt:
-        "I just woke up and feeling a bit lazy today. Want to see how I look in the morning without makeup? 😊",
-      response:
-        "This is me without any makeup or filters! Just woke up and feeling lazy. Do you prefer natural looks or more dressed up?",
+        "Felt bold in this black dress. What do you think — should I wear this more often?",
     },
   ],
 
@@ -61,24 +48,52 @@ export const companionPhotos: Record<string, CompanionPhoto[]> = {
     {
       id: "ananya1",
       companionId: "ananya",
-      url: "/images/premium/ananya.png",
-      description: "Me in a traditional outfit at a festival",
-      prompt:
-        "Would you like to see a photo from the festival I attended last month? I wore my favorite traditional outfit!",
-      response:
-        "I hope you like how I look in traditional clothes! I love dressing up for festivals and special occasions. What do you think?",
+      url: "/images/ananya-gallery/ananya-photo-1.png",
+      description: "Blue saree on the bed",
+      prompt: "Want to see a cozy photo of me? 😊",
+      response: "This one feels calm and homely — do you like it?",
+    },
+    {
+      id: "ananya2",
+      companionId: "ananya",
+      url: "/images/ananya-gallery/ananya-photo-2.png",
+      description: "Kitchen moment",
+      prompt: "Caught me in the kitchen — want a peek?",
+      response: "I was chopping fruit — very everyday me!",
+    },
+    {
+      id: "ananya3",
+      companionId: "ananya",
+      url: "/images/ananya-gallery/ananya-photo-3.png",
+      description: "Navy butterfly saree outdoors",
+      prompt: "Outdoor saree click — shall I show you?",
+      response: "The butterflies on this saree are my favourite detail.",
     },
   ],
   meera: [
     {
       id: "meera1",
       companionId: "meera",
-      url: "/images/premium/meera.png",
-      description: "Me at a friend's wedding last weekend",
-      prompt:
-        "Would you like to see a photo from my friend's wedding last weekend? I wore a beautiful outfit!",
-      response:
-        "This is from my friend's wedding. The celebrations were so much fun! Do you enjoy attending weddings too?",
+      url: "/images/meera-gallery/meera-photo-1.png",
+      description: "Purple saree at the temple steps",
+      prompt: "Want to see me in this purple saree? 😊",
+      response: "Loved this look — the colour felt so peaceful that day.",
+    },
+    {
+      id: "meera2",
+      companionId: "meera",
+      url: "/images/meera-gallery/meera-photo-2.png",
+      description: "Evening street moment",
+      prompt: "Caught me on a little evening walk — want a peek?",
+      response: "The breeze that evening was perfect.",
+    },
+    {
+      id: "meera3",
+      companionId: "meera",
+      url: "/images/meera-gallery/meera-photo-3.png",
+      description: "Market day in blue saree",
+      prompt: "Market day selfie — shall I show you?",
+      response: "These colours always make me happy.",
     },
   ],
 };
