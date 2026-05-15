@@ -11,6 +11,7 @@ import { PaymentDialog } from '@/components/PaymentDialog';
 import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
 import { CompanionPhotosTab } from "@/components/CompanionPhotosTab";
 import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
+import { RelationshipVoiceChat } from "@/components/chat/RelationshipVoiceChat";
 
 export default function Chat() {
   const { 
@@ -78,10 +79,7 @@ export default function Chat() {
         </TabsContent>
         
         <TabsContent value="voice" className="relative mt-0 flex min-h-0 flex-1 basis-0 overflow-hidden">
-          <div className="relative h-full flex flex-col">
-            <div className="flex-1"></div>
-          </div>
-          <VoiceChatFixed />
+          {showPhotosTab ? <RelationshipVoiceChat /> : <VoiceChatFixed />}
         </TabsContent>
 
         {showPhotosTab ? (

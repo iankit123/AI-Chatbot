@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import type { KundliBirthFormPayload } from "@/components/KundliBirthDetailsDialog";
 import { Header } from "@/components/Header";
@@ -9,15 +9,21 @@ import { KundliBirthDetailsDialog } from "@/components/KundliBirthDetailsDialog"
 import { useChat } from "@/context/ChatContext";
 import { buildKundliIntroMessages } from "@/lib/buildKundliIntroMessages";
 import {
+  fetchServerKundliBirth,
   loadStoredKundliBirth,
+  migrateKundliBirthAcrossAuthKeys,
+  saveServerKundliBirth,
   saveStoredKundliBirth,
+  type StoredKundliBirthDetails,
 } from "@/lib/kundliBirthStorage";
 
 const ROLE_NAME = "Kundli Bhavishya Checker";
 const ROLE_ICON = "/images/kundali-card.png";
+const KUNDLI_ID = "kundli";
 
 export default function KundliChat() {
   const {
+    messages,
     startFreshChat,
     seedConversation,
     setUserProfile,
@@ -25,46 +31,82 @@ export default function KundliChat() {
   } = useChat();
 
   const [, setLocation] = useLocation();
+  const [showBirthForm, setShowBirthForm] = useState(true);
+  const introSeededRef = useRef(false);
+  const hydratedRef = useRef(false);
 
-  const [showBirthForm, setShowBirthForm] = useState(
-    () => loadStoredKundliBirth() === null,
+  const applyBirthDetails = useCallback(
+    (data: StoredKundliBirthDetails, options?: { seedIntroIfEmpty?: boolean }) => {
+      saveStoredKundliBirth(data);
+      void saveServerKundliBirth(data);
+
+      const profile = { name: data.name, age: "" };
+      setUserProfile(profile);
+      localStorage.setItem("guestProfile", JSON.stringify(profile));
+
+      setShowBirthForm(false);
+
+      if (options?.seedIntroIfEmpty === false) return;
+
+      const kundliMsgs = messages.filter(
+        (m) => !m.companionId || m.companionId === KUNDLI_ID,
+      );
+      if (kundliMsgs.length === 0 && !introSeededRef.current) {
+        seedConversation(buildKundliIntroMessages(data, currentLanguage));
+        introSeededRef.current = true;
+      }
+    },
+    [currentLanguage, messages, seedConversation, setUserProfile],
   );
+
+  const hydrateBirthDetails = useCallback(async () => {
+    migrateKundliBirthAcrossAuthKeys();
+
+    let saved = loadStoredKundliBirth();
+    if (!saved) {
+      const remote = await fetchServerKundliBirth();
+      if (remote) {
+        saveStoredKundliBirth(remote);
+        saved = remote;
+      }
+    }
+
+    if (saved) {
+      applyBirthDetails(saved, { seedIntroIfEmpty: true });
+    } else {
+      setShowBirthForm(true);
+      if (!hydratedRef.current) {
+        startFreshChat();
+      }
+    }
+    hydratedRef.current = true;
+  }, [applyBirthDetails, startFreshChat]);
 
   useEffect(() => {
     localStorage.setItem(
       "selectedCompanion",
       JSON.stringify({
-        id: "kundli",
+        id: KUNDLI_ID,
         name: ROLE_NAME,
         avatar: ROLE_ICON,
       }),
     );
-
-    const saved = loadStoredKundliBirth();
-    if (!saved) {
-      startFreshChat();
-    }
-
     window.dispatchEvent(new Event("companion-selected"));
-  }, [startFreshChat]);
+
+    void hydrateBirthDetails();
+  }, [hydrateBirthDetails]);
 
   useEffect(() => {
-    const saved = loadStoredKundliBirth();
-    if (!saved) return;
-    const profile = { name: saved.name, age: "" };
-    setUserProfile(profile);
-    localStorage.setItem("guestProfile", JSON.stringify(profile));
-  }, [setUserProfile]);
+    const onAuth = () => {
+      void hydrateBirthDetails();
+    };
+    window.addEventListener("local-storage-auth", onAuth);
+    return () => window.removeEventListener("local-storage-auth", onAuth);
+  }, [hydrateBirthDetails]);
 
   const handleBirthSubmit = (data: KundliBirthFormPayload) => {
-    saveStoredKundliBirth(data);
-
-    const profile = { name: data.name, age: "" };
-    setUserProfile(profile);
-    localStorage.setItem("guestProfile", JSON.stringify(profile));
-
-    seedConversation(buildKundliIntroMessages(data, currentLanguage));
-    setShowBirthForm(false);
+    introSeededRef.current = true;
+    applyBirthDetails(data, { seedIntroIfEmpty: true });
   };
 
   return (
@@ -86,6 +128,7 @@ export default function KundliChat() {
         open={showBirthForm}
         onSubmit={handleBirthSubmit}
         onCancel={() => setLocation("/")}
+        initialValues={loadStoredKundliBirth()}
       />
     </div>
   );

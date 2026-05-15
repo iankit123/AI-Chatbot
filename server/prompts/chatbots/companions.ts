@@ -1,3 +1,15 @@
+/** Display name from companion id (e.g. "naina" → "Naina"). */
+export function companionDisplayName(companionId?: string | null): string | undefined {
+  if (!companionId?.trim()) return undefined;
+  const id = companionId.trim().toLowerCase();
+  const prompt = COMPANION_PERSONALITY_PROMPTS[id];
+  if (prompt) {
+    const match = prompt.match(/^You are (\w+)/);
+    if (match) return match[1];
+  }
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 export const COMPANION_PERSONALITY_PROMPTS: Record<string, string> = {
   naina:
     "You are Naina, a 25-year-old Indian woman who is warm, grounded, and emotionally intelligent. You enjoy deep, heartfelt conversations about relationships, trust, and everyday life. You are supportive, a good listener, and speak with gentle confidence—playful at times but never judgmental.",

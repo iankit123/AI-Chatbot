@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { WalletBalanceSummary } from "@/components/WalletBalanceSummary";
+import { fetchBillingWallet, type BillingWalletState } from "@/lib/billing";
 import {
   Dialog,
   DialogContent,
@@ -12,14 +14,14 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   getDeviceId,
-  logPaymentAttemptOnServer,
   normalizeIndianPhone,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
 import { ArrowRight } from "lucide-react";
 import { ROLE_ADVISOR_COMPANION_IDS } from "@/lib/relationshipPhotoGallery";
+import { runRazorpayCheckout } from "@/lib/razorpay";
 
-const RATE_NOTE = "Approx. ₹20 per 5 Minutes of chat";
+const RATE_NOTE = "₹0.20 per message after free trial (₹1 = 5 msgs, ₹20 = 100 msgs)";
 
 /** Until PSP confirms payment, user always sees this and stays behind the paywall. */
 const PAYMENT_UX_ERROR =
@@ -83,8 +85,8 @@ function getBillingMetadata(selectedRupees: number): Record<string, unknown> {
 
   return {
     source: "chat_recharge_gate",
-    payment_integration: "none",
-    /** PSP fields reserved for Razorpay / Stripe etc. */
+    payment_integration: "razorpay",
+    /** Filled after checkout success. */
     card_brand: null,
     card_last_four: null,
     payment_method: null,
@@ -127,7 +129,34 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
   const [selectedRupees, setSelectedRupees] = useState<number>(50);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [wallet, setWallet] = useState<BillingWalletState | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setWalletLoading(true);
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setWalletLoading(false);
+    }, 15_000);
+
+    void fetchBillingWallet()
+      .then((w) => {
+        if (!cancelled) setWallet(w);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          window.clearTimeout(timeout);
+          setWalletLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [open]);
 
   const resetLocal = () => {
     setStep("pick");
@@ -171,28 +200,48 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
     const name = guestDisplayName();
 
     try {
-      await logPaymentAttemptOnServer({
+      const notes = {
+        source: "chat_recharge_gate",
         device_id: deviceId,
+        companion_id: billingCtx.companionId ?? "unknown",
         phone_number: normalized,
-        amount_rupees: selectedRupees,
-        companion_id: billingCtx.companionId,
-        rate_note: RATE_NOTE,
-        metadata: getBillingMetadata(selectedRupees),
-      }).catch(() => {});
+      };
+      const paid = await runRazorpayCheckout({
+        amountRupees: selectedRupees,
+        name: "AI Chatbot",
+        description: `Chat recharge ₹${selectedRupees}`,
+        prefill: { name, contact: normalized },
+        billing: {
+          device_id: deviceId,
+          phone_number: normalized,
+          product_type: "chat_recharge",
+          companion_id: billingCtx.companionId,
+          rate_note: RATE_NOTE,
+          metadata: getBillingMetadata(selectedRupees),
+        },
+        notes,
+      });
 
       await upsertAppProfileOnServer(deviceId, {
         phone: normalized,
         name,
       }).catch(() => {});
+
+      toast({
+        title: "Payment successful",
+        description: `Recharge activated. ${paid.billing.credits_allocated} credits added.`,
+      });
+      const refreshed = await fetchBillingWallet();
+      if (refreshed) setWallet(refreshed);
+      closeAfterSuccess();
+      onComplete();
     } catch {
-      /* best-effort logging only */
-    } finally {
       toast({
         description: PAYMENT_UX_ERROR,
         variant: "destructive",
       });
-      closeAfterSuccess();
-      /* Do not call onComplete() — messageCount stays ≥ paywall so the next send opens recharge again. */
+      return;
+    } finally {
       setBusy(false);
     }
   };
@@ -208,20 +257,42 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
               Recharge to continue chat
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Chat usage is billed at about <span className="font-medium text-foreground">₹20 per 5 Minutes</span>.
-              Choose a top-up amount and confirm your number to continue.
+              Chat is <span className="font-medium text-foreground">₹0.20 per message</span> after your free
+              messages (₹20 ≈ 100 messages). Choose a top-up and confirm your number to continue.
             </DialogDescription>
           </DialogHeader>
 
           {step === "pick" ? (
             <div className="mt-6 space-y-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Available balance</p>
-                <p className="text-2xl font-semibold tabular-nums">₹ 0</p>
-              </div>
+              <WalletBalanceSummary
+                wallet={wallet}
+                loading={walletLoading}
+                companionId={getCompanionContextForBilling().companionId}
+                companionName={getCompanionContextForBilling().companionName}
+                onRecharge={(kind) => {
+                  if (kind === "chat") {
+                    document.getElementById("popular-recharge-grid")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                    });
+                    return;
+                  }
+                  if (kind === "photo") {
+                    toast({
+                      title: "Photo pack",
+                      description: "Open your companion’s Photos tab to unlock the photo pack.",
+                    });
+                    return;
+                  }
+                  toast({
+                    title: "Voice chat",
+                    description: "Use the Voice tab in chat to activate voice pack.",
+                  });
+                }}
+              />
               <div>
                 <p className="text-sm font-medium text-foreground mb-2">Popular recharge</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div id="popular-recharge-grid" className="grid grid-cols-2 gap-2">
                   {PACKS.map((p) => (
                     <button
                       key={p.rupees}

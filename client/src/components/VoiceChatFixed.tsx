@@ -7,13 +7,13 @@ import {
   getDeviceId,
   getSelectedCompanionId,
   getStoredBillingPhoneDigits,
-  logPaymentAttemptOnServer,
   normalizeIndianPhone,
   notifyLocalAuthListeners,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
 import { VOICE_CHAT_ACTIVATION_RUPEES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { runRazorpayCheckout } from "@/lib/razorpay";
 
 function guestDisplayName(): string {
   try {
@@ -89,18 +89,30 @@ export function VoiceChatFixed() {
     };
 
     try {
-      const saved = await logPaymentAttemptOnServer({
+      const notes = {
+        source: "voice_chat_activation",
         device_id: deviceId,
+        companion_id: companionId ?? "unknown",
         phone_number: normalized,
-        amount_rupees: VOICE_CHAT_ACTIVATION_RUPEES,
-        companion_id: companionId,
-        rate_note: "Voice chat activation request",
-        metadata: {
-          source: "voice_chat_activation_request",
-          product: "voice_chat",
-          bot_display_name: botName,
-          client_timestamp_iso: new Date().toISOString(),
+      };
+      await runRazorpayCheckout({
+        amountRupees: VOICE_CHAT_ACTIVATION_RUPEES,
+        name: "AI Chatbot",
+        description: `Voice chat activation ₹${VOICE_CHAT_ACTIVATION_RUPEES}`,
+        prefill: { name: guestDisplayName(), contact: normalized },
+        billing: {
+          device_id: deviceId,
+          phone_number: normalized,
+          product_type: "voice_chat",
+          companion_id: companionId,
+          rate_note: "Voice chat activation request",
+          metadata: {
+            source: "voice_chat_activation_request",
+            product: "voice_chat",
+            bot_display_name: botName,
+          },
         },
+        notes,
       });
 
       const paymentRequests = JSON.parse(
@@ -109,18 +121,9 @@ export function VoiceChatFixed() {
       paymentRequests.push(requestData);
       localStorage.setItem("paymentRequests", JSON.stringify(paymentRequests));
 
-      if (!saved) {
-        toast({
-          title: "सेव नहीं हो सका",
-          description: "कृपया कुछ देर बाद दोबारा कोशिश करें।",
-          variant: "destructive",
-        });
-        return;
-      }
-
       toast({
         title: "अनुरोध दर्ज हो गया",
-        description: "जल्द ही वॉइस चैट एक्टिवेट करने की प्रक्रिया शुरू होगी।",
+        description: "पेमेंट सफल हुआ। वॉइस चैट एक्सेस सक्रिय है।",
       });
     } catch (error) {
       console.error("Voice activation request:", error);

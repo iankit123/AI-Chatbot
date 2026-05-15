@@ -20,7 +20,16 @@ import {
   getChatPersistenceOwner,
 } from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
-import { FREE_USER_MESSAGE_ALLOWANCE } from "@/lib/chatPaywall";
+import {
+  canAffordChatMessage,
+  clientShouldBlockForPaywall,
+} from "@/lib/chatPaywall";
+import {
+  fetchBillingWallet,
+  readLocalWalletCredits,
+  syncWalletCreditsToLocal,
+} from "@/lib/billing";
+import { getDeviceId, getStoredBillingPhoneDigits } from "@/lib/supabase";
 import { RechargeChatDialog } from "@/components/RechargeChatDialog";
 
 const AFFIRMATIVE_WORDS = [
@@ -222,6 +231,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('companion-selected', handleCompanionSelected);
     };
+  }, []);
+
+  useEffect(() => {
+    void fetchBillingWallet();
   }, []);
 
   // On mount, load user profile if exists
@@ -533,12 +546,15 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         console.log("[ChatContext] Saved userProfile to localStorage and closed profile dialog:", userProfile);
       }
 
-      // 3. Paywall: see FREE_USER_MESSAGE_ALLOWANCE in @/lib/chatPaywall.ts (default 3 → wall on 4th send)
-      if (messageCount >= FREE_USER_MESSAGE_ALLOWANCE) {
-        console.log("[ChatContext] Paywall — message limit reached for this session segment");
-        localStorage.removeItem("recharge_dialog_dismissed");
-        setShowRechargeDialog(true);
-        return;
+      // 3. Paywall: free messages, then ₹0.20/message from wallet after recharge
+      if (clientShouldBlockForPaywall(messageCount)) {
+        const walletBalance = readLocalWalletCredits();
+        if (!canAffordChatMessage(walletBalance)) {
+          console.log("[ChatContext] Paywall — free messages used, wallet insufficient");
+          localStorage.removeItem("recharge_dialog_dismissed");
+          setShowRechargeDialog(true);
+          return;
+        }
       }
 
       // Check if this message is affirmative regardless of where in the flow we are
@@ -854,6 +870,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         content,
         language: currentLanguage,
         companionId,
+        companionName: botName || undefined,
+        userName: userProfile?.name?.trim() || undefined,
+        deviceId: getDeviceId(),
+        phoneNumber: getStoredBillingPhoneDigits() || undefined,
         conversationHistory,
         messageCount: messageCount + 1,
         isAuthenticated: isAuthenticated(),
@@ -870,6 +890,22 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Check for rate limiting or error responses
       if (!res.ok) {
         // If we get a 429 Too Many Requests
+        if (res.status === 402) {
+          let wallet = 0;
+          try {
+            const body = (await res.json()) as { wallet_credits?: number };
+            wallet = Number(body.wallet_credits ?? 0);
+          } catch {
+            /* ignore */
+          }
+          syncWalletCreditsToLocal(wallet);
+          localStorage.removeItem("recharge_dialog_dismissed");
+          setShowRechargeDialog(true);
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          setIsTyping(false);
+          return;
+        }
+
         if (res.status === 429) {
           setIsRateLimited(true);
           
@@ -902,6 +938,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       setIsRateLimited(false);
       
       const data = await res.json();
+      if (typeof data.wallet_credits === "number") {
+        syncWalletCreditsToLocal(data.wallet_credits);
+      }
       console.log("[ChatContext] Received bot response from API");
       
       // Handle both response formats: {botMessage: {...}} and {content: "..."}
@@ -1183,9 +1222,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       clearTimeout(processingTimeoutRef.current);
       processingTimeoutRef.current = null;
     }
-    setMessageCount(0);
-    const cid = companionIdRef.current;
-    localStorage.setItem(`messageCount_${cid}`, "0");
+    void fetchBillingWallet();
   }, []);
 
   return (

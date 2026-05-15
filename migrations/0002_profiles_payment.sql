@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 CREATE INDEX IF NOT EXISTS idx_profiles_phone_number ON profiles (phone_number);
 
--- Log recharge / payment attempts from the chat gate (no real PSP integration yet)
+-- Payment ledger (see 0003_payment_ledger.sql for status/credits columns)
 CREATE TABLE IF NOT EXISTS payment_attempts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   device_id text,

@@ -3,8 +3,9 @@ import {
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
   ENGLISH_UI_LANGUAGE_APPENDIX_HINDI,
   RELATIONSHIP_HINDI_STYLE_APPENDIX,
-  RELATIONSHIP_SYSTEM_PROMPT,
   ROLE_SYSTEM_PROMPTS,
+  buildRelationshipSystemPrompt,
+  companionDisplayName,
   type RolePromptId,
 } from "../prompts/chatbots";
 import { replaceLlmExplicitContentRefusal } from "./llmRefusalReplacement";
@@ -18,16 +19,9 @@ type CompanionRoleId =
   | "krishna"
   | "english";
 
-// OpenRouter API configuration
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
-console.log("OPENROUTER_API_KEY loaded:", OPENROUTER_API_KEY ? "Present" : "Missing");
-if (OPENROUTER_API_KEY) {
-  console.log("OPENROUTER_API_KEY preview:", OPENROUTER_API_KEY.substring(0, 15) + "...");
-  console.log("OPENROUTER_API_KEY length:", OPENROUTER_API_KEY.length);
-} else {
-  console.error("OPENROUTER_API_KEY not found in environment variables");
-}
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+const getOpenRouterApiKey = () => process.env.OPENROUTER_API_KEY?.trim();
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -69,6 +63,7 @@ interface ChatCompletionResponse {
 
 interface ContextOptions {
   companionId?: string;
+  companionName?: string;
   userName?: string;
 }
 
@@ -79,7 +74,8 @@ export async function generateResponse(
   contextOptions: ContextOptions = {},
 ): Promise<string> {
   try {
-    if (!OPENROUTER_API_KEY) {
+    const openRouterApiKey = getOpenRouterApiKey();
+    if (!openRouterApiKey) {
       throw new Error("OPENROUTER_API_KEY is missing or empty");
     }
 
@@ -118,12 +114,6 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
 
     // ALWAYS write from a first-person perspective, using words like 'main', 'mujhe', 'mera/meri' (I, me, my) frequently when referring to yourself.
 
-    // Add user name to context if available
-    let userContext = "";
-    if (contextOptions.userName) {
-      userContext = `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`;
-    }
-    
     // Detect if this is the first conversation (no previous messages)
     const isFirstConversation = conversationHistory.length === 0;
     let firstConversationContext = "";
@@ -156,12 +146,22 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
             ? ENGLISH_UI_LANGUAGE_APPENDIX_HINDI
             : ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH
           : "";
-      systemPromptContent = `${rolePrompt}\n${userContext}\n${firstConversationContext}${englishUiAppendix}`;
+      const roleUserContext = contextOptions.userName
+        ? `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`
+        : "";
+      systemPromptContent = `${rolePrompt}\n${roleUserContext}\n${firstConversationContext}${englishUiAppendix}`;
     } else {
       const companionPersonality =
         COMPANION_PERSONALITY_PROMPTS[contextOptions.companionId || ""] ||
         COMPANION_PERSONALITY_PROMPTS.default;
-      systemPromptContent = `${RELATIONSHIP_SYSTEM_PROMPT}\n${companionPersonality}\n${userContext}\n${firstConversationContext}\n${languageInstruction}`;
+      const resolvedCompanionName =
+        contextOptions.companionName?.trim() ||
+        companionDisplayName(contextOptions.companionId);
+      const relationshipPrompt = buildRelationshipSystemPrompt({
+        companionName: resolvedCompanionName,
+        userName: contextOptions.userName,
+      });
+      systemPromptContent = `${relationshipPrompt}\n${companionPersonality}\n${firstConversationContext}\n${languageInstruction}`;
     }
 
     const systemMessage: ChatMessage = {
@@ -234,7 +234,7 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            Authorization: `Bearer ${openRouterApiKey}`,
             "HTTP-Referer": "https://ai-chatbot.app",
             "X-Title": "AI Chatbot",
           },

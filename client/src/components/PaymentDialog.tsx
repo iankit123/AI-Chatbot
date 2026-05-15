@@ -3,7 +3,8 @@ import { useChat } from '@/context/ChatContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { auth, logPaymentRequest } from '@/lib/supabase';
+import { auth, getDeviceId, getStoredBillingPhoneDigits, logPaymentRequest } from '@/lib/supabase';
+import { runRazorpayCheckout } from '@/lib/razorpay';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -31,14 +32,48 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
         return;
       }
       const userEmail = user.email || 'unknown@example.com';
+      const phone = getStoredBillingPhoneDigits();
+      if (!phone) {
+        toast({
+          title: 'Phone number required',
+          description: 'Sign in with your mobile number before paying.',
+          variant: 'destructive',
+        });
+        return;
+      }
       const companionId = (botName || '').toLowerCase() || 'unknown';
       const imageUrl = currentPhoto || '';
+      const deviceId = getDeviceId();
+      const paid = await runRazorpayCheckout({
+        amountRupees: 20,
+        name: 'AI Chatbot',
+        description: `Premium photo unlock (${botName})`,
+        prefill: {
+          name: user.displayName || undefined,
+          email: userEmail,
+          contact: phone,
+        },
+        billing: {
+          device_id: deviceId,
+          phone_number: phone,
+          product_type: 'premium_photo',
+          companion_id: companionId,
+          metadata: { image_url: imageUrl },
+        },
+        notes: {
+          source: 'premium_photo',
+          companion_id: companionId,
+        },
+      });
       
       await logPaymentRequest(user.uid, userEmail, 'premium_photo', {
         companionId,
         imageUrl,
         amount: 20,
         timestamp: new Date().toISOString(),
+        paymentGateway: 'razorpay',
+        razorpayOrderId: paid.orderId,
+        razorpayPaymentId: paid.paymentId,
       });
       
       onOpenChange(false);

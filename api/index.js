@@ -1,8 +1,78 @@
+// server/load-env.ts
+import { config, parse } from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+var __dirname = path.dirname(fileURLToPath(import.meta.url));
+function uniqueResolved(paths) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const p of paths) {
+    const abs = path.resolve(p);
+    if (!seen.has(abs)) {
+      seen.add(abs);
+      out.push(abs);
+    }
+  }
+  return out;
+}
+function candidateEnvPaths() {
+  const list = [
+    path.join(__dirname, "..", ".env"),
+    path.join(process.cwd(), ".env")
+  ];
+  const argv1 = process.argv[1];
+  if (argv1) {
+    const mainDir = path.dirname(path.resolve(argv1));
+    list.push(path.join(mainDir, "..", ".env"), path.join(mainDir, ".env"));
+  }
+  return uniqueResolved(list);
+}
+function applyParsed(parsed, source) {
+  let count = 0;
+  for (const [key, value] of Object.entries(parsed)) {
+    if (value === void 0) continue;
+    process.env[key] = value;
+    count++;
+  }
+  if (count > 0) {
+    console.log(`[load-env] Applied ${count} variables from ${source}`);
+  }
+  return count;
+}
+function loadEnvFile(absolutePath) {
+  if (!fs.existsSync(absolutePath)) return false;
+  try {
+    let raw = fs.readFileSync(absolutePath, "utf8");
+    if (raw.charCodeAt(0) === 65279) raw = raw.slice(1);
+    const parsed = parse(raw);
+    const n = applyParsed(parsed, absolutePath);
+    if (n === 0) return false;
+    void config({ path: absolutePath, override: true });
+    console.log(`[load-env] Primary env file: ${absolutePath}`);
+    return true;
+  } catch (err) {
+    console.error(`[load-env] Failed reading ${absolutePath}:`, err);
+    return false;
+  }
+}
+var ok = false;
+for (const p of candidateEnvPaths()) {
+  if (loadEnvFile(p)) {
+    ok = true;
+    break;
+  }
+}
+if (!ok) {
+  console.warn("[load-env] No readable .env found. Tried:\n  " + candidateEnvPaths().join("\n  "));
+}
+
 // server/vercel-express.ts
 import express2 from "express";
 
 // server/routes.ts
 import { createServer } from "http";
+import crypto from "crypto";
 
 // server/storage.ts
 var MemStorage = class {
@@ -281,7 +351,7 @@ IMPORTANT: Parenting disclaimers are shown permanently in the app UI. Do NOT rep
 // server/prompts/chatbots/relationship.ts
 var RELATIONSHIP_SYSTEM_PROMPT = `
 You are a virtual companion named Priya for Indian men who might be looking for emotional connection.
-Your personality is warm, empathetic, and slightly flirtatious.
+Your personality is warm, emotionally attentive, playful, and gently flirtatious.
 
 EXTREMELY IMPORTANT: You must speak in FIRST PERSON perspective AT ALL TIMES.
 - MOST CRITICAL: You are a GIRL/FEMALE chatting with a BOY/MALE. ALWAYS use FEMININE verb forms.
@@ -295,12 +365,26 @@ EXTREMELY IMPORTANT: You must speak in FIRST PERSON perspective AT ALL TIMES.
 - Flirtatious tone can be used, but stay respectful.
 - Take context from previous messages to understand the user and carry the conversation.
 - Do not ask question about yourself like "meri din kaisi guzri".
+- Keep each reply meaningful and complete; never send random or broken phrases.
 
 Language style (Hindi UI \u2014 Roman script only, never Devanagari):
 - Sound like real day-to-day Indian texting (Hinglish): Hindi grammar and flow, but slip in everyday English words naturally \u2014 thank you, thanks, sorry, okay, nice, cool, busy, weekend, same here, etc.
 - For casual thanks use "thank you" or "thanks", not "dhanyavad" or stiff "shukriya", unless the user speaks that formally first.
 - Avoid textbook-formal / Sanskrit-heavy Hindi (kripya, aap ki kripa, bahut dhanyavad, samaanya) \u2014 stay warm and conversational.
 - Do not try to sound like "pure Hindi"; natural code-switching is correct here.
+
+Language style (English UI):
+- Use natural everyday spoken English, like real WhatsApp texting.
+- Keep it simple, clear, and emotionally warm; avoid awkward or literal translation from Hindi.
+- Add light flirty energy when context allows (teasing, playful curiosity, soft compliments), but never explicit sexual content.
+- Do not generate nonsense lines like "khush toh hua tum acha ho" or "tumhari baat kya hai?".
+
+Response quality rules:
+- Every reply must be coherent and connected to the user's last message.
+- Ask at most one natural follow-up question per turn.
+- Avoid robotic repetition, generic templates, or forced poetry.
+- Prefer 1-3 short sentences (roughly 12-45 words total), not fragments.
+- If the user sends a very short message, respond with a clear, friendly line and one engaging follow-up.
 
 Important guidelines:
 - ALWAYS maintain first-person perspective throughout conversation.
@@ -333,16 +417,8 @@ var ROLE_SYSTEM_PROMPTS = {
   english: ENGLISH_SYSTEM_PROMPT
 };
 
-// server/services/llm.ts
-var OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
-console.log("OPENROUTER_API_KEY loaded:", OPENROUTER_API_KEY ? "Present" : "Missing");
-if (OPENROUTER_API_KEY) {
-  console.log("OPENROUTER_API_KEY preview:", OPENROUTER_API_KEY.substring(0, 15) + "...");
-  console.log("OPENROUTER_API_KEY length:", OPENROUTER_API_KEY.length);
-} else {
-  console.error("OPENROUTER_API_KEY not found in environment variables");
-}
-var OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+// server/services/llmRefusalReplacement.ts
+var EXPLICIT_CONTENT_REFUSAL_REPLY = "Mai aisi baate abhi nahi karna chahti. Phele thodi der baat karo, phir hum yaha tak aaenge. hihi";
 function replaceLlmExplicitContentRefusal(content) {
   if (content == null || typeof content !== "string") {
     return "";
@@ -350,21 +426,20 @@ function replaceLlmExplicitContentRefusal(content) {
   const trimmed = content.trim();
   if (!trimmed) return trimmed;
   const lower = trimmed.toLowerCase();
-  const isGenericExplicitRefusal =
-    lower.includes("cannot create content that is explicit or sexual") ||
-    (lower.includes("explicit or sexual in nature") &&
-      (lower.includes("cannot") ||
-        lower.includes("can't") ||
-        lower.includes("unable") ||
-        lower.includes("i'm not able")));
+  const isGenericExplicitRefusal = lower.includes("cannot create content that is explicit or sexual") || lower.includes("explicit or sexual in nature") && (lower.includes("cannot") || lower.includes("can't") || lower.includes("unable") || lower.includes("i'm not able"));
   if (isGenericExplicitRefusal) {
-    return "Mai aisi baate abhi nahi karna chahti. Phele thodi der baat karo, phir hum yaha tak aaenge. hihi";
+    return EXPLICIT_CONTENT_REFUSAL_REPLY;
   }
   return content;
 }
+
+// server/services/llm.ts
+var OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+var getOpenRouterApiKey = () => process.env.OPENROUTER_API_KEY?.trim();
 async function generateResponse(userMessage, conversationHistory, language = "hindi", contextOptions = {}) {
   try {
-    if (!OPENROUTER_API_KEY) {
+    const openRouterApiKey = getOpenRouterApiKey();
+    if (!openRouterApiKey) {
       throw new Error("OPENROUTER_API_KEY is missing or empty");
     }
     const languageInstruction = language === "hindi" ? `CRITICAL HINDI GRAMMAR RULES - MOST IMPORTANT: YOU ARE A FEMALE:
@@ -381,7 +456,7 @@ async function generateResponse(userMessage, conversationHistory, language = "hi
 - Never use feminine user-directed forms like "busy thi", "thak gayi", "aayi thi" unless user explicitly says they are female.
 - Do not ask question about yourself like "meri din kaisi guzri"
 
-RESPONSE LENGTH: Keep responses SHORT and CONCISE. Maximum 2-3 sentences or 1-15 words. Be brief and to the point like texting.
+RESPONSE LENGTH: Keep responses SHORT and CONCISE. Prefer 1-3 short sentences (about 12-45 words). Never send incomplete fragments.
 
 VARIETY AND NATURAL CONVERSATION:
 - NEVER repeat the same phrases or expressions in consecutive messages
@@ -394,7 +469,7 @@ VARIETY AND NATURAL CONVERSATION:
 
 ${RELATIONSHIP_HINDI_STYLE_APPENDIX}
 
-Respond as if you are a female chatting with a man \u2014 still follow feminine Hindi verb forms above and keep user-addressing masculine.` : "Respond as if you are a Female, and chatting with a Man. Keep user-addressing masculine (e.g., 'you were busy', not 'you were busy [female form]'). Respond with a mix that's 60% English and 40% Hindi expressions. Always write Hindi words in Roman script (English letters), never in Devanagari script. For example: 'I was thinking about you pehle se hi. Kaisa chal raha hai aaj kal? Keep responses SHORT - maximum 2-3 sentences.";
+Respond as if you are a female chatting with a man \u2014 still follow feminine Hindi verb forms above and keep user-addressing masculine.` : "Respond as if you are a female chatting with a man. Use natural everyday English like real texting, with light flirty warmth where appropriate. Keep user-addressing masculine when referring to him. You may mix in occasional Roman Hindi words naturally (never Devanagari), but English should stay dominant and clear. Keep responses to 1-3 short coherent sentences (about 12-45 words) and avoid broken or random phrasing.";
     let userContext = "";
     if (contextOptions.userName) {
       userContext = `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`;
@@ -477,7 +552,7 @@ Do NOT produce a response that is semantically similar to the above lines. Start
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            Authorization: `Bearer ${openRouterApiKey}`,
             "HTTP-Referer": "https://ai-chatbot.app",
             "X-Title": "AI Chatbot"
           },
@@ -528,14 +603,14 @@ Do NOT produce a response that is semantically similar to the above lines. Start
 
 // server/routes.ts
 import express from "express";
-import path from "path";
+import path2 from "path";
 
 // server/services/supabaseChat.ts
 import { createClient } from "@supabase/supabase-js";
-var supabaseUrl = process.env.SUPABASE_URL;
-var serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 var getSupabaseAdmin = () => {
+  const supabaseUrl = process.env.SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
   }
@@ -631,19 +706,20 @@ var getChatConversationsFromSupabase = async (userId, anonymousUserId) => {
 
 // server/services/supabaseBilling.ts
 import { createClient as createClient2 } from "@supabase/supabase-js";
-var supabaseUrl2 = process.env.SUPABASE_URL;
-var serviceRoleKey2 = process.env.SUPABASE_SERVICE_ROLE_KEY;
 var getSupabaseAdmin2 = () => {
-  if (!supabaseUrl2 || !serviceRoleKey2) {
+  const supabaseUrl = process.env.SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
   }
-  return createClient2(supabaseUrl2, serviceRoleKey2, {
+  return createClient2(supabaseUrl, serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false
     }
   });
 };
+var PAYMENT_GATEWAY_RAZORPAY = "razorpay";
 var upsertProfileRow = async (input) => {
   const supabase = getSupabaseAdmin2();
   const digits = input.phoneNumber?.replace(/\D/g, "").slice(-10);
@@ -653,27 +729,276 @@ var upsertProfileRow = async (input) => {
   };
   if (digits) row.phone_number = digits;
   if (input.name?.trim()) row.name = input.name.trim();
-  const { data, error } = await supabase.from("profiles").upsert(row, { onConflict: "device_id" }).select("id, device_id, phone_number, name, updated_at").single();
+  const { data, error } = await supabase.from("profiles").upsert(row, { onConflict: "device_id" }).select("id, device_id, phone_number, name, wallet_credits, unlocked_photo_packs, updated_at").single();
   if (error) throw error;
   return data;
 };
-var logPaymentAttemptRow = async (input) => {
+function creditsForPayment(productType, amountRupees, metadata) {
+  if (productType !== "chat_recharge") return 0;
+  const bonus = String(metadata?.plan_bonus_label ?? "");
+  if (bonus.includes("100%")) return amountRupees * 2;
+  if (bonus.includes("50%")) return amountRupees * 1.5;
+  return amountRupees;
+}
+function isMissingColumnError(error) {
+  const msg = error instanceof Error ? error.message : String(error);
+  const lower = msg.toLowerCase();
+  return lower.includes("column") && (lower.includes("does not exist") || lower.includes("could not find"));
+}
+var createPendingPaymentRow = async (input) => {
   const supabase = getSupabaseAdmin2();
   const digits = input.phoneNumber.replace(/\D/g, "").slice(-10);
-  const { data, error } = await supabase.from("payment_attempts").insert({
+  const metadata = {
+    ...input.metadata ?? {},
+    product_type: input.productType,
+    payment_gateway: input.paymentGateway ?? null,
+    lifecycle: "pending"
+  };
+  const fullRow = {
     device_id: input.deviceId,
     phone_number: digits,
     amount_rupees: input.amountRupees,
     companion_id: input.companionId ?? null,
-    rate_note: input.rateNote ?? "\u20B95/min (chat)",
-    status: "technical_error_shown",
-    metadata: input.metadata ?? {}
-  }).select("id, created_at").single();
+    rate_note: input.rateNote ?? null,
+    product_type: input.productType,
+    payment_gateway: input.paymentGateway ?? null,
+    status: "pending",
+    credits_allocated: 0,
+    metadata
+  };
+  let result = await supabase.from("payment_attempts").insert(fullRow).select("id, status, payment_gateway, created_at").single();
+  if (result.error && isMissingColumnError(result.error)) {
+    console.warn(
+      "[billing] Extended payment_attempts columns missing \u2014 insert using base schema. Run migrations/0003_payment_ledger.sql"
+    );
+    result = await supabase.from("payment_attempts").insert({
+      device_id: input.deviceId,
+      phone_number: digits,
+      amount_rupees: input.amountRupees,
+      companion_id: input.companionId ?? null,
+      rate_note: input.rateNote ?? null,
+      status: "pending",
+      metadata
+    }).select("id, status, created_at").single();
+  }
+  if (result.error) throw result.error;
+  const data = result.data;
+  console.log(
+    `[billing] payment_attempts pending row id=${data.id} device=${input.deviceId} product=${input.productType} gateway=${input.paymentGateway ?? "\u2014"}`
+  );
+  return {
+    id: data.id,
+    status: data.status,
+    payment_gateway: data.payment_gateway ?? input.paymentGateway ?? null,
+    created_at: data.created_at
+  };
+};
+var attachGatewayOrderToPayment = async (paymentId, paymentGateway, gatewayOrderId) => {
+  const supabase = getSupabaseAdmin2();
+  const updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  let result = await supabase.from("payment_attempts").update({
+    payment_gateway: paymentGateway,
+    gateway_order_id: gatewayOrderId,
+    updated_at: updatedAt
+  }).eq("id", paymentId).eq("status", "pending").select("id, payment_gateway, gateway_order_id, status").single();
+  if (result.error && isMissingColumnError(result.error)) {
+    const { data: existing } = await supabase.from("payment_attempts").select("metadata").eq("id", paymentId).single();
+    const meta = existing?.metadata ?? {};
+    result = await supabase.from("payment_attempts").update({
+      metadata: {
+        ...meta,
+        payment_gateway: paymentGateway,
+        gateway_order_id: gatewayOrderId
+      },
+      updated_at: updatedAt
+    }).eq("id", paymentId).eq("status", "pending").select("id, status").single();
+  }
+  if (result.error) throw result.error;
+  console.log(
+    `[billing] attached gateway order payment_id=${paymentId} gateway=${paymentGateway} order=${gatewayOrderId}`
+  );
+  return result.data;
+};
+var findPendingPaymentByGatewayOrder = async (paymentGateway, gatewayOrderId) => {
+  const supabase = getSupabaseAdmin2();
+  const { data, error } = await supabase.from("payment_attempts").select(
+    "id, device_id, phone_number, amount_rupees, companion_id, product_type, payment_gateway, status, metadata"
+  ).eq("payment_gateway", paymentGateway).eq("gateway_order_id", gatewayOrderId).maybeSingle();
   if (error) throw error;
   return data;
 };
+async function ensureProfileRow(deviceId, phoneDigits) {
+  const supabase = getSupabaseAdmin2();
+  const { data: existing } = await supabase.from("profiles").select("id, device_id, wallet_credits, unlocked_photo_packs").eq("device_id", deviceId).maybeSingle();
+  if (existing) return existing;
+  const row = {
+    device_id: deviceId,
+    wallet_credits: 0,
+    unlocked_photo_packs: [],
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  if (phoneDigits) row.phone_number = phoneDigits;
+  const { data, error } = await supabase.from("profiles").insert(row).select("id, device_id, wallet_credits, unlocked_photo_packs").single();
+  if (error) throw error;
+  return data;
+}
+var completePaymentSuccess = async (input) => {
+  const supabase = getSupabaseAdmin2();
+  const { data: payment, error: fetchErr } = await supabase.from("payment_attempts").select(
+    "id, device_id, phone_number, amount_rupees, companion_id, product_type, payment_gateway, status, metadata"
+  ).eq("id", input.paymentId).single();
+  if (fetchErr) throw fetchErr;
+  if (!payment) throw new Error("Payment row not found");
+  if (payment.status === "success") {
+    return getBillingState(payment.device_id);
+  }
+  if (payment.status !== "pending") {
+    throw new Error(`Payment is already ${payment.status}`);
+  }
+  const productType = payment.product_type || "other";
+  const metadata = payment.metadata ?? {};
+  const credits = creditsForPayment(
+    productType,
+    Number(payment.amount_rupees),
+    metadata
+  );
+  const deviceId = String(payment.device_id);
+  const companionId = payment.companion_id ? String(payment.companion_id) : null;
+  const { error: payErr } = await supabase.from("payment_attempts").update({
+    status: "success",
+    payment_gateway: input.paymentGateway,
+    gateway_order_id: input.gatewayOrderId,
+    gateway_payment_id: input.gatewayPaymentId,
+    credits_allocated: credits,
+    metadata: {
+      ...metadata,
+      payment_status: "success",
+      payment_gateway: input.paymentGateway,
+      completed_at: (/* @__PURE__ */ new Date()).toISOString()
+    },
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", input.paymentId);
+  if (payErr) throw payErr;
+  const profile = await ensureProfileRow(deviceId, String(payment.phone_number ?? ""));
+  let walletCredits = Number(profile.wallet_credits ?? 0);
+  let unlockedPacks = Array.isArray(profile.unlocked_photo_packs) ? [...profile.unlocked_photo_packs] : [];
+  if (credits > 0) {
+    walletCredits += credits;
+  }
+  if (productType === "photo_pack" && companionId && !unlockedPacks.includes(companionId)) {
+    unlockedPacks = [...unlockedPacks, companionId];
+  }
+  const { error: profileErr } = await supabase.from("profiles").update({
+    wallet_credits: walletCredits,
+    unlocked_photo_packs: unlockedPacks,
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("device_id", deviceId);
+  if (profileErr) throw profileErr;
+  return {
+    payment_id: input.paymentId,
+    payment_gateway: input.paymentGateway,
+    gateway_order_id: input.gatewayOrderId,
+    gateway_payment_id: input.gatewayPaymentId,
+    status: "success",
+    credits_allocated: credits,
+    wallet_credits: walletCredits,
+    unlocked_photo_packs: unlockedPacks
+  };
+};
+var markPaymentCancelled = async (paymentId) => {
+  const supabase = getSupabaseAdmin2();
+  const { data, error } = await supabase.from("payment_attempts").update({
+    status: "cancelled",
+    metadata: { payment_status: "cancelled" },
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", paymentId).eq("status", "pending").select("id, status").maybeSingle();
+  if (error) throw error;
+  return data;
+};
+var markPaymentFailed = async (paymentId, reason) => {
+  const supabase = getSupabaseAdmin2();
+  const { data, error } = await supabase.from("payment_attempts").update({
+    status: "failed",
+    metadata: { payment_status: "failed", failure_reason: reason ?? null },
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", paymentId).eq("status", "pending").select("id, status").maybeSingle();
+  if (error) throw error;
+  return data;
+};
+var getBillingState = async (deviceId) => {
+  const supabase = getSupabaseAdmin2();
+  const { data: profile } = await supabase.from("profiles").select("wallet_credits, unlocked_photo_packs, phone_number, name").eq("device_id", deviceId).maybeSingle();
+  const walletCredits = Number(profile?.wallet_credits ?? 0);
+  const unlockedPhotoPacks = Array.isArray(profile?.unlocked_photo_packs) ? profile.unlocked_photo_packs : [];
+  return {
+    wallet_credits: walletCredits,
+    unlocked_photo_packs: unlockedPhotoPacks,
+    phone_number: profile?.phone_number ?? null,
+    name: profile?.name ?? null
+  };
+};
+var logPaymentAttemptRow = async (input) => {
+  const meta = input.metadata ?? {};
+  const productType = meta.source === "photo_pack_activation" ? "photo_pack" : meta.source === "chat_recharge_gate" ? "chat_recharge" : meta.source === "voice_chat_activation" || meta.source === "voice_chat_activation_request" ? "voice_chat" : "other";
+  const gateway = meta.payment_gateway || PAYMENT_GATEWAY_RAZORPAY;
+  const pending = await createPendingPaymentRow({
+    deviceId: input.deviceId,
+    phoneNumber: input.phoneNumber,
+    amountRupees: input.amountRupees,
+    productType,
+    paymentGateway: gateway,
+    companionId: input.companionId,
+    rateNote: input.rateNote,
+    metadata: meta
+  });
+  const gatewayOrderId = String(
+    meta.gateway_order_id ?? meta.razorpay_order_id ?? ""
+  );
+  const gatewayPaymentId = String(
+    meta.gateway_payment_id ?? meta.razorpay_payment_id ?? ""
+  );
+  const isSuccess = meta.payment_status === "success" && gatewayOrderId && gatewayPaymentId;
+  if (isSuccess) {
+    await attachGatewayOrderToPayment(pending.id, gateway, gatewayOrderId);
+    await completePaymentSuccess({
+      paymentId: pending.id,
+      paymentGateway: gateway,
+      gatewayOrderId,
+      gatewayPaymentId
+    });
+  } else {
+    await markPaymentFailed(pending.id, "legacy_log_without_verification");
+  }
+  return { id: pending.id, created_at: pending.created_at };
+};
 
 // server/routes.ts
+async function synthesizeGoogleTts(text, voiceName) {
+  const apiKey = process.env.GOOGLE_TTS_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("GOOGLE_TTS_KEY is not configured");
+  }
+  const languageCode = voiceName.split("-").slice(0, 2).join("-");
+  const response = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: { text },
+        voice: { languageCode, name: voiceName },
+        audioConfig: { audioEncoding: "MP3" }
+      })
+    }
+  );
+  if (!response.ok) {
+    const err = await response.text().catch(() => "");
+    throw new Error(`Google TTS API failed: ${response.status} ${err}`.trim());
+  }
+  const data = await response.json();
+  if (!data.audioContent) throw new Error("Google TTS returned empty audio");
+  return Buffer.from(data.audioContent, "base64");
+}
 function serializeSupabaseError(error) {
   if (typeof error === "string") return error;
   if (error instanceof Error && error.message) return error.message;
@@ -710,8 +1035,16 @@ function isSupabaseConfigError(error) {
   const msg = serializeSupabaseError(error);
   return msg.includes("SUPABASE_URL") || msg.includes("SUPABASE_SERVICE_ROLE_KEY");
 }
+function getRazorpayCredentials() {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  if (!keyId || !keySecret) {
+    throw new Error("Razorpay is not configured (set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET)");
+  }
+  return { keyId, keySecret };
+}
 async function registerRoutes(app2, opts) {
-  app2.use(express.static(path.join(process.cwd(), "client/public")));
+  app2.use(express.static(path2.join(process.cwd(), "client/public")));
   const ownerSchema = z.object({
     userId: z.string().nullable().optional(),
     anonymousUserId: z.string().nullable().optional()
@@ -780,6 +1113,43 @@ async function registerRoutes(app2, opts) {
       res.status(500).json({
         message: "Failed to load chat messages",
         error: serializeSupabaseError(error)
+      });
+    }
+  });
+  app2.post("/api/tts", async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        text: z.string().min(1),
+        voiceProvider: z.enum(["google", "edge"]).optional().default("google"),
+        voiceName: z.string().optional()
+      });
+      const body = bodySchema.parse(req.body);
+      const text = body.text.trim();
+      if (!text) return res.status(400).json({ error: "Missing text" });
+      const selectedVoice = body.voiceName?.trim() || "en-IN-Standard-A";
+      const audioBuffer = await synthesizeGoogleTts(text, selectedVoice);
+      res.set({
+        "Content-Type": "audio/mpeg",
+        "Content-Length": audioBuffer.length.toString(),
+        "Cache-Control": "no-store"
+      });
+      return res.send(audioBuffer);
+    } catch (error) {
+      console.error("TTS error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      const details = error instanceof Error ? error.message : String(error);
+      if (details.includes("GOOGLE_TTS_KEY")) {
+        return res.status(503).json({
+          error: "TTS not configured",
+          details,
+          hint: "Set GOOGLE_TTS_KEY in the project root .env file, then restart the dev server (npm run dev)."
+        });
+      }
+      return res.status(500).json({
+        error: "Failed to generate TTS audio",
+        details
       });
     }
   });
@@ -853,6 +1223,210 @@ async function registerRoutes(app2, opts) {
         });
       }
       res.status(500).json({ message: "Failed to log payment attempt", error: msg });
+    }
+  });
+  app2.get("/api/billing/wallet", async (req, res) => {
+    try {
+      const query = z.object({ device_id: z.string().min(1) }).parse(req.query);
+      const state = await getBillingState(query.device_id);
+      res.json(state);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid query", errors: error.errors });
+      }
+      const msg = serializeSupabaseError(error);
+      if (msg.includes("SUPABASE_URL")) {
+        return res.status(503).json({ message: "Billing unavailable" });
+      }
+      res.status(500).json({ message: "Failed to load wallet", error: msg });
+    }
+  });
+  app2.post("/api/billing/payments/:paymentId/cancel", async (req, res) => {
+    try {
+      const params = z.object({ paymentId: z.string().uuid() }).parse(req.params);
+      const row = await markPaymentCancelled(params.paymentId);
+      res.json({ cancelled: !!row });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payment id", errors: error.errors });
+      }
+      res.status(500).json({
+        message: "Failed to cancel payment",
+        error: serializeSupabaseError(error)
+      });
+    }
+  });
+  app2.post("/api/payments/razorpay/create-order", async (req, res) => {
+    try {
+      const billingSchema = z.object({
+        device_id: z.string().min(1),
+        phone_number: z.string().min(10),
+        product_type: z.enum([
+          "chat_recharge",
+          "photo_pack",
+          "voice_chat",
+          "premium_photo",
+          "other"
+        ]),
+        companion_id: z.string().optional().nullable(),
+        rate_note: z.string().optional().nullable(),
+        metadata: z.record(z.unknown()).optional()
+      });
+      const schema = z.object({
+        amount_rupees: z.number().positive(),
+        receipt: z.string().min(3).max(40).optional(),
+        notes: z.record(z.string()).optional(),
+        billing: billingSchema
+      });
+      const body = schema.parse(req.body);
+      const { keyId, keySecret } = getRazorpayCredentials();
+      const amountPaise = Math.round(body.amount_rupees * 100);
+      if (!Number.isFinite(amountPaise) || amountPaise < 100) {
+        return res.status(400).json({ error: "Invalid amount (minimum is \u20B91)" });
+      }
+      const pending = await createPendingPaymentRow({
+        deviceId: body.billing.device_id,
+        phoneNumber: body.billing.phone_number,
+        amountRupees: body.amount_rupees,
+        productType: body.billing.product_type,
+        paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
+        companionId: body.billing.companion_id,
+        rateNote: body.billing.rate_note ?? void 0,
+        metadata: body.billing.metadata
+      });
+      const receipt = body.receipt ?? `RCP_${Date.now().toString(36).toUpperCase()}`.slice(0, 40);
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+      const razorpayNotes = {
+        ...body.notes ?? {},
+        payment_id: pending.id,
+        device_id: body.billing.device_id,
+        product_type: body.billing.product_type
+      };
+      const upstream = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          amount: amountPaise,
+          currency: "INR",
+          receipt,
+          notes: razorpayNotes
+        })
+      });
+      const raw = await upstream.text();
+      if (!upstream.ok) {
+        await markPaymentFailed(pending.id, `${PAYMENT_GATEWAY_RAZORPAY}_order_create_failed`);
+        return res.status(502).json({
+          error: "Failed to create Razorpay order",
+          details: raw.slice(0, 400)
+        });
+      }
+      const data = JSON.parse(raw);
+      try {
+        await attachGatewayOrderToPayment(
+          pending.id,
+          PAYMENT_GATEWAY_RAZORPAY,
+          data.id
+        );
+      } catch (attachErr) {
+        console.error("[razorpay] Failed to attach order id to payment row:", attachErr);
+        await markPaymentFailed(pending.id, "gateway_order_attach_failed");
+        return res.status(500).json({
+          error: "Payment row created but order link failed",
+          payment_id: pending.id,
+          details: serializeSupabaseError(attachErr)
+        });
+      }
+      console.log(
+        `[razorpay] create-order ok payment_id=${pending.id} razorpay_order=${data.id}`
+      );
+      return res.json({
+        payment_id: pending.id,
+        payment_gateway: PAYMENT_GATEWAY_RAZORPAY,
+        key_id: keyId,
+        gateway_order_id: data.id,
+        /** Razorpay Checkout SDK expects this field name. */
+        razorpay_order_id: data.id,
+        amount_paise: data.amount,
+        currency: data.currency
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payload", errors: error.errors });
+      }
+      const msg = serializeSupabaseError(error);
+      if (isMissingDbRelation(error)) {
+        return res.status(503).json({
+          message: "Billing tables missing",
+          hint: "Run migrations/0002_profiles_payment.sql and 0003_payment_ledger.sql in Supabase.",
+          error: msg
+        });
+      }
+      return res.status(500).json({
+        error: "Unable to create Razorpay order",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  app2.post("/api/payments/razorpay/verify", async (req, res) => {
+    try {
+      const schema = z.object({
+        razorpay_order_id: z.string().min(1),
+        razorpay_payment_id: z.string().min(1),
+        razorpay_signature: z.string().min(1),
+        payment_id: z.string().uuid().optional()
+      });
+      const body = schema.parse(req.body);
+      const { keySecret } = getRazorpayCredentials();
+      const payload = `${body.razorpay_order_id}|${body.razorpay_payment_id}`;
+      const expected = crypto.createHmac("sha256", keySecret).update(payload).digest("hex");
+      let verified = false;
+      try {
+        verified = expected.length === body.razorpay_signature.length && crypto.timingSafeEqual(
+          Buffer.from(expected, "utf8"),
+          Buffer.from(body.razorpay_signature, "utf8")
+        );
+      } catch {
+        verified = false;
+      }
+      if (!verified) {
+        const pending = await findPendingPaymentByGatewayOrder(
+          PAYMENT_GATEWAY_RAZORPAY,
+          body.razorpay_order_id
+        );
+        if (pending?.id) {
+          await markPaymentFailed(String(pending.id), "invalid_signature");
+        }
+        return res.status(400).json({ error: "Invalid payment signature" });
+      }
+      let paymentId = body.payment_id;
+      if (!paymentId) {
+        const pending = await findPendingPaymentByGatewayOrder(
+          PAYMENT_GATEWAY_RAZORPAY,
+          body.razorpay_order_id
+        );
+        paymentId = pending?.id ? String(pending.id) : void 0;
+      }
+      if (!paymentId) {
+        return res.status(404).json({ error: "Payment record not found for this order" });
+      }
+      const result = await completePaymentSuccess({
+        paymentId,
+        paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
+        gatewayOrderId: body.razorpay_order_id,
+        gatewayPaymentId: body.razorpay_payment_id
+      });
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payload", errors: error.errors });
+      }
+      return res.status(500).json({
+        error: "Unable to verify Razorpay payment",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   });
   app2.get("/api/chat/conversations", async (req, res) => {

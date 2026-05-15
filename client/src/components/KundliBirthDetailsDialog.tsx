@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { StoredKundliBirthDetails } from "@/lib/kundliBirthStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,15 +20,34 @@ type Props = {
   open: boolean;
   onSubmit: (data: KundliBirthFormPayload) => void;
   onCancel: () => void;
+  initialValues?: StoredKundliBirthDetails | null;
 };
 
 const nativeSelectClass =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-export function KundliBirthDetailsDialog({ open, onSubmit, onCancel }: Props) {
+export function KundliBirthDetailsDialog({
+  open,
+  onSubmit,
+  onCancel,
+  initialValues,
+}: Props) {
   const { currentLanguage } = useChat();
   const { toast } = useToast();
-  const [gender, setGender] = useState<string>("");
+  const [gender, setGender] = useState(initialValues?.gender ?? "");
+  const [name, setName] = useState(initialValues?.name ?? "");
+  const [dateOfBirth, setDateOfBirth] = useState(initialValues?.dateOfBirth ?? "");
+  const [timeOfBirth, setTimeOfBirth] = useState(initialValues?.timeOfBirth ?? "");
+  const [cityOfBirth, setCityOfBirth] = useState(initialValues?.cityOfBirth ?? "");
+
+  useEffect(() => {
+    if (!open || !initialValues) return;
+    setGender(initialValues.gender);
+    setName(initialValues.name);
+    setDateOfBirth(initialValues.dateOfBirth);
+    setTimeOfBirth(initialValues.timeOfBirth);
+    setCityOfBirth(initialValues.cityOfBirth);
+  }, [open, initialValues]);
 
   const handleForm = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -123,7 +143,15 @@ export function KundliBirthDetailsDialog({ open, onSubmit, onCancel }: Props) {
           <form className="space-y-3" onSubmit={handleForm}>
             <div className="space-y-1.5">
               <Label htmlFor="kundli-name">{copy.name}</Label>
-              <Input id="kundli-name" name="name" autoComplete="name" required maxLength={120} />
+              <Input
+                id="kundli-name"
+                name="name"
+                autoComplete="name"
+                required
+                maxLength={120}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -145,12 +173,27 @@ export function KundliBirthDetailsDialog({ open, onSubmit, onCancel }: Props) {
 
             <div className="space-y-1.5">
               <Label htmlFor="kundli-dob">{copy.dob}</Label>
-              <Input id="kundli-dob" name="dateOfBirth" type="date" required />
+              <Input
+                id="kundli-dob"
+                name="dateOfBirth"
+                type="date"
+                required
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="kundli-tob">{copy.tob}</Label>
-              <Input id="kundli-tob" name="timeOfBirth" type="time" required step={60} />
+              <Input
+                id="kundli-tob"
+                name="timeOfBirth"
+                type="time"
+                required
+                step={60}
+                value={timeOfBirth}
+                onChange={(e) => setTimeOfBirth(e.target.value)}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -161,6 +204,8 @@ export function KundliBirthDetailsDialog({ open, onSubmit, onCancel }: Props) {
                 autoComplete="address-level2"
                 required
                 maxLength={200}
+                value={cityOfBirth}
+                onChange={(e) => setCityOfBirth(e.target.value)}
                 placeholder={currentLanguage === "hindi" ? "जैसे: जयपुर, राजस्थान" : "e.g. Jaipur, Rajasthan"}
               />
             </div>

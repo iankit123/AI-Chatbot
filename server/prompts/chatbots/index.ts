@@ -18,8 +18,13 @@ export const ROLE_SYSTEM_PROMPTS: Record<RolePromptId, string> = {
   english: ENGLISH_SYSTEM_PROMPT,
 };
 
-export { RELATIONSHIP_SYSTEM_PROMPT, RELATIONSHIP_HINDI_STYLE_APPENDIX } from "./relationship";
-export { COMPANION_PERSONALITY_PROMPTS } from "./companions";
+export {
+  RELATIONSHIP_SYSTEM_PROMPT,
+  RELATIONSHIP_HINDI_STYLE_APPENDIX,
+  buildRelationshipSystemPrompt,
+  type RelationshipPromptNames,
+} from "./relationship";
+export { COMPANION_PERSONALITY_PROMPTS, companionDisplayName } from "./companions";
 export {
   ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH,
   ENGLISH_UI_LANGUAGE_APPENDIX_HINDI,

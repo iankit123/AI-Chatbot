@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,12 +13,12 @@ import { useToast } from "@/hooks/use-toast";
 import {
   getDeviceId,
   getStoredBillingPhoneDigits,
-  logPaymentAttemptOnServer,
   normalizeIndianPhone,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
 import { Lock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { runRazorpayCheckout } from "@/lib/razorpay";
 
 export const PHOTO_PACK_ACTIVATION_RUPEES = 29;
 
@@ -49,6 +49,7 @@ export function PhotoPackActivationDialog({
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [phoneFieldError, setPhoneFieldError] = useState(false);
+  const payInFlightRef = useRef(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export function PhotoPackActivationDialog({
   }, [open]);
 
   const handleActivate = async () => {
+    if (payInFlightRef.current || busy) return;
     const normalized = normalizeIndianPhone(phone);
     if (!normalized) {
       setPhoneFieldError(true);
@@ -73,24 +75,34 @@ export function PhotoPackActivationDialog({
 
     setPhoneFieldError(false);
 
+    payInFlightRef.current = true;
     setBusy(true);
     const deviceId = getDeviceId();
     const name = guestDisplayName();
 
-    let paymentLogged = false;
     try {
-      paymentLogged = await logPaymentAttemptOnServer({
-        device_id: deviceId,
-        phone_number: normalized,
-        amount_rupees: PHOTO_PACK_ACTIVATION_RUPEES,
-        companion_id: companionId,
-        rate_note: "Photo pack — 100 photos activation",
-        metadata: {
+      await runRazorpayCheckout({
+        amountRupees: PHOTO_PACK_ACTIVATION_RUPEES,
+        name: "AI Chatbot",
+        description: `${companionDisplayName} photo pack activation`,
+        prefill: { name, contact: normalized },
+        billing: {
+          device_id: deviceId,
+          phone_number: normalized,
+          product_type: "photo_pack",
+          companion_id: companionId,
+          rate_note: "Photo pack — 100 photos activation",
+          metadata: {
+            source: "photo_pack_activation",
+            product_key: `${companionId}_100_photos`,
+            companion_display_name: companionDisplayName,
+            ui_language: localStorage.getItem("chatLanguage") || "hindi",
+          },
+        },
+        notes: {
           source: "photo_pack_activation",
-          product_key: `${companionId}_100_photos`,
-          companion_display_name: companionDisplayName,
-          ui_language: localStorage.getItem("chatLanguage") || "hindi",
-          client_timestamp_iso: new Date().toISOString(),
+          device_id: deviceId,
+          companion_id: companionId,
         },
       });
 
@@ -98,22 +110,24 @@ export function PhotoPackActivationDialog({
         phone: normalized,
         name,
       }).catch(() => {});
+
+      toast({
+        title: "Activation successful",
+        description: `${companionDisplayName} photo pack is now unlocked for your account.`,
+      });
+      onOpenChange(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Payment could not be completed";
+      toast({
+        variant: "destructive",
+        title: "Payment failed",
+        description: msg.includes("cancelled")
+          ? "Payment was cancelled."
+          : msg,
+      });
     } finally {
+      payInFlightRef.current = false;
       setBusy(false);
-      if (paymentLogged) {
-        toast({
-          title: "Activation recorded",
-          description:
-            "We've logged your ₹29 photo pack request. Complete payment when checkout is available.",
-        });
-        onOpenChange(false);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Could not save request",
-          description: "Check your connection and try again.",
-        });
-      }
     }
   };
 

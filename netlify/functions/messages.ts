@@ -1,5 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { generateResponse } from "../../server/services/llm";
+import { deductChatMessageCredit } from "../../server/services/supabaseBilling";
 import { z } from "zod";
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8" };
@@ -38,6 +39,10 @@ const handler: Handler = async (event) => {
       content: z.string().min(1),
       language: z.enum(["hindi", "english"]).default("hindi"),
       companionId: z.string().default("priya"),
+      companionName: z.string().optional(),
+      userName: z.string().optional(),
+      deviceId: z.string().optional(),
+      phoneNumber: z.string().optional(),
       photoUrl: z.string().optional(),
       isPremium: z.boolean().optional(),
       skipUserMessage: z.boolean().optional(),
@@ -52,6 +57,27 @@ const handler: Handler = async (event) => {
     const validatedData = messageSchema.parse(body);
 
     const history = validatedData.conversationHistory ?? [];
+    const messageCount = validatedData.messageCount ?? 0;
+
+    if (validatedData.deviceId) {
+      const phoneDigits =
+        validatedData.phoneNumber?.replace(/\D/g, "").slice(-10) || "";
+      const deduct = await deductChatMessageCredit({
+        deviceId: validatedData.deviceId,
+        phoneHint: phoneDigits || null,
+        messageCountFromClient: messageCount,
+      });
+      if (!deduct.ok) {
+        return {
+          statusCode: 402,
+          headers: jsonHeaders,
+          body: JSON.stringify({
+            code: "INSUFFICIENT_WALLET",
+            wallet_credits: deduct.wallet_credits,
+          }),
+        };
+      }
+    }
 
     const responseContent = await generateResponse(
       validatedData.content,
@@ -59,6 +85,8 @@ const handler: Handler = async (event) => {
       validatedData.language,
       {
         companionId: validatedData.companionId,
+        companionName: validatedData.companionName,
+        userName: validatedData.userName,
       },
     );
 

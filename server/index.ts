@@ -1,13 +1,22 @@
-import 'dotenv/config';
-import express, { type Request, Response, NextFunction } from "express";
-import cors from 'cors';
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import "./load-env";
 import path from "path";
 import { fileURLToPath } from "url";
+import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
+import { registerRoutes } from "./routes";
+import { setupVite, serveStatic, log } from "./vite";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+log(
+  [
+    process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+      ? "SUPABASE ok"
+      : "SUPABASE missing",
+    process.env.OPENROUTER_API_KEY?.trim() ? "OPENROUTER ok" : "OPENROUTER missing",
+    process.env.GOOGLE_TTS_KEY?.trim() ? "GOOGLE_TTS ok" : "GOOGLE_TTS missing",
+  ].join(" · "),
+);
 
 const app = express();
 

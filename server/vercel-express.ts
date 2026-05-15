@@ -2,6 +2,7 @@
  * Vercel serverless entry for Express — source for esbuild → api/index.js.
  * (Do not import this from server/index.ts; local dev uses server/index.ts only.)
  */
+import "./load-env";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { registerRoutes } from "./routes";

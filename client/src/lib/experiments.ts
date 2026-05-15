@@ -61,3 +61,55 @@ export const isHomeAssistantCardVisible = (roleId: string) => {
   if (percent <= 0) return false;
   return getOrCreateBucket(`home_card_${roleId}`) < percent;
 };
+
+import {
+  DEFAULT_RELATIONSHIP_GOOGLE_TTS_VOICE,
+  normalizeRelationshipGoogleTtsVoice,
+} from "./relationshipGoogleTtsVoices";
+
+/**
+ * Relationship voice chat defaults.
+ * You can override with:
+ * - VITE_RELATIONSHIP_VOICE_NAME (must be one of `RELATIONSHIP_GOOGLE_TTS_VOICE_OPTIONS`; default hi-IN-Chirp3-HD-Zephyr)
+ * - VITE_RELATIONSHIP_VOICE_RATE (0.5-2, browser fallback only)
+ * - VITE_RELATIONSHIP_VOICE_PITCH (0-2, browser fallback only)
+ */
+const DEFAULT_RELATIONSHIP_VOICE_RATE = 1;
+const DEFAULT_RELATIONSHIP_VOICE_PITCH = 1;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const parseNumberWithFallback = (raw: string | undefined, fallback: number) => {
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+export const getRelationshipVoiceName = (): string =>
+  normalizeRelationshipGoogleTtsVoice(
+    (import.meta.env.VITE_RELATIONSHIP_VOICE_NAME as string | undefined)?.trim(),
+  );
+
+/** Default Google TTS voice id for relationship Hindi assistant (re-export). */
+export const getDefaultRelationshipGoogleTtsVoice = (): string => DEFAULT_RELATIONSHIP_GOOGLE_TTS_VOICE;
+
+export const getRelationshipVoiceRate = (): number =>
+  clamp(
+    parseNumberWithFallback(
+      import.meta.env.VITE_RELATIONSHIP_VOICE_RATE as string | undefined,
+      DEFAULT_RELATIONSHIP_VOICE_RATE,
+    ),
+    0.5,
+    2,
+  );
+
+export const getRelationshipVoicePitch = (): number =>
+  clamp(
+    parseNumberWithFallback(
+      import.meta.env.VITE_RELATIONSHIP_VOICE_PITCH as string | undefined,
+      DEFAULT_RELATIONSHIP_VOICE_PITCH,
+    ),
+    0,
+    2,
+  );

@@ -4,6 +4,7 @@ import { BottomNav } from "@/components/BottomNav";
 import {
   auth,
   getUserProfile,
+  isSignedInLocally,
   isUserRegisteredLocally,
   signOutUser,
 } from "@/lib/supabase";
@@ -16,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CreditCard, LogOut, MessageCircle, Wallet, Zap } from "lucide-react";
+import { CreditCard, LogOut, MessageCircle, User, Wallet, Zap } from "lucide-react";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import { LegalFooter } from "@/components/LegalFooter";
 import { HomeRoleCard } from "@/components/HomeRoleCard";
@@ -51,14 +52,28 @@ export default function Home() {
   const [userName, setUserName] = useState<string>("");
   const [userPhoto, setUserPhoto] = useState<string>("");
   const [userPhone, setUserPhone] = useState<string>("");
-  const [walletCredits, setWalletCredits] = useState<number>(0);
+  const [walletDisplayBalance, setWalletDisplayBalance] = useState<number>(0);
+  const [walletMenuCredits, setWalletMenuCredits] = useState<number>(0);
   const [userRegistered, setUserRegistered] = useState(isUserRegisteredLocally);
   const [headerProfileOpen, setHeaderProfileOpen] = useState(false);
+
+  const refreshWalletBalance = async () => {
+    const { fetchBillingWallet } = await import("@/lib/billing");
+    const wallet = await fetchBillingWallet();
+    setWalletDisplayBalance(wallet?.display_balance ?? 0);
+    setWalletMenuCredits(
+      wallet?.has_any_recharge ? wallet.chat_balance : 0,
+    );
+  };
 
   useEffect(() => {
     const refreshSignedIn = () => setUserRegistered(isUserRegisteredLocally());
     window.addEventListener("local-storage-auth", refreshSignedIn);
-    return () => window.removeEventListener("local-storage-auth", refreshSignedIn);
+    window.addEventListener("wallet-credits-updated", refreshWalletBalance);
+    return () => {
+      window.removeEventListener("local-storage-auth", refreshSignedIn);
+      window.removeEventListener("wallet-credits-updated", refreshWalletBalance);
+    };
   }, []);
 
   useEffect(() => {
@@ -68,39 +83,43 @@ export default function Home() {
         let photo = "";
         let phone = "";
 
-        setUserRegistered(isUserRegisteredLocally());
+        const registered = isUserRegisteredLocally();
+        setUserRegistered(registered);
         try {
-          setWalletCredits(Number(localStorage.getItem("wallet_credits") || "0"));
+          await refreshWalletBalance();
         } catch {
-          setWalletCredits(0);
+          setWalletDisplayBalance(0);
+          setWalletMenuCredits(0);
         }
 
-        // Check for authenticated user first
-        if (auth.currentUser) {
-          try {
-            const profile = await getUserProfile(auth.currentUser.uid);
-            if (profile?.name) {
-              name = profile.name;
+        // Name/phone in header only when signed in (not from chat-only guestProfile name).
+        if (registered || isSignedInLocally()) {
+          if (auth.currentUser) {
+            try {
+              const profile = await getUserProfile(auth.currentUser.uid);
+              if (profile?.name) {
+                name = profile.name;
+              }
+              if (auth.currentUser.photoURL) {
+                photo = auth.currentUser.photoURL;
+              }
+            } catch {
+              console.log("Could not load user profile from Supabase");
             }
-            if (auth.currentUser.photoURL) {
-              photo = auth.currentUser.photoURL;
-            }
-          } catch (error) {
-            console.log("Could not load user profile from Supabase");
           }
-        }
 
-        const guestProfile = localStorage.getItem("guestProfile");
-        if (guestProfile) {
-          try {
-            const parsed = JSON.parse(guestProfile) as {
-              name?: string;
-              phone?: string;
-            };
-            if (!name && parsed.name) name = parsed.name;
-            if (parsed.phone) phone = String(parsed.phone);
-          } catch (e) {
-            console.error("Error parsing guest profile:", e);
+          const guestProfile = localStorage.getItem("guestProfile");
+          if (guestProfile) {
+            try {
+              const parsed = JSON.parse(guestProfile) as {
+                name?: string;
+                phone?: string;
+              };
+              if (!name && parsed.name) name = parsed.name;
+              if (parsed.phone) phone = String(parsed.phone);
+            } catch (e) {
+              console.error("Error parsing guest profile:", e);
+            }
           }
         }
 
@@ -144,6 +163,8 @@ export default function Home() {
     currentLanguage === "hindi"
       ? {
           welcomeBack: "वापस स्वागत है",
+          welcomeGuest: "स्वागत है",
+          guestLabel: "मेहमान",
           subtitle: "शुरू करने के लिए एक असिस्टेंट चुनिए",
           profileMenuRemainingCredits: "बचे हुए क्रेडिट",
           profileMenuBuyCredits: "क्रेडिट खरीदें",
@@ -152,6 +173,8 @@ export default function Home() {
         }
       : {
           welcomeBack: "Welcome back",
+          welcomeGuest: "Welcome",
+          guestLabel: "Guest",
           subtitle: "Choose an assistant to get started",
           profileMenuRemainingCredits: "Remaining credits",
           profileMenuBuyCredits: "Buy credits",
@@ -159,8 +182,40 @@ export default function Home() {
           profileMenuLogOut: "Log out",
         };
 
+  const headerGreeting = userRegistered
+    ? { line1: uiText.welcomeBack, line2: firstNameOnly(userName) || "User" }
+    : { line1: uiText.welcomeGuest, line2: uiText.guestLabel };
+  const headerAvatarLetter = userRegistered
+    ? (firstNameOnly(userName) || "").charAt(0).toUpperCase() || "U"
+    : null;
+
   const visibleRoles = HOME_ROLE_CARDS.filter((role) =>
     isHomeAssistantCardVisible(role.id),
+  );
+
+  const headerAvatarEl = userPhoto ? (
+    <img
+      src={userPhoto}
+      alt={headerGreeting.line2}
+      className="h-9 w-9 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-2 ring-indigo-100"
+    />
+  ) : headerAvatarLetter ? (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-sm ring-2 ring-indigo-100">
+      <span className="text-xl font-semibold text-white">{headerAvatarLetter}</span>
+    </div>
+  ) : (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-slate-100 shadow-sm ring-2 ring-indigo-100">
+      <User className="h-5 w-5 text-slate-500" aria-hidden />
+    </div>
+  );
+
+  const headerTextEl = (
+    <div className="min-w-0">
+      <p className="text-xs font-medium leading-tight text-slate-500">
+        {userRegistered ? `${headerGreeting.line1},` : headerGreeting.line1}
+      </p>
+      <h2 className="truncate text-lg font-bold leading-tight text-slate-900">{headerGreeting.line2}</h2>
+    </div>
   );
 
   return (
@@ -176,31 +231,18 @@ export default function Home() {
         {/* Welcome Section */}
         <div className="relative z-20 mb-2 flex items-start justify-between gap-2">
           {userRegistered ? (
-            <DropdownMenu>
+            <DropdownMenu
+              onOpenChange={(menuOpen) => {
+                if (menuOpen) void refreshWalletBalance();
+              }}
+            >
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
                   className="flex min-w-0 max-w-[calc(100%-7rem)] items-center gap-2.5 rounded-xl py-0.5 pl-0.5 pr-2 text-left outline-none ring-offset-2 ring-offset-transparent transition hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-indigo-400"
                 >
-                  {userPhoto ? (
-                    <img
-                      src={userPhoto}
-                      alt={firstNameOnly(userName) || "User"}
-                      className="h-9 w-9 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-2 ring-indigo-100"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-sm ring-2 ring-indigo-100">
-                      <span className="text-xl font-semibold text-white">
-                        {(userName ? firstNameOnly(userName) : "").charAt(0).toUpperCase() || "U"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium leading-tight text-slate-500">{uiText.welcomeBack},</p>
-                    <h2 className="truncate text-lg font-bold leading-tight text-slate-900">
-                      {firstNameOnly(userName) || "User"}
-                    </h2>
-                  </div>
+                  {headerAvatarEl}
+                  {headerTextEl}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -216,7 +258,9 @@ export default function Home() {
                   <div className="flex items-center gap-3 px-3 py-2.5">
                     <CreditCard className="h-5 w-5 shrink-0 text-pink-600" aria-hidden />
                     <span className="flex-1 text-sm text-slate-900">{uiText.profileMenuRemainingCredits}</span>
-                    <span className="text-sm font-bold tabular-nums text-pink-600">{walletCredits}</span>
+                    <span className="text-sm font-bold tabular-nums text-pink-600">
+                      {walletMenuCredits}
+                    </span>
                   </div>
                   <DropdownMenuSeparator className="my-0" />
                   <DropdownMenuItem
@@ -254,25 +298,8 @@ export default function Home() {
               className="flex min-w-0 max-w-[calc(100%-7rem)] cursor-pointer touch-manipulation items-center gap-2.5 rounded-xl py-0.5 pl-0.5 pr-2 text-left outline-none ring-offset-2 ring-offset-transparent transition hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-indigo-400 active:opacity-90"
               aria-label={currentLanguage === "hindi" ? "खाता खोलें" : "Open account"}
             >
-              {userPhoto ? (
-                <img
-                  src={userPhoto}
-                  alt={firstNameOnly(userName) || "User"}
-                  className="h-9 w-9 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-2 ring-indigo-100"
-                />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-sm ring-2 ring-indigo-100">
-                  <span className="text-xl font-semibold text-white">
-                    {(userName ? firstNameOnly(userName) : "").charAt(0).toUpperCase() || "U"}
-                  </span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-medium leading-tight text-slate-500">{uiText.welcomeBack},</p>
-                <h2 className="truncate text-lg font-bold leading-tight text-slate-900">
-                  {firstNameOnly(userName) || "User"}
-                </h2>
-              </div>
+              {headerAvatarEl}
+              {headerTextEl}
             </button>
           )}
           <div className="flex shrink-0 items-center gap-1.5">
@@ -307,7 +334,7 @@ export default function Home() {
               aria-label={currentLanguage === "hindi" ? "वॉलेट बैलेंस" : "Wallet balance"}
             >
               <Wallet className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="text-xs font-semibold tabular-nums">₹{walletCredits}</span>
+              <span className="text-xs font-semibold tabular-nums">₹{walletDisplayBalance}</span>
             </button>
           </div>
         </div>

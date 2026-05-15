@@ -9,8 +9,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { auth, logPaymentRequest } from '@/lib/supabase';
+import { auth, getDeviceId, getStoredBillingPhoneDigits, logPaymentRequest } from '@/lib/supabase';
 import { Lock } from 'lucide-react';
+import { runRazorpayCheckout } from '@/lib/razorpay';
 
 interface PremiumPhotoDialogProps {
   open: boolean;
@@ -53,7 +54,39 @@ export function PremiumPhotoDialog({
       return;
     }
     const userEmail = user.email || 'unknown@example.com';
+    const phone = getStoredBillingPhoneDigits();
+    if (!phone) {
+      setProcessing(false);
+      toast({
+        title: 'Phone number required',
+        description: 'Sign in with your mobile number before paying.',
+        variant: 'destructive',
+        duration: 4000,
+      });
+      return;
+    }
     try {
+      const paid = await runRazorpayCheckout({
+        amountRupees: 20,
+        name: 'AI Chatbot',
+        description: `Premium photo unlock (${companionName})`,
+        prefill: {
+          name: user.displayName || undefined,
+          email: userEmail,
+          contact: phone,
+        },
+        billing: {
+          device_id: getDeviceId(),
+          phone_number: phone,
+          product_type: 'premium_photo',
+          companion_id: companionName.toLowerCase(),
+          metadata: { image_url: blurredImageUrl },
+        },
+        notes: {
+          source: 'premium_photo',
+          companion_id: companionName.toLowerCase(),
+        },
+      });
       await logPaymentRequest(
         user.uid,
         userEmail,
@@ -63,6 +96,9 @@ export function PremiumPhotoDialog({
           imageUrl: blurredImageUrl,
           timestamp: new Date().toISOString(),
           amount: 20,
+          paymentGateway: 'razorpay',
+          razorpayOrderId: paid.orderId,
+          razorpayPaymentId: paid.paymentId,
         }
       );
       toast({

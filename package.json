@@ -8,7 +8,7 @@
   },
   "scripts": {
     "prebuild": "echo 'Node version:' && node -v && npm -v && npm ls @vitejs/plugin-react || true && ls -l node_modules/@vitejs/plugin-react || true",
-    "dev": "NODE_ENV=development tsx server/index.ts",
+    "dev": "node scripts/dev-server.mjs",
     "build": "npm run prebuild && npm run build:vercel-api && vite build && tsc",
     "build:vercel-api": "node scripts/build-vercel-api.mjs",
     "start": "NODE_ENV=production node dist/server/index.js",
@@ -93,8 +93,6 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
-    "@replit/vite-plugin-cartographer": "^0.0.11",
-    "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "4.17.21",
