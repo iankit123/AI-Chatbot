@@ -1978,53 +1978,6 @@ var logPaymentAttemptRow = async (input) => {
   return { id: pending.id, created_at: pending.created_at };
 };
 
-// shared/razorpayProductCodes.ts
-var PRODUCT_TYPE_TO_CODE = {
-  chat_recharge: "CR",
-  photo_pack: "PP",
-  voice_chat: "VC",
-  premium_photo: "PM",
-  other: "OT"
-};
-var COMPANION_SLOT = {
-  naina: "R01",
-  priya: "R02",
-  ananya: "R03",
-  meera: "R04",
-  riya: "R05",
-  neha: "R06",
-  doctor: "A01",
-  kundli: "A02",
-  parenting: "A03",
-  finance: "A04",
-  career: "A05",
-  krishna: "A06",
-  english: "A07",
-  relationship: "A08"
-};
-function productTypeToCode(productType) {
-  return PRODUCT_TYPE_TO_CODE[productType] ?? "OT";
-}
-function companionIdToSlot(companionId) {
-  if (!companionId?.trim()) return void 0;
-  const key = companionId.trim().toLowerCase();
-  if (COMPANION_SLOT[key]) return COMPANION_SLOT[key];
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = hash * 31 + key.charCodeAt(i) >>> 0;
-  }
-  return `X${(hash % 1e4).toString().padStart(4, "0")}`;
-}
-function buildRazorpayGatewayNotes(input) {
-  const notes = {
-    pc: productTypeToCode(input.productType),
-    pid: input.paymentId
-  };
-  const slot = companionIdToSlot(input.companionId);
-  if (slot) notes.cid = slot;
-  return notes;
-}
-
 // server/services/kundliProfile.ts
 import { createClient as createClient3 } from "@supabase/supabase-js";
 var getSupabaseAdmin3 = () => {
@@ -2475,11 +2428,12 @@ async function registerRoutes(app2, opts) {
       });
       const receipt = body.receipt ?? `RCP_${Date.now().toString(36).toUpperCase()}`.slice(0, 40);
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-      const razorpayNotes = buildRazorpayGatewayNotes({
-        paymentId: pending.id,
-        productType: body.billing.product_type,
-        companionId: body.billing.companion_id
-      });
+      const razorpayNotes = {
+        ...body.notes ?? {},
+        payment_id: pending.id,
+        device_id: body.billing.device_id,
+        product_type: body.billing.product_type
+      };
       const upstream = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
         headers: {
