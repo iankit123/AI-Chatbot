@@ -200,16 +200,8 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
     const name = guestDisplayName();
 
     try {
-      const notes = {
-        source: "chat_recharge_gate",
-        device_id: deviceId,
-        companion_id: billingCtx.companionId ?? "unknown",
-        phone_number: normalized,
-      };
       const paid = await runRazorpayCheckout({
         amountRupees: selectedRupees,
-        name: "AI Chatbot",
-        description: `Chat recharge ₹${selectedRupees}`,
         prefill: { name, contact: normalized },
         billing: {
           device_id: deviceId,
@@ -219,7 +211,6 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
           rate_note: RATE_NOTE,
           metadata: getBillingMetadata(selectedRupees),
         },
-        notes,
       });
 
       await upsertAppProfileOnServer(deviceId, {

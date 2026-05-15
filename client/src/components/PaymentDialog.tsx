@@ -46,8 +46,6 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
       const deviceId = getDeviceId();
       const paid = await runRazorpayCheckout({
         amountRupees: 20,
-        name: 'AI Chatbot',
-        description: `Premium photo unlock (${botName})`,
         prefill: {
           name: user.displayName || undefined,
           email: userEmail,
@@ -59,10 +57,6 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
           product_type: 'premium_photo',
           companion_id: companionId,
           metadata: { image_url: imageUrl },
-        },
-        notes: {
-          source: 'premium_photo',
-          companion_id: companionId,
         },
       });
       

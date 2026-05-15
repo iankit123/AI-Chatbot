@@ -236,7 +236,7 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
             "Content-Type": "application/json",
             Authorization: `Bearer ${openRouterApiKey}`,
             "HTTP-Referer": "https://ai-chatbot.app",
-            "X-Title": "AI Chatbot",
+            "X-Title": "Puchlo.in",
           },
           body: JSON.stringify(requestBody),
         });

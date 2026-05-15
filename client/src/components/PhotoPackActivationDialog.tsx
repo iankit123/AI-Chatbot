@@ -83,8 +83,6 @@ export function PhotoPackActivationDialog({
     try {
       await runRazorpayCheckout({
         amountRupees: PHOTO_PACK_ACTIVATION_RUPEES,
-        name: "AI Chatbot",
-        description: `${companionDisplayName} photo pack activation`,
         prefill: { name, contact: normalized },
         billing: {
           device_id: deviceId,
@@ -98,11 +96,6 @@ export function PhotoPackActivationDialog({
             companion_display_name: companionDisplayName,
             ui_language: localStorage.getItem("chatLanguage") || "hindi",
           },
-        },
-        notes: {
-          source: "photo_pack_activation",
-          device_id: deviceId,
-          companion_id: companionId,
         },
       });
 

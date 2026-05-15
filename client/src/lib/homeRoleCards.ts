@@ -42,6 +42,26 @@ export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
     ctaClass: "bg-gradient-to-r from-violet-600 to-fuchsia-600",
   },
   {
+    id: "english",
+    title: "Learn English",
+    description: "Practice speaking and grammar",
+    route: "/english",
+    gradient: "from-orange-500 to-amber-600",
+    image: "/images/english-card.png",
+    badgeTone: "orange",
+    ctaClass: "bg-gradient-to-r from-orange-500 to-amber-500",
+  },
+  {
+    id: "krishna",
+    title: "Krishna",
+    description: "Spiritual guidance and life wisdom",
+    route: "/krishna",
+    gradient: "from-blue-500 to-indigo-600",
+    image: "/images/krishna-card.png",
+    badgeTone: "blue",
+    ctaClass: "bg-gradient-to-r from-blue-600 to-indigo-600",
+  },
+  {
     id: "parenting",
     title: "Parenting and Baby Care Assistant",
     description: "Expert parenting tips",
@@ -80,27 +100,7 @@ export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
     image: "/images/relationship-card.png",
     badgeTone: "pink",
     ctaClass: "bg-gradient-to-r from-pink-500 to-rose-500",
-  },
-  {
-    id: "krishna",
-    title: "Krishna",
-    description: "Spiritual guidance and life wisdom",
-    route: "/krishna",
-    gradient: "from-blue-500 to-indigo-600",
-    image: "/images/krishna-card.png",
-    badgeTone: "blue",
-    ctaClass: "bg-gradient-to-r from-blue-600 to-indigo-600",
-  },
-  {
-    id: "english",
-    title: "Learn English",
-    description: "Practice speaking and grammar",
-    route: "/english",
-    gradient: "from-orange-500 to-amber-600",
-    image: "/images/english-card.png",
-    badgeTone: "orange",
-    ctaClass: "bg-gradient-to-r from-orange-500 to-amber-500",
-  },
+  }
 ];
 
 export const HOME_ROLE_CARD_BY_ID: Record<string, HomeRoleCardDefinition> =

@@ -7,11 +7,15 @@ import {
 } from "@/lib/billing";
 import { applyServerPhotoPackUnlocks } from "@/lib/photoPackUnlock";
 import { applyServerVoicePackUnlocks } from "@/lib/voicePackUnlock";
+import {
+  buildRazorpayCheckoutDisplay,
+  buildRazorpayGatewayNotes,
+  receiptPrefixForProduct,
+} from "@shared/razorpayProductCodes";
 
 type RazorpayCreateOrderRequest = {
   amount_rupees: number;
   receipt?: string;
-  notes?: Record<string, string>;
   billing: RazorpayBillingContext;
 };
 
@@ -42,15 +46,12 @@ export type RazorpayCheckoutResult = {
 
 type RazorpayOptions = {
   amountRupees: number;
-  description: string;
-  name: string;
   billing: RazorpayBillingContext;
   prefill?: {
     name?: string;
     email?: string;
     contact?: string;
   };
-  notes?: Record<string, string>;
 };
 
 declare global {
@@ -90,23 +91,19 @@ async function verifyPayment(payload: RazorpayVerifyRequest): Promise<PaymentVer
   return (await res.json()) as PaymentVerifyResult;
 }
 
-function toReceiptPrefix(input: string): string {
-  const safe = input.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 18);
-  return safe || "PAY";
-}
-
 export async function runRazorpayCheckout(
   options: RazorpayOptions,
 ): Promise<RazorpayCheckoutResult> {
   await ensureRazorpayScript();
-  const receiptPrefix = toReceiptPrefix(
-    options.notes?.source ?? options.billing.product_type ?? options.name,
-  );
+  const receiptPrefix = receiptPrefixForProduct(options.billing.product_type);
   const receipt = `${receiptPrefix}_${Date.now().toString(36)}`.slice(0, 38);
+  const checkoutDisplay = buildRazorpayCheckoutDisplay(
+    options.billing.product_type,
+    options.amountRupees,
+  );
   const order = await createOrder({
     amount_rupees: options.amountRupees,
     receipt,
-    notes: options.notes,
     billing: options.billing,
   });
   if (!order.razorpay_order_id && !order.gateway_order_id) {
@@ -137,13 +134,16 @@ export async function runRazorpayCheckout(
       amount: order.amount_paise,
       currency: order.currency || "INR",
       order_id: order.razorpay_order_id || order.gateway_order_id,
-      name: options.name,
-      description: options.description,
+      name: checkoutDisplay.name,
+      description: checkoutDisplay.description,
       prefill: options.prefill,
-      notes: {
-        ...(options.notes ?? {}),
-        payment_id: paymentRowId,
-      },
+      notes: paymentRowId
+        ? buildRazorpayGatewayNotes({
+            paymentId: paymentRowId,
+            productType: options.billing.product_type,
+            companionId: options.billing.companion_id,
+          })
+        : {},
       handler: async (response: Record<string, unknown>) => {
         try {
           const razorpay_order_id = String(response.razorpay_order_id || "");

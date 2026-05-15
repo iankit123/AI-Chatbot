@@ -68,8 +68,6 @@ export function PremiumPhotoDialog({
     try {
       const paid = await runRazorpayCheckout({
         amountRupees: 20,
-        name: 'AI Chatbot',
-        description: `Premium photo unlock (${companionName})`,
         prefill: {
           name: user.displayName || undefined,
           email: userEmail,
@@ -81,10 +79,6 @@ export function PremiumPhotoDialog({
           product_type: 'premium_photo',
           companion_id: companionName.toLowerCase(),
           metadata: { image_url: blurredImageUrl },
-        },
-        notes: {
-          source: 'premium_photo',
-          companion_id: companionName.toLowerCase(),
         },
       });
       await logPaymentRequest(

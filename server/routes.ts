@@ -25,6 +25,7 @@ import {
   type PaymentProductType,
   deductChatMessageCredit,
 } from "./services/supabaseBilling";
+import { buildRazorpayGatewayNotes } from "@shared/razorpayProductCodes";
 import {
   getKundliBirthForProfile,
   saveKundliBirthForProfile,
@@ -451,12 +452,11 @@ export async function registerRoutes(
       const receipt =
         body.receipt ?? `RCP_${Date.now().toString(36).toUpperCase()}`.slice(0, 40);
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-      const razorpayNotes: Record<string, string> = {
-        ...(body.notes ?? {}),
-        payment_id: pending.id,
-        device_id: body.billing.device_id,
-        product_type: body.billing.product_type,
-      };
+      const razorpayNotes = buildRazorpayGatewayNotes({
+        paymentId: pending.id,
+        productType: body.billing.product_type,
+        companionId: body.billing.companion_id,
+      });
       const upstream = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
         headers: {

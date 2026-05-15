@@ -89,16 +89,8 @@ export function VoiceChatFixed() {
     };
 
     try {
-      const notes = {
-        source: "voice_chat_activation",
-        device_id: deviceId,
-        companion_id: companionId ?? "unknown",
-        phone_number: normalized,
-      };
       await runRazorpayCheckout({
         amountRupees: VOICE_CHAT_ACTIVATION_RUPEES,
-        name: "AI Chatbot",
-        description: `Voice chat activation ₹${VOICE_CHAT_ACTIVATION_RUPEES}`,
         prefill: { name: guestDisplayName(), contact: normalized },
         billing: {
           device_id: deviceId,
@@ -112,7 +104,6 @@ export function VoiceChatFixed() {
             bot_display_name: botName,
           },
         },
-        notes,
       });
 
       const paymentRequests = JSON.parse(

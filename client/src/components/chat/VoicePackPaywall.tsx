@@ -85,8 +85,6 @@ export function VoicePackPaywall({ companionId, onActivated }: VoicePackPaywallP
     try {
       await runRazorpayCheckout({
         amountRupees: rupees,
-        name: "AI Chatbot",
-        description: `Voice chat — ${botName}`,
         prefill: { name, contact: normalized },
         billing: {
           device_id: deviceId,
@@ -99,11 +97,6 @@ export function VoicePackPaywall({ companionId, onActivated }: VoicePackPaywallP
             product: "voice_chat",
             companion_display_name: botName,
           },
-        },
-        notes: {
-          source: "voice_chat_activation",
-          device_id: deviceId,
-          companion_id: companionId,
         },
       });
 
