@@ -62,15 +62,16 @@ export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
     ctaClass: "bg-gradient-to-r from-blue-600 to-indigo-600",
   },
   {
-    id: "parenting",
-    title: "Parenting and Baby Care Assistant",
-    description: "Expert parenting tips",
-    route: "/parenting",
-    gradient: "from-pink-500 to-rose-600",
-    image: "/images/parenting-card.png",
-    badgeTone: "amber",
-    ctaClass: "bg-gradient-to-r from-orange-500 to-amber-500",
+    id: "relationship",
+    title: "Relationship Coach",
+    description: "Emotional support & connection",
+    route: "/relationship-coach",
+    gradient: "from-rose-500 to-red-600",
+    image: "/images/relationship-card.png",
+    badgeTone: "pink",
+    ctaClass: "bg-gradient-to-r from-pink-500 to-rose-500",
   },
+
   {
     id: "finance",
     title: "Personal Finance Help",
@@ -92,14 +93,14 @@ export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
     ctaClass: "bg-gradient-to-r from-indigo-600 to-blue-600",
   },
   {
-    id: "relationship",
-    title: "Relationship Coach",
-    description: "Emotional support & connection",
-    route: "/relationship-coach",
-    gradient: "from-rose-500 to-red-600",
-    image: "/images/relationship-card.png",
-    badgeTone: "pink",
-    ctaClass: "bg-gradient-to-r from-pink-500 to-rose-500",
+    id: "parenting",
+    title: "Parenting and Baby Care Assistant",
+    description: "Expert parenting tips",
+    route: "/parenting",
+    gradient: "from-pink-500 to-rose-600",
+    image: "/images/parenting-card.png",
+    badgeTone: "amber",
+    ctaClass: "bg-gradient-to-r from-orange-500 to-amber-500",
   }
 ];
 
