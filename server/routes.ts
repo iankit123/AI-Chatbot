@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
 import { z } from "zod";
+import { filterWelcomeMessagesFromHistory } from "./lib/chatHistory";
 import { generateResponse } from "./services/llm";
 import express from "express";
 import path from "path";
@@ -802,19 +803,7 @@ export async function registerRoutes(
         if (isFirstUserMessage) {
           console.log('[DEBUG] First user message detected. Filtering welcome messages...');
           console.log('[DEBUG] Companion messages before filter:', companionMessages.map(m => ({ role: m.role, content: m.content })));
-          filteredMessages = companionMessages.filter(msg => {
-            // Exclude welcome messages (assistant messages that are just "Hi" or "Hello")
-            if (msg.role === 'assistant') {
-              const content = msg.content.trim().toLowerCase();
-              const isWelcomeMessage = content === 'hi' || content === 'hello' || 
-                      content.startsWith('hi, main') || content.startsWith('hello, main');
-              if (isWelcomeMessage) {
-                console.log('[DEBUG] Filtering out welcome message:', msg.content);
-              }
-              return !isWelcomeMessage;
-            }
-            return true;
-          });
+          filteredMessages = filterWelcomeMessagesFromHistory(companionMessages);
           console.log('[DEBUG] Companion messages after filter:', filteredMessages.map(m => ({ role: m.role, content: m.content })));
         }
         
@@ -823,8 +812,11 @@ export async function registerRoutes(
           content: msg.content,
         }));
         const fromClient = validatedData.conversationHistory;
-        const conversationHistory =
+        let conversationHistory =
           fromClient && fromClient.length > 0 ? fromClient.slice(-40) : historyFromStorage;
+        if (isFirstUserMessage && fromClient && fromClient.length > 0) {
+          conversationHistory = filterWelcomeMessagesFromHistory(conversationHistory);
+        }
         
         console.log('[DEBUG] Conversation history being sent to LLM:', conversationHistory);
         console.log(

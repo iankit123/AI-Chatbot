@@ -149,9 +149,20 @@ export function resolvePaymentCompanionId(row: PaymentRowLite): string {
   return "";
 }
 
+function supabaseErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error !== null && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message ?? "");
+  }
+  return String(error);
+}
+
 function isMissingColumnError(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error);
-  const lower = msg.toLowerCase();
+  if (error !== null && typeof error === "object" && "code" in error) {
+    const code = String((error as { code: unknown }).code);
+    if (code === "42703" || code === "PGRST204") return true;
+  }
+  const lower = supabaseErrorMessage(error).toLowerCase();
   return (
     lower.includes("column") &&
     (lower.includes("does not exist") || lower.includes("could not find"))
@@ -164,7 +175,17 @@ async function hasWalletSpentColumn(): Promise<boolean> {
   if (walletSpentColumnExists !== undefined) return walletSpentColumnExists;
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("profiles").select("wallet_spent").limit(0);
-  walletSpentColumnExists = !error || !isMissingColumnError(error);
+  if (!error) {
+    walletSpentColumnExists = true;
+  } else if (isMissingColumnError(error)) {
+    walletSpentColumnExists = false;
+    console.warn(
+      "[billing] profiles.wallet_spent missing — run migrations/0005_wallet_spent.sql; debits use wallet_credits only",
+    );
+  } else {
+    console.warn("[billing] wallet_spent probe failed:", supabaseErrorMessage(error));
+    walletSpentColumnExists = false;
+  }
   return walletSpentColumnExists;
 }
 
@@ -739,7 +760,7 @@ export const syncWalletCreditsForPhone = async (
         device_id: did,
         phone_number: digits,
         wallet_credits: balance,
-        wallet_spent: walletSpent,
+        ...(walletSpentColumnExists ? { wallet_spent: walletSpent } : {}),
         unlocked_photo_packs: packList,
         updated_at: updatedAt,
       }),
@@ -816,28 +837,26 @@ export const deductChatMessageCredit = async (input: {
 
   await hasWalletSpentColumn();
   if (phoneDigits.length === 10) {
+    const phoneUpdate = withoutWalletSpent({
+      wallet_credits: balanceAfter,
+      updated_at: updatedAt,
+      ...(walletSpentColumnExists ? { wallet_spent: newSpent } : {}),
+    });
     const { error } = await supabase
       .from("profiles")
-      .update(
-        withoutWalletSpent({
-          wallet_spent: newSpent,
-          wallet_credits: balanceAfter,
-          updated_at: updatedAt,
-        }),
-      )
+      .update(phoneUpdate)
       .eq("phone_number", phoneDigits);
     if (error) throw error;
   }
 
+  const deviceUpdate = withoutWalletSpent({
+    wallet_credits: balanceAfter,
+    updated_at: updatedAt,
+    ...(walletSpentColumnExists ? { wallet_spent: newSpent } : {}),
+  });
   const { error: deviceErr } = await supabase
     .from("profiles")
-    .update(
-      withoutWalletSpent({
-        wallet_spent: newSpent,
-        wallet_credits: balanceAfter,
-        updated_at: updatedAt,
-      }),
-    )
+    .update(deviceUpdate)
     .eq("device_id", input.deviceId);
 
   if (deviceErr) throw deviceErr;

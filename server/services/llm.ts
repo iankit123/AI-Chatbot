@@ -8,6 +8,7 @@ import {
   companionDisplayName,
   type RolePromptId,
 } from "../prompts/chatbots";
+import { isSimpleGreeting } from "../lib/chatHistory";
 import { replaceLlmExplicitContentRefusal } from "./llmRefusalReplacement";
 
 type CompanionRoleId =
@@ -92,7 +93,7 @@ export async function generateResponse(
 - NEVER use "tumne" with present tense verbs like "ho" - "tumne" is only for past tense
 - Correct examples: "Tum kaise ho?", "Tum kya kar rahe ho?", "Tum mujhe dekh sakte ho"
 - Wrong examples: "Tumne kaise ho?", "Tumne kya kar rahe ho", "Tumne mujhe dekh sakte ho"
-- User is MALE. While addressing user, always use masculine forms (e.g., "busy the kya", "thak gaye kya", "aaye the kya").
+- User is MALE. While addressing user, always use masculine forms (e.g., "thak gaye kya", "aaye the kya", "kar rahe ho").
 - Never use feminine user-directed forms like "busy thi", "thak gayi", "aayi thi" unless user explicitly says they are female.
 - Do not ask question about yourself like "meri din kaisi guzri"
 
@@ -119,6 +120,14 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
     let firstConversationContext = "";
     if (isFirstConversation) {
       firstConversationContext = `IMPORTANT: This is the FIRST message from the user. You are starting a NEW conversation. Do NOT reference any previous messages or conversations. Do NOT say things like "tum itne baar hi kyun kah rahe ho" (why are you saying hi so many times) or similar phrases that imply repetition. This is the very first interaction.`;
+    }
+
+    let greetingContext = "";
+    if (isSimpleGreeting(userMessage)) {
+      const nameHint = contextOptions.userName?.trim()
+        ? `Use his name "${contextOptions.userName.trim()}" in your reply if it sounds natural.`
+        : "You do not know his name yet — skip using a name.";
+      greetingContext = `GREETING: The user just said hi/hello. Reply warmly like WhatsApp — e.g. "hi, kya kar rahe ho 😊". ${nameHint} Do NOT ask if they were busy, late, or away. Do NOT say "acha tum busy the" or similar.`;
     }
 
     // Check if this is a role-based chat
@@ -161,7 +170,7 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
         companionName: resolvedCompanionName,
         userName: contextOptions.userName,
       });
-      systemPromptContent = `${relationshipPrompt}\n${companionPersonality}\n${firstConversationContext}\n${languageInstruction}`;
+      systemPromptContent = `${relationshipPrompt}\n${companionPersonality}\n${firstConversationContext}\n${greetingContext}\n${languageInstruction}`;
     }
 
     const systemMessage: ChatMessage = {

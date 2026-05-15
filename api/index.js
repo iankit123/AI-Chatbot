@@ -150,6 +150,21 @@ var storage = new MemStorage();
 // server/routes.ts
 import { z } from "zod";
 
+// server/lib/chatHistory.ts
+function isAssistantWelcomeMessage(content) {
+  const normalized = content.trim().toLowerCase();
+  return normalized === "hi" || normalized === "hello" || normalized.startsWith("hi, main") || normalized.startsWith("hello, main");
+}
+function filterWelcomeMessagesFromHistory(history) {
+  return history.filter(
+    (msg) => !(msg.role === "assistant" && isAssistantWelcomeMessage(msg.content))
+  );
+}
+function isSimpleGreeting(text) {
+  const normalized = text.trim().toLowerCase().replace(/[!?.]+$/g, "").replace(/\s+/g, " ");
+  return /^(hi|hello|hey|hii|heyy|hiii|hlw|hallo|namaste|sup|yo)$/.test(normalized);
+}
+
 // server/prompts/chatbots/career.ts
 var CAREER_SYSTEM_PROMPT = `You are a Career and Job Helper assistant providing career guidance.
 
@@ -890,9 +905,6 @@ IMPORTANT IDENTITY RULES:
 * You are FEMALE.
 * User is always MALE.
 * Use feminine phrasing for yourself and masculine phrasing for the user.
-  Examples:
-* Correct: "main so rahi thi", "tum busy the kya?"
-* Wrong: "tum busy thi", "main busy tha"
 
 CONVERSATION STYLE:
 
@@ -906,8 +918,17 @@ CONVERSATION STYLE:
   * "I understand your feelings deeply"
 * Instead, react naturally and specifically to what the user says.
 
+GREETING REPLIES (hi / hello / hey):
+
+* Reply like a friend texting back \u2014 warm and casual, not like they were away or you were waiting.
+* If you know his name, use it naturally (e.g. "hi Ashish, kya kar rahe ho \u{1F60A}").
+* A light "what's up" vibe is perfect; one short line is enough.
+* Do NOT imply he was busy, late, or missing (avoid "busy the kya?", "itne time baad", "kahan gaye the", "acha tum busy the").
+
 GOOD:
 
+* "hi Rahul, kya kar rahe ho \u{1F60A}"
+* "hello! scene kya hai aaj"
 * "acha toh tum secretly overthink karte ho \u{1F604}"
 * "waise ye thoda cute tha honestly"
 * "tumhara schedule sunke mujhe hi thakan ho gayi"
@@ -1087,7 +1108,7 @@ async function generateResponse(userMessage, conversationHistory, language = "hi
 - NEVER use "tumne" with present tense verbs like "ho" - "tumne" is only for past tense
 - Correct examples: "Tum kaise ho?", "Tum kya kar rahe ho?", "Tum mujhe dekh sakte ho"
 - Wrong examples: "Tumne kaise ho?", "Tumne kya kar rahe ho", "Tumne mujhe dekh sakte ho"
-- User is MALE. While addressing user, always use masculine forms (e.g., "busy the kya", "thak gaye kya", "aaye the kya").
+- User is MALE. While addressing user, always use masculine forms (e.g., "thak gaye kya", "aaye the kya", "kar rahe ho").
 - Never use feminine user-directed forms like "busy thi", "thak gayi", "aayi thi" unless user explicitly says they are female.
 - Do not ask question about yourself like "meri din kaisi guzri"
 
@@ -1109,6 +1130,11 @@ Respond as if you are a female chatting with a man \u2014 still follow feminine 
     let firstConversationContext = "";
     if (isFirstConversation) {
       firstConversationContext = `IMPORTANT: This is the FIRST message from the user. You are starting a NEW conversation. Do NOT reference any previous messages or conversations. Do NOT say things like "tum itne baar hi kyun kah rahe ho" (why are you saying hi so many times) or similar phrases that imply repetition. This is the very first interaction.`;
+    }
+    let greetingContext = "";
+    if (isSimpleGreeting(userMessage)) {
+      const nameHint = contextOptions.userName?.trim() ? `Use his name "${contextOptions.userName.trim()}" in your reply if it sounds natural.` : "You do not know his name yet \u2014 skip using a name.";
+      greetingContext = `GREETING: The user just said hi/hello. Reply warmly like WhatsApp \u2014 e.g. "hi, kya kar rahe ho \u{1F60A}". ${nameHint} Do NOT ask if they were busy, late, or away. Do NOT say "acha tum busy the" or similar.`;
     }
     const roleTypes = [
       "doctor",
@@ -1139,6 +1165,7 @@ ${firstConversationContext}${englishUiAppendix}`;
       systemPromptContent = `${relationshipPrompt}
 ${companionPersonality}
 ${firstConversationContext}
+${greetingContext}
 ${languageInstruction}`;
     }
     const systemMessage = {
@@ -1466,9 +1493,19 @@ function resolvePaymentCompanionId(row) {
   if (display) return display;
   return "";
 }
+function supabaseErrorMessage(error) {
+  if (error instanceof Error) return error.message;
+  if (error !== null && typeof error === "object" && "message" in error) {
+    return String(error.message ?? "");
+  }
+  return String(error);
+}
 function isMissingColumnError(error) {
-  const msg = error instanceof Error ? error.message : String(error);
-  const lower = msg.toLowerCase();
+  if (error !== null && typeof error === "object" && "code" in error) {
+    const code = String(error.code);
+    if (code === "42703" || code === "PGRST204") return true;
+  }
+  const lower = supabaseErrorMessage(error).toLowerCase();
   return lower.includes("column") && (lower.includes("does not exist") || lower.includes("could not find"));
 }
 var walletSpentColumnExists;
@@ -1476,7 +1513,17 @@ async function hasWalletSpentColumn() {
   if (walletSpentColumnExists !== void 0) return walletSpentColumnExists;
   const supabase = getSupabaseAdmin2();
   const { error } = await supabase.from("profiles").select("wallet_spent").limit(0);
-  walletSpentColumnExists = !error || !isMissingColumnError(error);
+  if (!error) {
+    walletSpentColumnExists = true;
+  } else if (isMissingColumnError(error)) {
+    walletSpentColumnExists = false;
+    console.warn(
+      "[billing] profiles.wallet_spent missing \u2014 run migrations/0005_wallet_spent.sql; debits use wallet_credits only"
+    );
+  } else {
+    console.warn("[billing] wallet_spent probe failed:", supabaseErrorMessage(error));
+    walletSpentColumnExists = false;
+  }
   return walletSpentColumnExists;
 }
 function withoutWalletSpent(row) {
@@ -1829,7 +1876,7 @@ var syncWalletCreditsForPhone = async (phoneDigits, activeDeviceId) => {
         device_id: did,
         phone_number: digits,
         wallet_credits: balance,
-        wallet_spent: walletSpent,
+        ...walletSpentColumnExists ? { wallet_spent: walletSpent } : {},
         unlocked_photo_packs: packList,
         updated_at: updatedAt
       }),
@@ -1882,22 +1929,20 @@ var deductChatMessageCredit = async (input) => {
   const updatedAt = (/* @__PURE__ */ new Date()).toISOString();
   await hasWalletSpentColumn();
   if (phoneDigits.length === 10) {
-    const { error } = await supabase.from("profiles").update(
-      withoutWalletSpent({
-        wallet_spent: newSpent,
-        wallet_credits: balanceAfter,
-        updated_at: updatedAt
-      })
-    ).eq("phone_number", phoneDigits);
+    const phoneUpdate = withoutWalletSpent({
+      wallet_credits: balanceAfter,
+      updated_at: updatedAt,
+      ...walletSpentColumnExists ? { wallet_spent: newSpent } : {}
+    });
+    const { error } = await supabase.from("profiles").update(phoneUpdate).eq("phone_number", phoneDigits);
     if (error) throw error;
   }
-  const { error: deviceErr } = await supabase.from("profiles").update(
-    withoutWalletSpent({
-      wallet_spent: newSpent,
-      wallet_credits: balanceAfter,
-      updated_at: updatedAt
-    })
-  ).eq("device_id", input.deviceId);
+  const deviceUpdate = withoutWalletSpent({
+    wallet_credits: balanceAfter,
+    updated_at: updatedAt,
+    ...walletSpentColumnExists ? { wallet_spent: newSpent } : {}
+  });
+  const { error: deviceErr } = await supabase.from("profiles").update(deviceUpdate).eq("device_id", input.deviceId);
   if (deviceErr) throw deviceErr;
   console.log(
     `[billing] chat debit device=${input.deviceId} spent=${newSpent} balance=${balanceAfter}`
@@ -1977,6 +2022,53 @@ var logPaymentAttemptRow = async (input) => {
   }
   return { id: pending.id, created_at: pending.created_at };
 };
+
+// shared/razorpayProductCodes.ts
+var PRODUCT_TYPE_TO_CODE = {
+  chat_recharge: "CR",
+  photo_pack: "PP",
+  voice_chat: "VC",
+  premium_photo: "PM",
+  other: "OT"
+};
+var COMPANION_SLOT = {
+  naina: "R01",
+  priya: "R02",
+  ananya: "R03",
+  meera: "R04",
+  riya: "R05",
+  neha: "R06",
+  doctor: "A01",
+  kundli: "A02",
+  parenting: "A03",
+  finance: "A04",
+  career: "A05",
+  krishna: "A06",
+  english: "A07",
+  relationship: "A08"
+};
+function productTypeToCode(productType) {
+  return PRODUCT_TYPE_TO_CODE[productType] ?? "OT";
+}
+function companionIdToSlot(companionId) {
+  if (!companionId?.trim()) return void 0;
+  const key = companionId.trim().toLowerCase();
+  if (COMPANION_SLOT[key]) return COMPANION_SLOT[key];
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = hash * 31 + key.charCodeAt(i) >>> 0;
+  }
+  return `X${(hash % 1e4).toString().padStart(4, "0")}`;
+}
+function buildRazorpayGatewayNotes(input) {
+  const notes = {
+    pc: productTypeToCode(input.productType),
+    pid: input.paymentId
+  };
+  const slot = companionIdToSlot(input.companionId);
+  if (slot) notes.cid = slot;
+  return notes;
+}
 
 // server/services/kundliProfile.ts
 import { createClient as createClient3 } from "@supabase/supabase-js";
@@ -2428,12 +2520,11 @@ async function registerRoutes(app2, opts) {
       });
       const receipt = body.receipt ?? `RCP_${Date.now().toString(36).toUpperCase()}`.slice(0, 40);
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-      const razorpayNotes = {
-        ...body.notes ?? {},
-        payment_id: pending.id,
-        device_id: body.billing.device_id,
-        product_type: body.billing.product_type
-      };
+      const razorpayNotes = buildRazorpayGatewayNotes({
+        paymentId: pending.id,
+        productType: body.billing.product_type,
+        companionId: body.billing.companion_id
+      });
       const upstream = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
         headers: {
@@ -2729,17 +2820,7 @@ async function registerRoutes(app2, opts) {
         if (isFirstUserMessage) {
           console.log("[DEBUG] First user message detected. Filtering welcome messages...");
           console.log("[DEBUG] Companion messages before filter:", companionMessages.map((m) => ({ role: m.role, content: m.content })));
-          filteredMessages = companionMessages.filter((msg) => {
-            if (msg.role === "assistant") {
-              const content = msg.content.trim().toLowerCase();
-              const isWelcomeMessage = content === "hi" || content === "hello" || content.startsWith("hi, main") || content.startsWith("hello, main");
-              if (isWelcomeMessage) {
-                console.log("[DEBUG] Filtering out welcome message:", msg.content);
-              }
-              return !isWelcomeMessage;
-            }
-            return true;
-          });
+          filteredMessages = filterWelcomeMessagesFromHistory(companionMessages);
           console.log("[DEBUG] Companion messages after filter:", filteredMessages.map((m) => ({ role: m.role, content: m.content })));
         }
         const historyFromStorage = filteredMessages.map((msg) => ({
@@ -2747,7 +2828,10 @@ async function registerRoutes(app2, opts) {
           content: msg.content
         }));
         const fromClient = validatedData.conversationHistory;
-        const conversationHistory = fromClient && fromClient.length > 0 ? fromClient.slice(-40) : historyFromStorage;
+        let conversationHistory = fromClient && fromClient.length > 0 ? fromClient.slice(-40) : historyFromStorage;
+        if (isFirstUserMessage && fromClient && fromClient.length > 0) {
+          conversationHistory = filterWelcomeMessagesFromHistory(conversationHistory);
+        }
         console.log("[DEBUG] Conversation history being sent to LLM:", conversationHistory);
         console.log(
           "[DEBUG] History source:",
