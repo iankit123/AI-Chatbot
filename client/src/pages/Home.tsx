@@ -23,6 +23,7 @@ import { LegalFooter } from "@/components/LegalFooter";
 import { HomeRoleCard } from "@/components/HomeRoleCard";
 import { HOME_ROLE_CARDS } from "@/lib/homeRoleCards";
 import { getRoleCardPresentation } from "@/lib/homeRoleCardPresentation";
+import { firstNameOnly } from "@shared/userName";
 
 /** Title-case a full name for display (each word: Ankit Goyal). */
 function capitalizeDisplayName(full: string): string {
@@ -34,12 +35,6 @@ function capitalizeDisplayName(full: string): string {
     .join(" ");
 }
 
-function firstNameOnly(full: string): string {
-  const t = full.trim();
-  if (!t) return "";
-  const word = t.split(/\s+/)[0];
-  return word ? capitalizeDisplayName(word) : "";
-}
 
 function formatPhoneDisplay(raw: string): string {
   const d = raw.replace(/\D/g, "").slice(-10);

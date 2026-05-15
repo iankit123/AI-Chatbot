@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { Message } from "@shared/schema";
+import { firstNameOnly } from "@shared/userName";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getRandomPhotoPrompt } from "@/lib/companionPhotos";
@@ -31,10 +32,68 @@ import {
 } from "@/lib/billing";
 import { getDeviceId, getStoredBillingPhoneDigits } from "@/lib/supabase";
 import { RechargeChatDialog } from "@/components/RechargeChatDialog";
+import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
+import {
+  buildVoiceChatCtaLabel,
+  isCallOrNumberRequest,
+  VOICE_CHAT_CTA_CONTEXT,
+  voiceChatOkReply,
+} from "@/lib/voiceChatCta";
 
 const AFFIRMATIVE_WORDS = [
   "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
 ];
+
+function buildPendingBotMessages(
+  botMessage: Message,
+  userContent: string,
+  companionId: string,
+  botName: string,
+  language: "hindi" | "english",
+  tempId: number,
+): Message[] {
+  if (isRelationshipCompanion(companionId) && isCallOrNumberRequest(userContent)) {
+    const ok: Message = {
+      ...botMessage,
+      content: voiceChatOkReply(language),
+    };
+    const cta: Message = {
+      id: tempId - 2,
+      content: buildVoiceChatCtaLabel(botName, language),
+      role: "assistant",
+      companionId,
+      timestamp: new Date(Date.now() + 1),
+      photoUrl: null,
+      isPremium: null,
+      contextInfo: VOICE_CHAT_CTA_CONTEXT,
+    };
+    return [ok, cta];
+  }
+  return [botMessage];
+}
+
+function mergePendingBotMessages(prev: Message[], toAdd: Message[]): Message[] {
+  if (toAdd.length === 0) return prev;
+  const first = toAdd[0];
+  const messageContent = first.content.trim().toLowerCase();
+  const lastMessage = prev.length > 0 ? prev[prev.length - 1] : null;
+  if (lastMessage?.role === "assistant") {
+    const lastContent = lastMessage.content.trim().toLowerCase();
+    if (
+      (messageContent === "hi" || messageContent === "hello") &&
+      messageContent === lastContent
+    ) {
+      return prev;
+    }
+    if (
+      messageContent === lastContent &&
+      first.contextInfo !== VOICE_CHAT_CTA_CONTEXT
+    ) {
+      return prev;
+    }
+  }
+  return [...prev, ...toAdd];
+}
 
 const PREMIUM_PHOTOS: Record<string, string[]> = {
   naina: ["/images/naina.png"],
@@ -84,6 +143,9 @@ interface ChatContextType {
   setLanguage: (language: "hindi" | "english") => void;
   userProfile: { name: string; age: string } | null;
   setUserProfile: (profile: { name: string; age: string }) => void;
+  chatTab: "text" | "voice" | "photos";
+  setChatTab: (tab: "text" | "voice" | "photos") => void;
+  openVoiceChatTab: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -133,7 +195,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Store bot message to add after typing indicator disappears
-  const botMessageToAddRef = useRef<Message | null>(null);
+  const botMessagesToAddRef = useRef<Message[]>([]);
+  const [chatTab, setChatTab] = useState<"text" | "voice" | "photos">("text");
+  const openVoiceChatTab = useCallback(() => setChatTab("voice"), []);
   
   // Track if welcome message has been added for each companion in this session
   const welcomeMessageAddedRef = useRef<Set<string>>(new Set());
@@ -819,7 +883,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Auto-reset rate limit after 30 seconds
       setTimeout(() => setIsRateLimited(false), 30000);
       setIsTyping(false);
-      botMessageToAddRef.current = null; // Clear any pending message
+      botMessagesToAddRef.current = []; // Clear any pending messages
       console.log("[ChatContext] Rate limited - cleared pending message and stopped typing");
       return;
     }
@@ -871,7 +935,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         language: currentLanguage,
         companionId,
         companionName: botName || undefined,
-        userName: userProfile?.name?.trim() || undefined,
+        userName: firstNameOnly(userProfile?.name) || undefined,
         deviceId: getDeviceId(),
         phoneNumber: getStoredBillingPhoneDigits() || undefined,
         conversationHistory,
@@ -927,7 +991,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           
           console.log("[ChatContext] Rate limit hit, cooling down for 15 seconds");
           setIsTyping(false);
-          botMessageToAddRef.current = null; // Clear any pending message
+          botMessagesToAddRef.current = []; // Clear any pending messages
           return;
         }
         
@@ -989,13 +1053,22 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           }
         }
         
-        // Store bot message to add after typing indicator disappears
-        botMessageToAddRef.current = botMessage;
-        console.log("[ChatContext] Bot message stored in ref, will add after typing completes");
+        const pending = buildPendingBotMessages(
+          botMessage,
+          content,
+          companionId,
+          botName,
+          currentLanguage,
+          tempId,
+        );
+        botMessagesToAddRef.current = pending;
+        console.log("[ChatContext] Bot messages stored in ref, will add after typing completes");
         
-        void saveChatMessage(botMessage).catch((error) => {
-          console.error("[ChatContext] Error saving assistant message:", error);
-        });
+        for (const msg of pending) {
+          void saveChatMessage(msg).catch((error) => {
+            console.error("[ChatContext] Error saving assistant message:", error);
+          });
+        }
       } else {
         console.log("[ChatContext] No bot message found in response:", data);
       }
@@ -1012,7 +1085,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         isPremium: null,
         contextInfo: null
       };
-      botMessageToAddRef.current = errorMsg;
+      botMessagesToAddRef.current = [errorMsg];
       console.log("[ChatContext] Error message stored in ref, will add after typing completes");
       
       void saveChatMessage(errorMsg).catch((saveError) => {
@@ -1024,7 +1097,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       const remainingTime = Math.max(0, MIN_TYPING_DURATION - elapsedTime);
       
       console.log("[ChatContext] Finally block - elapsed:", elapsedTime, "ms, remaining:", remainingTime, "ms");
-      console.log("[ChatContext] Has pending message:", !!botMessageToAddRef.current);
+      console.log("[ChatContext] Has pending messages:", botMessagesToAddRef.current.length);
       
       if (remainingTime > 0) {
         console.log("[ChatContext] Waiting", remainingTime, "ms before hiding typing and showing message");
@@ -1032,36 +1105,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           console.log("[ChatContext] Timeout complete - hiding typing indicator");
           setIsTyping(false);
           
-          // Add the bot message AFTER typing indicator disappears
-          if (botMessageToAddRef.current) {
-            const messageToAdd = botMessageToAddRef.current;
-            botMessageToAddRef.current = null; // Clear ref first
-            
-            // Check for duplicate before adding
-            setMessages((prev) => {
-              const lastMessage = prev.length > 0 ? prev[prev.length - 1] : null;
-              const messageContent = messageToAdd.content.trim().toLowerCase();
-              
-              if (lastMessage && lastMessage.role === 'assistant') {
-                const lastContent = lastMessage.content.trim().toLowerCase();
-                // Block duplicate "Hi" or "Hello" messages
-                if ((messageContent === 'hi' || messageContent === 'hello') && 
-                    (lastContent === 'hi' || lastContent === 'hello') &&
-                    messageContent === lastContent) {
-                  console.log("[ChatContext] Blocking duplicate welcome message:", messageToAdd.content);
-                  return prev; // Don't add duplicate
-                }
-                
-                // Block exact duplicate messages
-                if (messageContent === lastContent && messageToAdd.role === 'assistant') {
-                  console.log("[ChatContext] Blocking duplicate message:", messageToAdd.content);
-                  return prev; // Don't add duplicate
-                }
-              }
-              
-              console.log("[ChatContext] Adding bot message NOW:", messageToAdd.content.substring(0, 50));
-              return [...prev, messageToAdd]; // Then add the captured message
-            });
+          // Add bot messages AFTER typing indicator disappears
+          if (botMessagesToAddRef.current.length > 0) {
+            const messagesToAdd = botMessagesToAddRef.current;
+            botMessagesToAddRef.current = [];
+            setMessages((prev) => mergePendingBotMessages(prev, messagesToAdd));
           } else {
             console.log("[ChatContext] No message to add");
           }
@@ -1070,36 +1118,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         console.log("[ChatContext] No wait needed - hiding typing and showing message immediately");
         setIsTyping(false);
         
-        // Add the bot message immediately if typing time has already passed
-        if (botMessageToAddRef.current) {
-          const messageToAdd = botMessageToAddRef.current;
-          botMessageToAddRef.current = null; // Clear ref first
-          
-          // Check for duplicate before adding
-          setMessages((prev) => {
-            const lastMessage = prev.length > 0 ? prev[prev.length - 1] : null;
-            const messageContent = messageToAdd.content.trim().toLowerCase();
-            
-            if (lastMessage && lastMessage.role === 'assistant') {
-              const lastContent = lastMessage.content.trim().toLowerCase();
-              // Block duplicate "Hi" or "Hello" messages
-              if ((messageContent === 'hi' || messageContent === 'hello') && 
-                  (lastContent === 'hi' || lastContent === 'hello') &&
-                  messageContent === lastContent) {
-                console.log("[ChatContext] Blocking duplicate welcome message:", messageToAdd.content);
-                return prev; // Don't add duplicate
-              }
-              
-              // Block exact duplicate messages
-              if (messageContent === lastContent && messageToAdd.role === 'assistant') {
-                console.log("[ChatContext] Blocking duplicate message:", messageToAdd.content);
-                return prev; // Don't add duplicate
-              }
-            }
-            
-            console.log("[ChatContext] Adding bot message NOW (immediate):", messageToAdd.content.substring(0, 50));
-            return [...prev, messageToAdd]; // Then add the captured message
-          });
+        if (botMessagesToAddRef.current.length > 0) {
+          const messagesToAdd = botMessagesToAddRef.current;
+          botMessagesToAddRef.current = [];
+          setMessages((prev) => mergePendingBotMessages(prev, messagesToAdd));
         } else {
           console.log("[ChatContext] No message to add");
         }
@@ -1258,6 +1280,9 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         setLanguage,
         userProfile,
         setUserProfile,
+        chatTab,
+        setChatTab,
+        openVoiceChatTab,
       }}
     >
       <RechargeChatDialog

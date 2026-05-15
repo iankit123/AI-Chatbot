@@ -8,8 +8,11 @@ import {
   companionDisplayName,
   type RolePromptId,
 } from "../prompts/chatbots";
-import { isSimpleGreeting } from "../lib/chatHistory";
+import { firstNameOnly } from "@shared/userName";
+import { isCallOrNumberRequest } from "../lib/callNumberRequest";
+import { isAskingWhatCompanionIsDoing, isSimpleGreeting } from "../lib/chatHistory";
 import { replaceLlmExplicitContentRefusal } from "./llmRefusalReplacement";
+import { sanitizeRelationshipReply } from "./llmRelationshipSanitizer";
 
 type CompanionRoleId =
   | "doctor"
@@ -75,6 +78,11 @@ export async function generateResponse(
   contextOptions: ContextOptions = {},
 ): Promise<string> {
   try {
+    const userFirstName = contextOptions.userName
+      ? firstNameOnly(contextOptions.userName)
+      : undefined;
+    const llmContext = { ...contextOptions, userName: userFirstName };
+
     const openRouterApiKey = getOpenRouterApiKey();
     if (!openRouterApiKey) {
       throw new Error("OPENROUTER_API_KEY is missing or empty");
@@ -96,6 +104,7 @@ export async function generateResponse(
 - User is MALE. While addressing user, always use masculine forms (e.g., "thak gaye kya", "aaye the kya", "kar rahe ho").
 - Never use feminine user-directed forms like "busy thi", "thak gayi", "aayi thi" unless user explicitly says they are female.
 - Do not ask question about yourself like "meri din kaisi guzri"
+- Never reference the user's schedule, routine, or plans unless they mentioned them in this chat
 
 RESPONSE LENGTH: Keep responses SHORT and CONCISE. Prefer 1-3 short sentences (about 12-45 words). Never send incomplete fragments.
 
@@ -124,10 +133,29 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
 
     let greetingContext = "";
     if (isSimpleGreeting(userMessage)) {
-      const nameHint = contextOptions.userName?.trim()
-        ? `Use his name "${contextOptions.userName.trim()}" in your reply if it sounds natural.`
+      const nameHint = userFirstName
+        ? `Use his first name "${userFirstName}" only (never full name) in your reply if it sounds natural.`
         : "You do not know his name yet — skip using a name.";
       greetingContext = `GREETING: The user just said hi/hello. Reply warmly like WhatsApp — e.g. "hi, kya kar rahe ho 😊". ${nameHint} Do NOT ask if they were busy, late, or away. Do NOT say "acha tum busy the" or similar.`;
+    }
+
+    let activityQuestionContext = "";
+    if (isAskingWhatCompanionIsDoing(userMessage)) {
+      activityQuestionContext =
+        'USER ASKED WHAT YOU ARE DOING: Say what you are doing right now in 1-2 short lines (e.g. "bas thodi shopping karke aayi hun 😊"). ' +
+        'Optional: ask "tum kya kar rahe ho?" — NEVER "tum busy the kya?" or imply they were away.';
+    }
+
+    const priorUserTurns = conversationHistory.filter((m) => m.role === "user").length;
+    const earlyChatContext =
+      priorUserTurns <= 2
+        ? "EARLY CHAT: Do not ask if the user was busy, late, away, or missing. No 'busy the kya', 'kahan gaye the', or 'itne time baad'."
+        : "";
+
+    let callNumberContext = "";
+    if (isCallOrNumberRequest(userMessage)) {
+      callNumberContext =
+        'USER ASKED FOR CALL/PHONE/NUMBER: Reply with ONLY "Ok.. 😊" (nothing else — no phone refusal paragraph). The app will show a voice-chat button next.';
     }
 
     // Check if this is a role-based chat
@@ -141,13 +169,13 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
       "english",
     ];
     const isRoleBased =
-      contextOptions.companionId && roleTypes.includes(contextOptions.companionId as CompanionRoleId);
+      llmContext.companionId && roleTypes.includes(llmContext.companionId as CompanionRoleId);
     
     let systemPromptContent = "";
     
-    if (isRoleBased && contextOptions.companionId !== 'relationship') {
+    if (isRoleBased && llmContext.companionId !== 'relationship') {
       // Use role-specific prompt
-      const roleId = contextOptions.companionId as RolePromptId;
+      const roleId = llmContext.companionId as RolePromptId;
       const rolePrompt = ROLE_SYSTEM_PROMPTS[roleId];
       const englishUiAppendix =
         roleId === "english"
@@ -155,22 +183,22 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
             ? ENGLISH_UI_LANGUAGE_APPENDIX_HINDI
             : ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH
           : "";
-      const roleUserContext = contextOptions.userName
-        ? `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.`
+      const roleUserContext = userFirstName
+        ? `The user's first name is ${userFirstName}. Address them by first name only, occasionally.`
         : "";
       systemPromptContent = `${rolePrompt}\n${roleUserContext}\n${firstConversationContext}${englishUiAppendix}`;
     } else {
       const companionPersonality =
-        COMPANION_PERSONALITY_PROMPTS[contextOptions.companionId || ""] ||
+        COMPANION_PERSONALITY_PROMPTS[llmContext.companionId || ""] ||
         COMPANION_PERSONALITY_PROMPTS.default;
       const resolvedCompanionName =
-        contextOptions.companionName?.trim() ||
-        companionDisplayName(contextOptions.companionId);
+        llmContext.companionName?.trim() ||
+        companionDisplayName(llmContext.companionId);
       const relationshipPrompt = buildRelationshipSystemPrompt({
         companionName: resolvedCompanionName,
-        userName: contextOptions.userName,
+        userName: userFirstName,
       });
-      systemPromptContent = `${relationshipPrompt}\n${companionPersonality}\n${firstConversationContext}\n${greetingContext}\n${languageInstruction}`;
+      systemPromptContent = `${relationshipPrompt}\n${companionPersonality}\n${firstConversationContext}\n${greetingContext}\n${activityQuestionContext}\n${earlyChatContext}\n${callNumberContext}\n${languageInstruction}`;
     }
 
     const systemMessage: ChatMessage = {
@@ -194,10 +222,23 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
         }
       : null;
 
+    const isRelationshipChat = !isRoleBased || llmContext.companionId === "relationship";
+    const contextGroundingGuard: ChatMessage | null = isRelationshipChat
+      ? {
+          role: "system",
+          content:
+            "Before replying: check the chat history. Only reference what the user actually said. " +
+            "Never mention their schedule, office life, stress, or plans unless they said it. " +
+            "Answer the exact question they asked — if they ask what you do, describe your work/life briefly; do not talk about their routine. " +
+            'NEVER say "tum busy the kya", "busy the kya", "kahan gaye the", or "itne time baad".',
+        }
+      : null;
+
     // Prepare the conversation history with system message and anti-repeat guard
     const messages: ChatMessage[] = [
       systemMessage,
       ...(antiRepeatGuard ? [antiRepeatGuard] : []),
+      ...(contextGroundingGuard ? [contextGroundingGuard] : []),
       ...conversationHistory,
       { role: "user", content: userMessage },
     ];
@@ -287,7 +328,13 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
         }
 
         // Extract and return the generated text (swap generic explicit refusals for in-character reply)
-        return replaceLlmExplicitContentRefusal(responseContent);
+        let raw = replaceLlmExplicitContentRefusal(responseContent);
+        if (isRelationshipChat && isCallOrNumberRequest(userMessage)) {
+          raw = "Ok.. 😊";
+        } else if (isRelationshipChat) {
+          raw = sanitizeRelationshipReply(raw);
+        }
+        return raw;
       } catch (error) {
         // If it's a rate limit error, continue to next model
         if (error instanceof Error && error.message.includes("429")) {

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { z } from "zod";
 import { filterWelcomeMessagesFromHistory } from "./lib/chatHistory";
+import { firstNameOnly } from "@shared/userName";
 import { generateResponse } from "./services/llm";
 import express from "express";
 import path from "path";
@@ -683,6 +684,7 @@ export async function registerRoutes(
           console.error('Error parsing user profile from cookie:', e);
         }
       }
+      userName = firstNameOnly(userName);
       const companionName = validatedData.companionName?.trim() || '';
       // Check for premium photo offer BEFORE attempting LLM call
       const messageCount = validatedData.messageCount || 0;

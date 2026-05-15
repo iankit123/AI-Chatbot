@@ -9,6 +9,8 @@ import {
   KUNDLI_CONTEXT_AUTOMATED,
   KUNDLI_CONTEXT_DETAILS,
 } from "@/lib/kundliMessageKinds";
+import { VOICE_CHAT_CTA_CONTEXT } from "@/lib/voiceChatCta";
+import { VoiceChatCtaCard } from "@/components/chat/VoiceChatCtaCard";
 
 interface ChatMessageProps {
   message: Message;
@@ -38,7 +40,7 @@ function WaSendMeta({ timestamp }: { timestamp: Date }) {
 
 export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   const isBot = message.role === "assistant";
-  const { botName } = useChat();
+  const { botName, openVoiceChatTab } = useChat();
   const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
 
   useEffect(() => {
@@ -128,6 +130,26 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
       : message.contextInfo === KUNDLI_CONTEXT_DETAILS
         ? "whitespace-pre-wrap text-[15px] leading-snug text-neutral-900"
         : "whitespace-pre-wrap text-[15px] leading-snug text-neutral-900";
+
+  if (isBot && message.contextInfo === VOICE_CHAT_CTA_CONTEXT) {
+    return (
+      <div className="mb-2 flex items-end justify-start gap-2">
+        {currentRole ? (
+          <RoleAvatar role={currentRole} className="h-8 w-8 shrink-0" />
+        ) : (
+          <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white">
+            <img src={botAvatar} alt="" className="h-full w-full object-cover" />
+          </div>
+        )}
+        <div className="min-w-0 max-w-[min(85%,20rem)] flex-1 pt-0.5">
+          <VoiceChatCtaCard label={message.content} onClick={openVoiceChatTab} />
+          <span className="mt-1 block pl-1 text-[11px] text-neutral-500 tabular-nums">
+            {formatTime(message.timestamp)}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   if (isBot) {
     return (

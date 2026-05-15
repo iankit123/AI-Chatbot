@@ -164,6 +164,19 @@ function isSimpleGreeting(text) {
   const normalized = text.trim().toLowerCase().replace(/[!?.]+$/g, "").replace(/\s+/g, " ");
   return /^(hi|hello|hey|hii|heyy|hiii|hlw|hallo|namaste|sup|yo)$/.test(normalized);
 }
+function isAskingWhatCompanionIsDoing(text) {
+  const n = text.trim().toLowerCase();
+  return /kya\s+kar\s+rahi\s+ho/.test(n) || /kya\s+kar\s+rahe\s+ho/.test(n) || /kya\s+kar\s+rahi\s+hu/.test(n) || /what\s+are\s+you\s+doing/.test(n) || /what\s+you\s+doing/.test(n) || /tum\s+kya\s+kar\s+rahi/.test(n);
+}
+
+// shared/userName.ts
+function firstNameOnly(full) {
+  const trimmed = (full ?? "").trim();
+  if (!trimmed) return "";
+  const word = trimmed.split(/\s+/)[0];
+  if (!word) return "";
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
 
 // server/prompts/chatbots/career.ts
 var CAREER_SYSTEM_PROMPT = `You are a Career and Job Helper assistant providing career guidance.
@@ -921,22 +934,42 @@ CONVERSATION STYLE:
 GREETING REPLIES (hi / hello / hey):
 
 * Reply like a friend texting back \u2014 warm and casual, not like they were away or you were waiting.
-* If you know his name, use it naturally (e.g. "hi Ashish, kya kar rahe ho \u{1F60A}").
+* If you know his first name, use only that \u2014 never full name (e.g. "hi Ashish, kya kar rahe ho \u{1F60A}", NOT "hi Ashish Kumar").
 * A light "what's up" vibe is perfect; one short line is enough.
 * Do NOT imply he was busy, late, or missing (avoid "busy the kya?", "itne time baad", "kahan gaye the", "acha tum busy the").
 
-GOOD:
+BANNED PHRASES (never write these \u2014 they sound unnatural in fresh chat):
+
+* "tum busy the kya"
+* "busy the kya"
+* "kahan gaye the"
+* "itne time baad"
+* "tum kahan the"
+
+WHEN THEY ASK WHAT YOU ARE DOING (kya kar rahi ho / what are you doing):
+
+* Answer about yourself in 1-2 short lines only (e.g. "bas thodi shopping karke aayi hun \u{1F60A}").
+* You may ask back "tum kya kar rahe ho?" \u2014 never "tum busy the kya?" or anything that sounds like they were gone.
+
+CONTEXT GROUNDING (CRITICAL):
+
+* Reply ONLY to what the user actually said in this chat \u2014 read the latest message and recent history.
+* NEVER invent or assume facts about them: schedule, office routine, stress, plans, where they went, how busy they are, etc.
+* Do NOT reuse canned lines from examples unless the user brought up that topic first.
+* If they ask about YOU ("tum kya karti ho", "what do you do"), answer about yourself in 1-2 short lines \u2014 do not pivot to their schedule or life.
+
+GOOD (only when the topic was already in chat):
 
 * "hi Rahul, kya kar rahe ho \u{1F60A}"
 * "hello! scene kya hai aaj"
-* "acha toh tum secretly overthink karte ho \u{1F604}"
 * "waise ye thoda cute tha honestly"
-* "tumhara schedule sunke mujhe hi thakan ho gayi"
 
 BAD:
 
 * "I appreciate your honesty"
 * "I am glad you shared this with me"
+* User never mentioned schedule \u2192 "tumhara schedule sunke mujhe thakan ho gayi"
+* User asked what you do \u2192 deflecting to their routine instead of answering
 
 TEXTING BEHAVIOR:
 
@@ -1007,7 +1040,7 @@ BOUNDARIES:
 
 OUTPUT QUALITY:
 
-* Every response must directly relate to the latest message.
+* Every response must directly answer or react to the latest message \u2014 nothing random or off-topic.
 * Never generate broken Hindi or unnatural phrases.
 * Avoid repetitive compliments.
 * Avoid generic validation.
@@ -1015,7 +1048,7 @@ OUTPUT QUALITY:
 `.trim();
 function buildIdentityBlock(names) {
   const companion = names.companionName?.trim();
-  const user = names.userName?.trim();
+  const user = names.userName ? firstNameOnly(names.userName) : "";
   const lines = ["IDENTITY (use throughout the conversation):"];
   if (companion) {
     lines.push(`- Your name is ${companion}. Stay in character as ${companion} at all times.`);
@@ -1024,7 +1057,7 @@ function buildIdentityBlock(names) {
   }
   if (user) {
     lines.push(
-      `- The user is a man named ${user}. Address him as ${user} naturally from time to time (not in every sentence).`
+      `- The user is a man; his first name is ${user}. Address him by first name only (never his full name) from time to time (not in every sentence).`
     );
   } else {
     lines.push(
@@ -1073,6 +1106,13 @@ var ROLE_SYSTEM_PROMPTS = {
   english: ENGLISH_SYSTEM_PROMPT
 };
 
+// server/lib/callNumberRequest.ts
+function isCallOrNumberRequest(text) {
+  const n = text.trim().toLowerCase();
+  if (!n) return false;
+  return /\b(call|phone|number|mobile|whatsapp)\b/.test(n) || /\bno\.?\b/.test(n) || /\bnumber\s*do\b/.test(n) || /\bapna\s*number\b/.test(n) || /\bcall\s*kar/.test(n) || /\bvideo\s*call\b/.test(n) || /नंबर/.test(n) || /कॉल/.test(n) || /फ़ोन|फोन/.test(n);
+}
+
 // server/services/llmRefusalReplacement.ts
 var EXPLICIT_CONTENT_REFUSAL_REPLY = "Mai aisi baate abhi nahi karna chahti. Phele thodi der baat karo, phir hum yaha tak aaenge. hihi";
 function replaceLlmExplicitContentRefusal(content) {
@@ -1089,11 +1129,40 @@ function replaceLlmExplicitContentRefusal(content) {
   return content;
 }
 
+// server/services/llmRelationshipSanitizer.ts
+var BANNED_CLAUSE_PATTERNS = [
+  /\s*,?\s*tum\s+busy\s+the(?:\s+kya)?\s*\??/gi,
+  /\s*,?\s*busy\s+the\s+kya\s*\??/gi,
+  /\s*,?\s*acha\s*,?\s*tum\s+busy\s+the\s*\??/gi,
+  /\s*,?\s*kahan\s+gaye\s+the(?:\s+kya)?\s*\??/gi,
+  /\s*,?\s*itne\s+der\s+se\s+kahan\s+the\s*\??/gi,
+  /\s*,?\s*itne\s+time\s+baad\s*/gi,
+  /\s*,?\s*tum\s+kahan\s+the\s*\??/gi
+];
+function tidySanitizedText(text) {
+  return text.replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").replace(/,\s*,+/g, ",").replace(/^[\s,.-]+|[\s,.-]+$/g, "").trim();
+}
+function sanitizeRelationshipReply(content) {
+  if (content == null || typeof content !== "string") {
+    return "";
+  }
+  let out = content.trim();
+  if (!out) return out;
+  for (const pattern of BANNED_CLAUSE_PATTERNS) {
+    out = out.replace(pattern, "");
+  }
+  out = tidySanitizedText(out);
+  if (out) return out;
+  return "bas yahi, tum batao scene kya hai aaj \u{1F60A}";
+}
+
 // server/services/llm.ts
 var OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 var getOpenRouterApiKey = () => process.env.OPENROUTER_API_KEY?.trim();
 async function generateResponse(userMessage, conversationHistory, language = "hindi", contextOptions = {}) {
   try {
+    const userFirstName = contextOptions.userName ? firstNameOnly(contextOptions.userName) : void 0;
+    const llmContext = { ...contextOptions, userName: userFirstName };
     const openRouterApiKey = getOpenRouterApiKey();
     if (!openRouterApiKey) {
       throw new Error("OPENROUTER_API_KEY is missing or empty");
@@ -1111,6 +1180,7 @@ async function generateResponse(userMessage, conversationHistory, language = "hi
 - User is MALE. While addressing user, always use masculine forms (e.g., "thak gaye kya", "aaye the kya", "kar rahe ho").
 - Never use feminine user-directed forms like "busy thi", "thak gayi", "aayi thi" unless user explicitly says they are female.
 - Do not ask question about yourself like "meri din kaisi guzri"
+- Never reference the user's schedule, routine, or plans unless they mentioned them in this chat
 
 RESPONSE LENGTH: Keep responses SHORT and CONCISE. Prefer 1-3 short sentences (about 12-45 words). Never send incomplete fragments.
 
@@ -1133,8 +1203,18 @@ Respond as if you are a female chatting with a man \u2014 still follow feminine 
     }
     let greetingContext = "";
     if (isSimpleGreeting(userMessage)) {
-      const nameHint = contextOptions.userName?.trim() ? `Use his name "${contextOptions.userName.trim()}" in your reply if it sounds natural.` : "You do not know his name yet \u2014 skip using a name.";
+      const nameHint = userFirstName ? `Use his first name "${userFirstName}" only (never full name) in your reply if it sounds natural.` : "You do not know his name yet \u2014 skip using a name.";
       greetingContext = `GREETING: The user just said hi/hello. Reply warmly like WhatsApp \u2014 e.g. "hi, kya kar rahe ho \u{1F60A}". ${nameHint} Do NOT ask if they were busy, late, or away. Do NOT say "acha tum busy the" or similar.`;
+    }
+    let activityQuestionContext = "";
+    if (isAskingWhatCompanionIsDoing(userMessage)) {
+      activityQuestionContext = 'USER ASKED WHAT YOU ARE DOING: Say what you are doing right now in 1-2 short lines (e.g. "bas thodi shopping karke aayi hun \u{1F60A}"). Optional: ask "tum kya kar rahe ho?" \u2014 NEVER "tum busy the kya?" or imply they were away.';
+    }
+    const priorUserTurns = conversationHistory.filter((m) => m.role === "user").length;
+    const earlyChatContext = priorUserTurns <= 2 ? "EARLY CHAT: Do not ask if the user was busy, late, away, or missing. No 'busy the kya', 'kahan gaye the', or 'itne time baad'." : "";
+    let callNumberContext = "";
+    if (isCallOrNumberRequest(userMessage)) {
+      callNumberContext = 'USER ASKED FOR CALL/PHONE/NUMBER: Reply with ONLY "Ok.. \u{1F60A}" (nothing else \u2014 no phone refusal paragraph). The app will show a voice-chat button next.';
     }
     const roleTypes = [
       "doctor",
@@ -1145,27 +1225,30 @@ Respond as if you are a female chatting with a man \u2014 still follow feminine 
       "krishna",
       "english"
     ];
-    const isRoleBased = contextOptions.companionId && roleTypes.includes(contextOptions.companionId);
+    const isRoleBased = llmContext.companionId && roleTypes.includes(llmContext.companionId);
     let systemPromptContent = "";
-    if (isRoleBased && contextOptions.companionId !== "relationship") {
-      const roleId = contextOptions.companionId;
+    if (isRoleBased && llmContext.companionId !== "relationship") {
+      const roleId = llmContext.companionId;
       const rolePrompt = ROLE_SYSTEM_PROMPTS[roleId];
       const englishUiAppendix = roleId === "english" ? language === "hindi" ? ENGLISH_UI_LANGUAGE_APPENDIX_HINDI : ENGLISH_UI_LANGUAGE_APPENDIX_ENGLISH : "";
-      const roleUserContext = contextOptions.userName ? `The user's name is ${contextOptions.userName}. Address them directly by their name occasionally.` : "";
+      const roleUserContext = userFirstName ? `The user's first name is ${userFirstName}. Address them by first name only, occasionally.` : "";
       systemPromptContent = `${rolePrompt}
 ${roleUserContext}
 ${firstConversationContext}${englishUiAppendix}`;
     } else {
-      const companionPersonality = COMPANION_PERSONALITY_PROMPTS[contextOptions.companionId || ""] || COMPANION_PERSONALITY_PROMPTS.default;
-      const resolvedCompanionName = contextOptions.companionName?.trim() || companionDisplayName(contextOptions.companionId);
+      const companionPersonality = COMPANION_PERSONALITY_PROMPTS[llmContext.companionId || ""] || COMPANION_PERSONALITY_PROMPTS.default;
+      const resolvedCompanionName = llmContext.companionName?.trim() || companionDisplayName(llmContext.companionId);
       const relationshipPrompt = buildRelationshipSystemPrompt({
         companionName: resolvedCompanionName,
-        userName: contextOptions.userName
+        userName: userFirstName
       });
       systemPromptContent = `${relationshipPrompt}
 ${companionPersonality}
 ${firstConversationContext}
 ${greetingContext}
+${activityQuestionContext}
+${earlyChatContext}
+${callNumberContext}
 ${languageInstruction}`;
     }
     const systemMessage = {
@@ -1179,9 +1262,15 @@ ${languageInstruction}`;
 ${recentAssistantUtterances}
 Do NOT produce a response that is semantically similar to the above lines. Start with a fresh angle; no repeated template like "Main Priya hun... Tum kaise ho?"`
     } : null;
+    const isRelationshipChat = !isRoleBased || llmContext.companionId === "relationship";
+    const contextGroundingGuard = isRelationshipChat ? {
+      role: "system",
+      content: 'Before replying: check the chat history. Only reference what the user actually said. Never mention their schedule, office life, stress, or plans unless they said it. Answer the exact question they asked \u2014 if they ask what you do, describe your work/life briefly; do not talk about their routine. NEVER say "tum busy the kya", "busy the kya", "kahan gaye the", or "itne time baad".'
+    } : null;
     const messages = [
       systemMessage,
       ...antiRepeatGuard ? [antiRepeatGuard] : [],
+      ...contextGroundingGuard ? [contextGroundingGuard] : [],
       ...conversationHistory,
       { role: "user", content: userMessage }
     ];
@@ -1245,7 +1334,13 @@ Do NOT produce a response that is semantically similar to the above lines. Start
         if (finishReason === "length") {
           console.warn(`[LLM] WARNING: Response was truncated due to max_tokens limit (${maxTokens}). Consider increasing max_tokens.`);
         }
-        return replaceLlmExplicitContentRefusal(responseContent);
+        let raw = replaceLlmExplicitContentRefusal(responseContent);
+        if (isRelationshipChat && isCallOrNumberRequest(userMessage)) {
+          raw = "Ok.. \u{1F60A}";
+        } else if (isRelationshipChat) {
+          raw = sanitizeRelationshipReply(raw);
+        }
+        return raw;
       } catch (error) {
         if (error instanceof Error && error.message.includes("429")) {
           console.warn(`[LLM] Rate limit error for model ${model}, trying fallback...`);
@@ -2733,6 +2828,7 @@ async function registerRoutes(app2, opts) {
           console.error("Error parsing user profile from cookie:", e);
         }
       }
+      userName = firstNameOnly(userName);
       const companionName = validatedData.companionName?.trim() || "";
       const messageCount = validatedData.messageCount || 0;
       const isAuthenticated = validatedData.isAuthenticated || false;

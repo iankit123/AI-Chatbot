@@ -1,4 +1,5 @@
 import type { Handler } from "@netlify/functions";
+import { firstNameOnly } from "@shared/userName";
 import { generateResponse } from "../../server/services/llm";
 import { deductChatMessageCredit } from "../../server/services/supabaseBilling";
 import { z } from "zod";
@@ -86,7 +87,7 @@ const handler: Handler = async (event) => {
       {
         companionId: validatedData.companionId,
         companionName: validatedData.companionName,
-        userName: validatedData.userName,
+        userName: firstNameOnly(validatedData.userName) || undefined,
       },
     );
 

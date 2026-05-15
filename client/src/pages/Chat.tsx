@@ -24,6 +24,8 @@ export default function Chat() {
     showPaymentDialog,
     setShowPaymentDialog,
     currentPhoto,
+    chatTab,
+    setChatTab,
   } = useChat();
 
   const showPhotosTab = isRelationshipCompanion(companionId);
@@ -38,7 +40,11 @@ export default function Chat() {
       <Header />
       <DevToolsResetButton />
       
-      <Tabs defaultValue="text" className="flex min-h-0 flex-1 basis-0 flex-col">
+      <Tabs
+        value={chatTab}
+        onValueChange={(v) => setChatTab(v as "text" | "voice" | "photos")}
+        className="flex min-h-0 flex-1 basis-0 flex-col"
+      >
         <TabsList
           className={`grid h-12 w-full shrink-0 border-b bg-white p-0 ${showPhotosTab ? "grid-cols-3" : "grid-cols-2"}`}
         >

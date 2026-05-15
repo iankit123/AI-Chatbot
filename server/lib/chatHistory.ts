@@ -25,3 +25,16 @@ export function isSimpleGreeting(text: string): boolean {
     .replace(/\s+/g, " ");
   return /^(hi|hello|hey|hii|heyy|hiii|hlw|hallo|namaste|sup|yo)$/.test(normalized);
 }
+
+/** User is asking what the companion is doing right now. */
+export function isAskingWhatCompanionIsDoing(text: string): boolean {
+  const n = text.trim().toLowerCase();
+  return (
+    /kya\s+kar\s+rahi\s+ho/.test(n) ||
+    /kya\s+kar\s+rahe\s+ho/.test(n) ||
+    /kya\s+kar\s+rahi\s+hu/.test(n) ||
+    /what\s+are\s+you\s+doing/.test(n) ||
+    /what\s+you\s+doing/.test(n) ||
+    /tum\s+kya\s+kar\s+rahi/.test(n)
+  );
+}
