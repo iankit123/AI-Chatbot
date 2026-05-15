@@ -127,7 +127,12 @@ export async function runRazorpayCheckout(
   }
 
   return new Promise<RazorpayCheckoutResult>((resolve, reject) => {
-    const instance = new window.Razorpay({
+    const RazorpayCtor = window.Razorpay;
+    if (!RazorpayCtor) {
+      reject(new Error("Razorpay checkout script is not loaded"));
+      return;
+    }
+    const instance = new RazorpayCtor({
       key: order.key_id,
       amount: order.amount_paise,
       currency: order.currency || "INR",

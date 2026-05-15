@@ -1,5 +1,7 @@
 import { getDeviceId, getStoredBillingPhoneDigits } from "@/lib/supabase";
 import { normalizeBillingWalletPayload } from "@/lib/normalizeWallet";
+import { applyServerPhotoPackUnlocks } from "@/lib/photoPackUnlock";
+import { applyServerVoicePackUnlocks } from "@/lib/voicePackUnlock";
 import type { WalletDisplaySummary } from "@shared/walletDisplay";
 
 export type PaymentProductType =
@@ -71,14 +73,10 @@ export async function fetchBillingWallet(
     const data = normalizeBillingWalletPayload(raw);
     syncWalletCreditsToLocal(data.wallet_credits);
     if (data.photo_packs?.length) {
-      const { applyServerPhotoPackUnlocks } = await import("@/lib/photoPackUnlock");
       applyServerPhotoPackUnlocks(data.photo_packs.map((p) => p.companion_id));
     }
     if (data.voice_packs?.length) {
-      const { applyServerVoicePackUnlocks } = await import("@/lib/voicePackUnlock");
-      applyServerVoicePackUnlocks(
-        data.voice_packs.map((p) => p.companion_id),
-      );
+      applyServerVoicePackUnlocks(data.voice_packs.map((p) => p.companion_id));
     }
     return data;
   } catch (err) {

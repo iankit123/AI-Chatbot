@@ -61,7 +61,7 @@ export function getKundliBirthStorageKeys(): string[] {
   }
 
   keys.push(`${STORAGE_NS}:anon:${getAnonymousUserId()}`);
-  return [...new Set(keys)];
+  return Array.from(new Set(keys));
 }
 
 export function loadStoredKundliBirth(): StoredKundliBirthDetails | null {
