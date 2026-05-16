@@ -39,6 +39,14 @@ import {
   VOICE_CHAT_CTA_CONTEXT,
   voiceChatOkReply,
 } from "@/lib/voiceChatCta";
+import {
+  buildPhotoGalleryCtaLabel,
+  markPhotoGalleryCtaShown,
+  PHOTO_GALLERY_CTA_CONTEXT,
+  photoGalleryIntroReply,
+  shouldOfferPhotoGalleryCta,
+  clearPhotoGalleryCtaShown,
+} from "@/lib/photoGalleryCta";
 
 const AFFIRMATIVE_WORDS = [
   "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
@@ -51,6 +59,7 @@ function buildPendingBotMessages(
   botName: string,
   language: "hindi" | "english",
   tempId: number,
+  messageCountBeforeSend: number,
 ): Message[] {
   if (isRelationshipCompanion(companionId) && isCallOrNumberRequest(userContent)) {
     const ok: Message = {
@@ -69,6 +78,32 @@ function buildPendingBotMessages(
     };
     return [ok, cta];
   }
+
+  if (shouldOfferPhotoGalleryCta(companionId, messageCountBeforeSend)) {
+    markPhotoGalleryCtaShown(companionId);
+    const intro: Message = {
+      id: tempId - 3,
+      content: photoGalleryIntroReply(language),
+      role: "assistant",
+      companionId,
+      timestamp: new Date(Date.now() + 1),
+      photoUrl: null,
+      isPremium: null,
+      contextInfo: null,
+    };
+    const cta: Message = {
+      id: tempId - 2,
+      content: buildPhotoGalleryCtaLabel(botName),
+      role: "assistant",
+      companionId,
+      timestamp: new Date(Date.now() + 2),
+      photoUrl: null,
+      isPremium: null,
+      contextInfo: PHOTO_GALLERY_CTA_CONTEXT,
+    };
+    return [botMessage, intro, cta];
+  }
+
   return [botMessage];
 }
 
@@ -87,7 +122,8 @@ function mergePendingBotMessages(prev: Message[], toAdd: Message[]): Message[] {
     }
     if (
       messageContent === lastContent &&
-      first.contextInfo !== VOICE_CHAT_CTA_CONTEXT
+      first.contextInfo !== VOICE_CHAT_CTA_CONTEXT &&
+      first.contextInfo !== PHOTO_GALLERY_CTA_CONTEXT
     ) {
       return prev;
     }
@@ -153,6 +189,7 @@ interface ChatContextType {
   chatTab: "text" | "voice" | "photos";
   setChatTab: (tab: "text" | "voice" | "photos") => void;
   openVoiceChatTab: () => void;
+  openPhotosTab: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -205,6 +242,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const botMessagesToAddRef = useRef<Message[]>([]);
   const [chatTab, setChatTab] = useState<"text" | "voice" | "photos">("text");
   const openVoiceChatTab = useCallback(() => setChatTab("voice"), []);
+  const openPhotosTab = useCallback(() => setChatTab("photos"), []);
   
   // Track if welcome message has been added for each companion in this session
   const welcomeMessageAddedRef = useRef<Set<string>>(new Set());
@@ -1067,6 +1105,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           botName,
           currentLanguage,
           tempId,
+          messageCount,
         );
         botMessagesToAddRef.current = pending;
         console.log("[ChatContext] Bot messages stored in ref, will add after typing completes");
@@ -1181,6 +1220,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     const cid = companionIdRef.current;
     if (cid) {
       localStorage.setItem(`messageCount_${cid}`, "0");
+      clearPhotoGalleryCtaShown(cid);
     }
     setHistorySessionKey((k) => k + 1);
   }, []);
@@ -1221,6 +1261,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     if (!isAuthenticated()) {
       setMessageCount(0);
         localStorage.setItem(`messageCount_${companionId}`, "0");
+      clearPhotoGalleryCtaShown(companionId);
       console.log("[ChatContext] Cleared chat and reset message count for non-authenticated user");
     } else {
       console.log("[ChatContext] Cleared chat for authenticated user - message count preserved");
@@ -1290,6 +1331,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         chatTab,
         setChatTab,
         openVoiceChatTab,
+        openPhotosTab,
       }}
     >
       <RechargeChatDialog

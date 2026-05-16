@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Crown, Heart, X } from "lucide-react";
 import {
+  galleryTeaserImageSrc,
   getDailyPhotosUpdateMessage,
+  getGalleryMedia,
   getPaidPhotoUrls,
   PUBLIC_FREE_PHOTO_COUNT,
   RELATIONSHIP_PHOTO_GALLERIES,
+  type GalleryMedia,
 } from "@/lib/relationshipPhotoGallery";
 import { PhotoPackActivationDialog } from "@/components/PhotoPackActivationDialog";
 import { fetchBillingWallet } from "@/lib/billing";
@@ -26,43 +29,61 @@ const LOCKED_PREVIEW_ROWS = 3;
 const LOCKED_PREVIEW_COLS = 3;
 const LOCKED_PREVIEW_COUNT = LOCKED_PREVIEW_ROWS * LOCKED_PREVIEW_COLS;
 
-function getFallbackPreviewUrls(): string[] {
-  const allPhotoUrls = Object.values(RELATIONSHIP_PHOTO_GALLERIES).flatMap((entry) =>
-    entry?.photoUrls ?? [],
+function getFallbackTeaserImages(): string[] {
+  const all = Object.values(RELATIONSHIP_PHOTO_GALLERIES).flatMap((entry) =>
+    getGalleryMedia(entry).map(galleryTeaserImageSrc),
   );
-  const unique = Array.from(new Set(allPhotoUrls));
+  const unique = Array.from(new Set(all));
   if (unique.length > 0) return unique;
   return ["/images/companions/priya1.jpg"];
 }
 
-function GalleryPhotoTile({
-  src,
+function GalleryMediaTile({
+  item,
   alt,
   onOpen,
 }: {
-  src: string;
+  item: GalleryMedia;
   alt: string;
   onOpen: () => void;
 }) {
+  const isVideo = item.type === "video";
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="overflow-hidden rounded-2xl border border-white/60 bg-white shadow-md outline-none ring-offset-2 transition hover:opacity-95 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-violet-500"
+      className="relative overflow-hidden rounded-2xl border border-white/60 bg-white shadow-md outline-none ring-offset-2 transition hover:opacity-95 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-violet-500"
       aria-label={alt}
     >
-      <img
-        src={src}
-        alt={alt}
-        className="aspect-[3/4] w-full object-cover object-center"
-        loading="lazy"
-        decoding="async"
-      />
+      {isVideo ? (
+        <>
+          <img
+            src={item.poster ?? item.src}
+            alt=""
+            className="aspect-[3/4] w-full object-cover object-center"
+            loading="lazy"
+            decoding="async"
+          />
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md">
+              <span className="ml-0.5 text-lg leading-none">▶</span>
+            </span>
+          </span>
+        </>
+      ) : (
+        <img
+          src={item.src}
+          alt={alt}
+          className="aspect-[3/4] w-full object-cover object-center"
+          loading="lazy"
+          decoding="async"
+        />
+      )}
     </button>
   );
 }
 
-type GalleryPhoto = { src: string; alt: string };
+type GalleryItem = GalleryMedia & { alt: string };
 
 function seedLikeCount(photoSrc: string): number {
   let h = 2166136261;
@@ -118,7 +139,7 @@ function PhotoLightbox({
   onClose,
   onGoTo,
 }: {
-  photos: GalleryPhoto[];
+  photos: GalleryItem[];
   index: number;
   open: boolean;
   onClose: () => void;
@@ -185,12 +206,24 @@ function PhotoLightbox({
         </button>
 
         <div className="relative inline-block max-h-[72vh] max-w-full">
-          <img
-            key={current.src}
-            src={current.src}
-            alt={current.alt}
-            className="block max-h-[72vh] max-w-[80vw] rounded-xl object-contain shadow-2xl"
-          />
+          {current.type === "video" ? (
+            <video
+              key={current.src}
+              src={current.src}
+              poster={current.poster}
+              className="block max-h-[72vh] max-w-[80vw] rounded-xl bg-black object-contain shadow-2xl"
+              controls
+              autoPlay
+              playsInline
+            />
+          ) : (
+            <img
+              key={current.src}
+              src={current.src}
+              alt={current.alt}
+              className="block max-h-[72vh] max-w-[80vw] rounded-xl object-contain shadow-2xl"
+            />
+          )}
 
           {/* Thumbnail: bottom-left. Like: bottom-right — change bottom-0 / left-0 / right-0 */}
           <div className="pointer-events-none absolute inset-0 z-10">
@@ -198,7 +231,11 @@ function PhotoLightbox({
             {photos.length <= 2 ? (
             <div className="relative shrink-0 overflow-hidden rounded-xl border-2 border-white shadow-lg ring-2 ring-white/40">
               <img
-                src={current.src}
+                src={
+                  current.type === "video"
+                    ? current.poster ?? current.src
+                    : current.src
+                }
                 alt=""
                 className="h-14 w-11 object-cover object-center sm:h-16 sm:w-12"
               />
@@ -206,7 +243,7 @@ function PhotoLightbox({
           ) : (
             photos.map((photo, i) => (
               <button
-                key={photo.src}
+                key={`${photo.type}-${photo.src}`}
                 type="button"
                 onClick={() => onGoTo(i)}
                 className={`relative shrink-0 overflow-hidden rounded-xl border-2 transition ${
@@ -214,11 +251,15 @@ function PhotoLightbox({
                     ? "border-white shadow-lg ring-2 ring-white/40"
                     : "border-white/25 opacity-70 hover:opacity-100"
                 }`}
-                aria-label={`View photo ${i + 1}`}
+                aria-label={photo.alt}
                 aria-current={i === index ? "true" : undefined}
               >
                 <img
-                  src={photo.src}
+                  src={
+                    photo.type === "video"
+                      ? photo.poster ?? photo.src
+                      : photo.src
+                  }
                   alt=""
                   className="h-14 w-11 object-cover object-center sm:h-16 sm:w-12"
                 />
@@ -293,39 +334,51 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
   const [packCheckDone, setPackCheckDone] = useState(false);
   const gallery = RELATIONSHIP_PHOTO_GALLERIES[companionId];
   const paidPhotoUrls = getPaidPhotoUrls(companionId);
-  const fallbackPreviewUrls = getFallbackPreviewUrls();
-  const lockedTeaserUrls =
-    gallery?.photoUrls.length ? gallery.photoUrls : fallbackPreviewUrls;
   const promoCardTitle =
     gallery?.promoCardTitle ?? `Unlock ${companionDisplayName}'s premium photo pack`;
 
-  const publicPreviewUrls = useMemo(
-    () => (gallery?.photoUrls ?? []).slice(0, PUBLIC_FREE_PHOTO_COUNT),
-    [gallery?.photoUrls],
+  const allMedia = useMemo(() => getGalleryMedia(gallery), [gallery]);
+
+  const lockedTeaserUrls = useMemo(() => {
+    const fromGallery = allMedia.map(galleryTeaserImageSrc);
+    if (fromGallery.length > 0) return fromGallery;
+    return getFallbackTeaserImages();
+  }, [allMedia]);
+
+  const publicPreviewMedia = useMemo(
+    () => allMedia.slice(0, PUBLIC_FREE_PHOTO_COUNT),
+    [allMedia],
   );
 
-  const viewablePhotos = useMemo((): GalleryPhoto[] => {
-    const preview = publicPreviewUrls.map((src, i) => ({
-      src,
-      alt: `${companionDisplayName} photo ${i + 1}`,
+  const mediaAlt = (item: GalleryMedia, index: number) =>
+    item.type === "video"
+      ? `${companionDisplayName} video ${index + 1}`
+      : `${companionDisplayName} photo ${index + 1}`;
+
+  const viewablePhotos = useMemo((): GalleryItem[] => {
+    const preview: GalleryItem[] = publicPreviewMedia.map((item, i) => ({
+      ...item,
+      alt: mediaAlt(item, i),
     }));
     if (!unlocked) return preview;
-    const extraFree =
-      gallery?.photoUrls.slice(PUBLIC_FREE_PHOTO_COUNT).map((src, i) => ({
-        src,
-        alt: `${companionDisplayName} photo ${PUBLIC_FREE_PHOTO_COUNT + i + 1}`,
-      })) ?? [];
-    const paid = paidPhotoUrls.map((src, i) => ({
+    const extraFree: GalleryItem[] = allMedia
+      .slice(PUBLIC_FREE_PHOTO_COUNT)
+      .map((item, i) => ({
+        ...item,
+        alt: mediaAlt(item, PUBLIC_FREE_PHOTO_COUNT + i),
+      }));
+    const paid: GalleryItem[] = paidPhotoUrls.map((src, i) => ({
       src,
+      type: "image" as const,
       alt: `${companionDisplayName} premium photo ${i + 1}`,
     }));
     return [...preview, ...extraFree, ...paid];
   }, [
-    gallery?.photoUrls,
+    allMedia,
     paidPhotoUrls,
     unlocked,
     companionDisplayName,
-    publicPreviewUrls,
+    publicPreviewMedia,
   ]);
 
   useEffect(() => {
@@ -380,7 +433,7 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
   };
 
   const openPhotoAt = (index: number) => {
-    if (index >= publicPreviewUrls.length) {
+    if (index >= publicPreviewMedia.length) {
       requestUnlock();
       return;
     }
@@ -393,8 +446,8 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
         <div className="mx-auto w-full max-w-lg px-4">
           {!registered ? (
             <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2.5 text-center text-sm text-amber-950">
-              {publicPreviewUrls.length > 0
-                ? `Preview ${publicPreviewUrls.length} photos below. Sign in to unlock the full gallery.`
+              {publicPreviewMedia.length > 0
+                ? `Preview ${publicPreviewMedia.length} items below. Sign in to unlock the full gallery.`
                 : `Sign in with your name and mobile number to view ${companionDisplayName}'s photos.`}
             </p>
           ) : !unlocked && packCheckDone ? (
@@ -405,20 +458,20 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
           ) : null}
 
           <div className="grid grid-cols-3 gap-2">
-            {publicPreviewUrls.map((src, i) => (
-              <GalleryPhotoTile
-                key={`preview-${src}`}
-                src={src}
-                alt={`${companionDisplayName} photo ${i + 1}`}
+            {publicPreviewMedia.map((item, i) => (
+              <GalleryMediaTile
+                key={`preview-${item.type}-${item.src}`}
+                item={item}
+                alt={mediaAlt(item, i)}
                 onOpen={() => openPhotoAt(i)}
               />
             ))}
             {unlocked
-              ? gallery?.photoUrls.slice(PUBLIC_FREE_PHOTO_COUNT).map((src, i) => (
-                  <GalleryPhotoTile
-                    key={`free-${src}`}
-                    src={src}
-                    alt={`${companionDisplayName} photo ${PUBLIC_FREE_PHOTO_COUNT + i + 1}`}
+              ? allMedia.slice(PUBLIC_FREE_PHOTO_COUNT).map((item, i) => (
+                  <GalleryMediaTile
+                    key={`free-${item.type}-${item.src}`}
+                    item={item}
+                    alt={mediaAlt(item, PUBLIC_FREE_PHOTO_COUNT + i)}
                     onOpen={() => openPhotoAt(PUBLIC_FREE_PHOTO_COUNT + i)}
                   />
                 ))
@@ -427,12 +480,12 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
               ? paidPhotoUrls.map((src, i) => {
                   const extraFreeCount = Math.max(
                     0,
-                    (gallery?.photoUrls.length ?? 0) - PUBLIC_FREE_PHOTO_COUNT,
+                    allMedia.length - PUBLIC_FREE_PHOTO_COUNT,
                   );
                   return (
-                    <GalleryPhotoTile
+                    <GalleryMediaTile
                       key={src}
-                      src={src}
+                      item={{ src, type: "image" }}
                       alt={`${companionDisplayName} premium photo ${i + 1}`}
                       onOpen={() =>
                         openPhotoAt(PUBLIC_FREE_PHOTO_COUNT + extraFreeCount + i)

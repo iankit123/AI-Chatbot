@@ -17,13 +17,41 @@ export function isRelationshipCompanion(companionId: string | null | undefined):
 /** Clear gallery photos shown without sign-in or photo-pack purchase. */
 export const PUBLIC_FREE_PHOTO_COUNT = 2;
 
+export type GalleryMedia = {
+  src: string;
+  type: "image" | "video";
+  /** Thumbnail / grid poster for video items */
+  poster?: string;
+};
+
 export type CompanionGalleryConfig = {
-  photoUrls: string[];
+  /** Preferred: images and videos in display order */
+  media?: GalleryMedia[];
+  /** Legacy image-only list (used when `media` is omitted) */
+  photoUrls?: string[];
   /** Unlocked after ₹29 photo pack payment (`public/images/paid/<id>/`). */
   paidPhotoFilenames?: string[];
   /** Promo row below thumbnails */
   promoCardTitle: string;
 };
+
+export function getGalleryMedia(
+  config: CompanionGalleryConfig | undefined,
+): GalleryMedia[] {
+  if (!config) return [];
+  if (config.media?.length) return config.media;
+  return (config.photoUrls ?? []).map((src) => ({
+    src,
+    type: "image" as const,
+  }));
+}
+
+/** Image URLs for locked blur teasers (videos use poster when set). */
+export function galleryTeaserImageSrc(item: GalleryMedia): string {
+  if (item.type === "video" && item.poster) return item.poster;
+  if (item.type === "image") return item.src;
+  return item.poster ?? item.src;
+}
 
 function paidPhotoUrl(companionId: string, filename: string): string {
   return `/images/paid/${companionId}/${encodeURIComponent(filename)}`;
@@ -82,10 +110,14 @@ export const RELATIONSHIP_PHOTO_GALLERIES: Partial<Record<string, CompanionGalle
     promoCardTitle: "Meera ki aur 100+ photos and videos dekhe",
   },
   naina: {
-    photoUrls: [
-      "/images/naina-gallery/naina-photo-1.png",
-      "/images/naina-gallery/naina-photo-2.png",
-      "/images/naina-gallery/naina-photo-3.png",
+    media: [
+      { src: "/images/naina-gallery/naina-photo-1.png", type: "image" },
+      {
+        src: "/images/naina-gallery/naina-preview.mp4",
+        type: "video",
+        poster: "/images/naina-gallery/naina-video-thumb.jpg",
+      },
+      { src: "/images/naina-gallery/naina-photo-3.png", type: "image" },
     ],
     paidPhotoFilenames: [...NAINA_PAID_FILENAMES],
     promoCardTitle: "Naina ki aur 100+ photos and videos dekhe",

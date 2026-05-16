@@ -65,8 +65,8 @@ export default function Chat() {
               value="photos"
               className="h-full rounded-none border-b-2 border-transparent text-base text-muted-foreground data-[state=active]:border-[#128C7E] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#128C7E] data-[state=active]:shadow-none"
             >
-              <span className="inline-flex items-center gap-1.5">
-                Photos
+              <span className="inline-flex flex-col items-center gap-0.5 leading-tight">
+                Photo/Video
                 <span className="rounded-full bg-[#128C7E] px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none text-white">
                   New
                 </span>
