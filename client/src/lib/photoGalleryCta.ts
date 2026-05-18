@@ -37,6 +37,8 @@ export function photoGalleryIntroReply(language: "hindi" | "english"): string {
 }
 
 export function buildPhotoGalleryCtaLabel(companionName: string): string {
-  const name = companionName.trim() || "Saathi";
-  return `${name} ki images k liye yaha click kare`;
+  const name = companionName.trim();
+  return name
+    ? `${name} ki images k liye yaha click kare`
+    : "Images dekhne ke liye yaha click kare";
 }

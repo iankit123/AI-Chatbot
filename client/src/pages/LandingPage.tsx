@@ -7,6 +7,7 @@ import { useChat } from "@/context/ChatContext";
 import { HOME_ROLE_CARD_BY_ID } from "@/lib/homeRoleCards";
 import { getRoleCardPresentation } from "@/lib/homeRoleCardPresentation";
 import { isHomeAssistantCardVisible } from "@/lib/experiments";
+import { BRAND_NAME } from "@shared/brand";
 
 interface CompanionProfile {
   id: string;
@@ -170,7 +171,7 @@ export default function LandingPage() {
           <p className="font-outfit text-[22px] font-extrabold leading-snug tracking-tight text-slate-900 sm:text-[26px]">
             {heroLineBefore}
             <span className="bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-500 bg-clip-text text-transparent">
-              Saathi
+              {BRAND_NAME}
             </span>
             {heroLineAfter}
           </p>

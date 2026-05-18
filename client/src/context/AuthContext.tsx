@@ -11,6 +11,7 @@ import {
 } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { FREE_USER_MESSAGE_ALLOWANCE } from '@/lib/chatPaywall';
+import { BRAND_NAME } from '@shared/brand';
 
 interface AuthContextType {
   currentUser: AppUser | null;
@@ -127,7 +128,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const user = await createUser(email, password);
       toast({
         title: 'Account created!',
-        description: 'Welcome to Saathi. You are now signed in.',
+        description: `Welcome to ${BRAND_NAME}. You are now signed in.`,
       });
       return user;
     } catch (error) {

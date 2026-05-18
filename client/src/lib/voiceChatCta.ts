@@ -1,3 +1,5 @@
+import { BRAND_NAME } from "@shared/brand";
+
 /** Stored on Message.contextInfo — renders as voice-chat CTA card (not plain text). */
 export const VOICE_CHAT_CTA_CONTEXT = "voice_chat_cta";
 
@@ -25,9 +27,13 @@ export function buildVoiceChatCtaLabel(
   companionName: string,
   language: "hindi" | "english",
 ): string {
-  const name = companionName.trim() || "Saathi";
+  const name = companionName.trim();
   if (language === "hindi") {
-    return `${name} se voice chat karne ke liye click karein`;
+    return name
+      ? `${name} se voice chat karne ke liye click karein`
+      : "Voice chat ke liye click karein";
   }
-  return `Click for voice chat with ${name}`;
+  return name
+    ? `Click for voice chat with ${name}`
+    : `Click for voice chat on ${BRAND_NAME}`;
 }

@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth, getDeviceId, getStoredBillingPhoneDigits, logPaymentRequest } from '@/lib/supabase';
 import { Lock } from 'lucide-react';
 import { runRazorpayCheckout } from '@/lib/razorpay';
+import { BRAND_NAME } from '@shared/brand';
 
 interface PremiumPhotoDialogProps {
   open: boolean;
@@ -158,7 +159,7 @@ export function PremiumPhotoDialog({
             {companionName} ki premium photo
           </DialogTitle>
           <DialogDescription className="text-center">
-            Image sirf Premium Saathi members k liye hai. Clear picture dekhne k liye saathi membership le sirf Rs.20 me.
+            {`Image sirf Premium ${BRAND_NAME} members k liye hai. Clear picture dekhne k liye ${BRAND_NAME} membership le sirf Rs.20 me.`}
           </DialogDescription>
         </DialogHeader>
         
@@ -179,7 +180,7 @@ export function PremiumPhotoDialog({
           
           {/* Premium benefits */}
           <div className="bg-rose-50 p-4 rounded-lg space-y-2">
-            <h3 className="font-medium text-rose-700">Premium Saathi Benefits:</h3>
+            <h3 className="font-medium text-rose-700">{`Premium ${BRAND_NAME} Benefits:`}</h3>
             <ul className="space-y-2">
               <li className="flex items-start">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-600 mr-2 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
