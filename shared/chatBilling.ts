@@ -1,5 +1,5 @@
 /** Free user messages per companion before paid chat (₹0.20/message) applies. */
-export const FREE_USER_MESSAGE_ALLOWANCE = 5;
+export const FREE_USER_MESSAGE_ALLOWANCE = 8;
 
 /** Rupees deducted per user message after free allowance (₹1 → 5 messages, ₹20 → 100). */
 export const CHAT_MESSAGE_COST_RUPEES = 0.2;
