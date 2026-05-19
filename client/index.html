@@ -41,12 +41,18 @@
       fbq('init', '979751831106319');
       fbq('track', 'PageView');
     </script>
-    <noscript><img height="1" width="1" style="display:none"
-      src="https://www.facebook.com/tr?id=979751831106319&ev=PageView&noscript=1"
-    /></noscript>
     <!-- End Meta Pixel Code -->
   </head>
   <body>
+    <!-- Meta Pixel (noscript must be in body for valid HTML / Vite build) -->
+    <noscript
+      ><img
+        height="1"
+        width="1"
+        style="display: none"
+        alt=""
+        src="https://www.facebook.com/tr?id=979751831106319&amp;ev=PageView&amp;noscript=1"
+    /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

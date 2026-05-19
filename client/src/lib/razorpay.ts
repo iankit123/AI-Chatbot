@@ -223,7 +223,7 @@ export async function runRazorpayCheckout(
             trackPurchase({
               value: options.amountRupees,
               product_type: options.billing.product_type,
-              companion_id: options.billing.companion_id,
+              companion_id: options.billing.companion_id ?? undefined,
               order_id: razorpay_order_id,
               payment_id: razorpay_payment_id,
             });
@@ -277,7 +277,7 @@ export async function runRazorpayCheckout(
           trackPaymentAttempted({
             value: options.amountRupees,
             product_type: options.billing.product_type,
-            companion_id: options.billing.companion_id,
+            companion_id: options.billing.companion_id ?? undefined,
           });
         } catch {
           /* analytics must not block payment */
