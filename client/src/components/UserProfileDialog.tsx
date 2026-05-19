@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { notifyLocalAuthListeners } from '@/lib/supabase';
+import { trackProfileCreated } from '@/lib/metaPixel';
 
 interface UserProfileDialogProps {
   open: boolean;
@@ -76,6 +77,7 @@ export function UserProfileDialog({
         notifyLocalAuthListeners();
       }
       
+      trackProfileCreated({ is_guest: !currentUser });
       setError('');
       onProfileComplete();
     } catch (err) {

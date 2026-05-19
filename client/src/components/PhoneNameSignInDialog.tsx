@@ -16,6 +16,7 @@ import {
   signInWithPhoneLocal,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
+import { trackProfileCreated } from "@/lib/metaPixel";
 
 export interface PhoneNameSignInFieldsProps {
   onSuccess: () => void;
@@ -79,6 +80,7 @@ export function PhoneNameSignInFields({
 
       (document.activeElement as HTMLElement | null)?.blur?.();
 
+      trackProfileCreated({ sign_in_method: "phone" });
       toast({
         title: "Signed in",
         description: "You're signed in on this device.",

@@ -203,6 +203,7 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
       const paid = await runRazorpayCheckout({
         amountRupees: selectedRupees,
         prefill: { name, contact: normalized },
+        onBeforeOpen: () => onOpenChange(false),
         billing: {
           device_id: deviceId,
           phone_number: normalized,

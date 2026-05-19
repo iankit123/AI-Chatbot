@@ -33,6 +33,8 @@ import {
   saveKundliBirthForProfile,
   type KundliBirthDetails,
 } from "./services/kundliProfile";
+import { insertAppEventRow } from "./services/appEvents";
+import { APP_EVENT_NAMES } from "@shared/appEvents";
 
 const kundliBirthSchema = z.object({
   name: z.string().min(1).max(120),
@@ -329,6 +331,44 @@ export async function registerRoutes(
         });
       }
       res.status(500).json({ message: "Failed to upsert profile", error: msg });
+    }
+  });
+
+  app.post("/api/events", async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        event_name: z.enum(APP_EVENT_NAMES),
+        device_id: z.string().min(1),
+        user_id: z.string().optional().nullable(),
+        phone_number: z.string().optional().nullable(),
+        properties: z.record(z.unknown()).optional(),
+      });
+      const data = bodySchema.parse(req.body);
+      const row = await insertAppEventRow({
+        eventName: data.event_name,
+        deviceId: data.device_id,
+        userId: data.user_id,
+        phoneNumber: data.phone_number,
+        properties: data.properties,
+      });
+      res.status(201).json(row);
+    } catch (error) {
+      console.error("Error logging app event:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid event payload", errors: error.errors });
+      }
+      const msg = serializeSupabaseError(error);
+      if (msg.includes("SUPABASE_URL")) {
+        return res.status(503).json({ message: "Event logging unavailable" });
+      }
+      if (isMissingDbRelation(error) && msg.toLowerCase().includes("app_events")) {
+        return res.status(503).json({
+          message: "app_events table missing",
+          error: msg,
+          hint: "Run migrations/0007_app_events.sql in your Supabase SQL editor.",
+        });
+      }
+      res.status(500).json({ message: "Failed to log event", error: msg });
     }
   });
 

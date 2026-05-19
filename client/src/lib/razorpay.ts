@@ -12,6 +12,7 @@ import {
   buildRazorpayGatewayNotes,
   receiptPrefixForProduct,
 } from "@shared/razorpayProductCodes";
+import { trackPaymentAttempted, trackPurchase } from "@/lib/metaPixel";
 
 type RazorpayCreateOrderRequest = {
   amount_rupees: number;
@@ -52,6 +53,13 @@ type RazorpayOptions = {
     email?: string;
     contact?: string;
   };
+  /** Close parent dialogs before opening Razorpay (avoids Radix overlay blocking checkout). */
+  onBeforeOpen?: () => void;
+};
+
+export type RazorpayCheckoutPrepared = {
+  order: RazorpayCreateOrderResponse;
+  checkoutDisplay: { name: string; description: string };
 };
 
 declare global {
@@ -72,11 +80,50 @@ async function ensureRazorpayScript(): Promise<void> {
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
-    script.onload = () => resolve();
+    script.onload = () => {
+      if (window.Razorpay) resolve();
+      else reject(new Error("Razorpay checkout script loaded but SDK is unavailable"));
+    };
     script.onerror = () => reject(new Error("Failed to load Razorpay checkout script"));
     document.body.appendChild(script);
   });
   return scriptLoadPromise;
+}
+
+/** Pre-create order while the pay dialog is open so checkout can open faster on tap. */
+export async function prepareRazorpayCheckout(
+  options: RazorpayOptions,
+): Promise<RazorpayCheckoutPrepared> {
+  await ensureRazorpayScript();
+  const receiptPrefix = receiptPrefixForProduct(options.billing.product_type);
+  const receipt = `${receiptPrefix}_${Date.now().toString(36)}`.slice(0, 38);
+  const checkoutDisplay = buildRazorpayCheckoutDisplay(
+    options.billing.product_type,
+    options.amountRupees,
+  );
+  const order = await createOrder({
+    amount_rupees: options.amountRupees,
+    receipt,
+    billing: options.billing,
+  });
+  return { order, checkoutDisplay };
+}
+
+function waitForRazorpayContainer(timeoutMs: number): Promise<boolean> {
+  if (document.querySelector(".razorpay-container")) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(".razorpay-container")) {
+        observer.disconnect();
+        resolve(true);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.setTimeout(() => {
+      observer.disconnect();
+      resolve(!!document.querySelector(".razorpay-container"));
+    }, timeoutMs);
+  });
 }
 
 async function createOrder(
@@ -93,19 +140,10 @@ async function verifyPayment(payload: RazorpayVerifyRequest): Promise<PaymentVer
 
 export async function runRazorpayCheckout(
   options: RazorpayOptions,
+  prepared?: RazorpayCheckoutPrepared,
 ): Promise<RazorpayCheckoutResult> {
   await ensureRazorpayScript();
-  const receiptPrefix = receiptPrefixForProduct(options.billing.product_type);
-  const receipt = `${receiptPrefix}_${Date.now().toString(36)}`.slice(0, 38);
-  const checkoutDisplay = buildRazorpayCheckoutDisplay(
-    options.billing.product_type,
-    options.amountRupees,
-  );
-  const order = await createOrder({
-    amount_rupees: options.amountRupees,
-    receipt,
-    billing: options.billing,
-  });
+  const { order, checkoutDisplay } = prepared ?? (await prepareRazorpayCheckout(options));
   if (!order.razorpay_order_id && !order.gateway_order_id) {
     throw new Error("Server did not return a Razorpay order id");
   }
@@ -123,17 +161,29 @@ export async function runRazorpayCheckout(
     );
   }
 
+  const orderId = order.razorpay_order_id || order.gateway_order_id;
+
   return new Promise<RazorpayCheckoutResult>((resolve, reject) => {
     const RazorpayCtor = window.Razorpay;
     if (!RazorpayCtor) {
       reject(new Error("Razorpay checkout script is not loaded"));
       return;
     }
+    let settled = false;
+    const cleanupOverlayClass = () => {
+      document.body.classList.remove("razorpay-checkout-active");
+    };
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanupOverlayClass();
+      fn();
+    };
+
     const instance = new RazorpayCtor({
       key: order.key_id,
-      amount: order.amount_paise,
       currency: order.currency || "INR",
-      order_id: order.razorpay_order_id || order.gateway_order_id,
+      order_id: orderId,
       name: checkoutDisplay.name,
       description: checkoutDisplay.description,
       prefill: options.prefill,
@@ -169,27 +219,76 @@ export async function runRazorpayCheckout(
               billing.voice_packs.map((p) => p.companion_id),
             );
           }
-          resolve({
-            orderId: razorpay_order_id,
-            paymentId: razorpay_payment_id,
-            paymentRowId,
-            billing,
-          });
+          try {
+            trackPurchase({
+              value: options.amountRupees,
+              product_type: options.billing.product_type,
+              companion_id: options.billing.companion_id,
+              order_id: razorpay_order_id,
+              payment_id: razorpay_payment_id,
+            });
+          } catch {
+            /* analytics must not block payment */
+          }
+          finish(() =>
+            resolve({
+              orderId: razorpay_order_id,
+              paymentId: razorpay_payment_id,
+              paymentRowId,
+              billing,
+            }),
+          );
         } catch (err) {
-          reject(err);
+          finish(() => reject(err));
         }
       },
       modal: {
         ondismiss: () => {
           if (paymentRowId) void cancelPendingPayment(paymentRowId);
-          reject(new Error("Payment cancelled"));
+          finish(() => reject(new Error("Payment cancelled")));
         },
       },
     });
     instance.on("payment.failed", () => {
       if (paymentRowId) void cancelPendingPayment(paymentRowId);
-      reject(new Error("Payment failed"));
+      finish(() => reject(new Error("Payment failed")));
     });
-    instance.open();
+
+    options.onBeforeOpen?.();
+    document.body.classList.add("razorpay-checkout-active");
+
+    void (async () => {
+      try {
+        instance.open();
+        const appeared = await waitForRazorpayContainer(4000);
+        if (!appeared) {
+          cleanupOverlayClass();
+          if (paymentRowId) void cancelPendingPayment(paymentRowId);
+          finish(() =>
+            reject(
+              new Error(
+                "Payment window did not open. Close other pop-ups and try again.",
+              ),
+            ),
+          );
+          return;
+        }
+        try {
+          trackPaymentAttempted({
+            value: options.amountRupees,
+            product_type: options.billing.product_type,
+            companion_id: options.billing.companion_id,
+          });
+        } catch {
+          /* analytics must not block payment */
+        }
+      } catch (err) {
+        cleanupOverlayClass();
+        if (paymentRowId) void cancelPendingPayment(paymentRowId);
+        finish(() =>
+          reject(err instanceof Error ? err : new Error("Failed to open payment")),
+        );
+      }
+    })();
   });
 }

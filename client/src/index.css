@@ -184,6 +184,11 @@
     clip-path: inset(0 0 0 0);
   }
 
+  /* Razorpay checkout must sit above Radix dialogs (z-50) */
+  body.razorpay-checkout-active .razorpay-container {
+    z-index: 2147483646 !important;
+  }
+
   /* Voice Chat Premium Banner - Force top placement */
   .voice-chat-premium-container {
     position: absolute !important;

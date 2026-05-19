@@ -1466,7 +1466,7 @@ var getChatConversationsFromSupabase = async (userId, anonymousUserId) => {
 import { createClient as createClient2 } from "@supabase/supabase-js";
 
 // shared/chatBilling.ts
-var FREE_USER_MESSAGE_ALLOWANCE = 5;
+var FREE_USER_MESSAGE_ALLOWANCE = 8;
 var CHAT_MESSAGE_COST_RUPEES = 0.2;
 function roundWalletRupees(amount) {
   return Math.round(amount * 100) / 100;
@@ -2237,6 +2237,42 @@ async function saveKundliBirthForProfile(deviceId, phoneHint, details) {
   }
 }
 
+// server/services/appEvents.ts
+import { createClient as createClient4 } from "@supabase/supabase-js";
+var getSupabaseAdmin4 = () => {
+  const supabaseUrl = process.env.SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
+  }
+  return createClient4(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+};
+var insertAppEventRow = async (input) => {
+  const supabase = getSupabaseAdmin4();
+  const digits = input.phoneNumber?.replace(/\D/g, "").slice(-10);
+  const { data, error } = await supabase.from("app_events").insert({
+    event_name: input.eventName,
+    device_id: input.deviceId,
+    user_id: input.userId?.trim() || null,
+    phone_number: digits || null,
+    properties: input.properties ?? {}
+  }).select(
+    "id, event_name, device_id, user_id, phone_number, properties, created_at"
+  ).single();
+  if (error) throw error;
+  return data;
+};
+
+// shared/appEvents.ts
+var APP_EVENT_NAMES = [
+  "profile_created",
+  "paywall_triggered",
+  "payment_attempted",
+  "purchase"
+];
+
 // server/routes.ts
 var kundliBirthSchema = z.object({
   name: z.string().min(1).max(120),
@@ -2499,6 +2535,43 @@ async function registerRoutes(app2, opts) {
         });
       }
       res.status(500).json({ message: "Failed to upsert profile", error: msg });
+    }
+  });
+  app2.post("/api/events", async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        event_name: z.enum(APP_EVENT_NAMES),
+        device_id: z.string().min(1),
+        user_id: z.string().optional().nullable(),
+        phone_number: z.string().optional().nullable(),
+        properties: z.record(z.unknown()).optional()
+      });
+      const data = bodySchema.parse(req.body);
+      const row = await insertAppEventRow({
+        eventName: data.event_name,
+        deviceId: data.device_id,
+        userId: data.user_id,
+        phoneNumber: data.phone_number,
+        properties: data.properties
+      });
+      res.status(201).json(row);
+    } catch (error) {
+      console.error("Error logging app event:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid event payload", errors: error.errors });
+      }
+      const msg = serializeSupabaseError(error);
+      if (msg.includes("SUPABASE_URL")) {
+        return res.status(503).json({ message: "Event logging unavailable" });
+      }
+      if (isMissingDbRelation(error) && msg.toLowerCase().includes("app_events")) {
+        return res.status(503).json({
+          message: "app_events table missing",
+          error: msg,
+          hint: "Run migrations/0007_app_events.sql in your Supabase SQL editor."
+        });
+      }
+      res.status(500).json({ message: "Failed to log event", error: msg });
     }
   });
   app2.post("/api/billing/payment-attempt", async (req, res) => {

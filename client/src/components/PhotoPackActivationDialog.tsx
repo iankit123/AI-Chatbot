@@ -18,7 +18,11 @@ import {
 } from "@/lib/supabase";
 import { Lock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { runRazorpayCheckout } from "@/lib/razorpay";
+import {
+  prepareRazorpayCheckout,
+  runRazorpayCheckout,
+  type RazorpayCheckoutPrepared,
+} from "@/lib/razorpay";
 
 export const PHOTO_PACK_ACTIVATION_RUPEES = 29;
 
@@ -50,6 +54,9 @@ export function PhotoPackActivationDialog({
   const [busy, setBusy] = useState(false);
   const [phoneFieldError, setPhoneFieldError] = useState(false);
   const payInFlightRef = useRef(false);
+  const preparedCheckoutRef = useRef<Promise<RazorpayCheckoutPrepared | undefined> | null>(
+    null,
+  );
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,8 +64,41 @@ export function PhotoPackActivationDialog({
       const d = getStoredBillingPhoneDigits();
       setPhone(d ?? "");
       setPhoneFieldError(false);
+    } else {
+      preparedCheckoutRef.current = null;
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const normalized = normalizeIndianPhone(phone);
+    if (!normalized) {
+      preparedCheckoutRef.current = null;
+      return;
+    }
+    const deviceId = getDeviceId();
+    const name = guestDisplayName();
+    const timer = window.setTimeout(() => {
+      preparedCheckoutRef.current = prepareRazorpayCheckout({
+        amountRupees: PHOTO_PACK_ACTIVATION_RUPEES,
+        prefill: { name, contact: normalized },
+        billing: {
+          device_id: deviceId,
+          phone_number: normalized,
+          product_type: "photo_pack",
+          companion_id: companionId,
+          rate_note: "Photo pack — 100 photos activation",
+          metadata: {
+            source: "photo_pack_activation",
+            product_key: `${companionId}_100_photos`,
+            companion_display_name: companionDisplayName,
+            ui_language: localStorage.getItem("chatLanguage") || "hindi",
+          },
+        },
+      }).catch(() => undefined);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [open, phone, companionId, companionDisplayName]);
 
   const handleActivate = async () => {
     if (payInFlightRef.current || busy) return;
@@ -80,24 +120,35 @@ export function PhotoPackActivationDialog({
     const deviceId = getDeviceId();
     const name = guestDisplayName();
 
-    try {
-      await runRazorpayCheckout({
-        amountRupees: PHOTO_PACK_ACTIVATION_RUPEES,
-        prefill: { name, contact: normalized },
-        billing: {
-          device_id: deviceId,
-          phone_number: normalized,
-          product_type: "photo_pack",
-          companion_id: companionId,
-          rate_note: "Photo pack — 100 photos activation",
-          metadata: {
-            source: "photo_pack_activation",
-            product_key: `${companionId}_100_photos`,
-            companion_display_name: companionDisplayName,
-            ui_language: localStorage.getItem("chatLanguage") || "hindi",
-          },
+    const checkoutOptions = {
+      amountRupees: PHOTO_PACK_ACTIVATION_RUPEES,
+      prefill: { name, contact: normalized },
+      onBeforeOpen: () => onOpenChange(false),
+      billing: {
+        device_id: deviceId,
+        phone_number: normalized,
+        product_type: "photo_pack" as const,
+        companion_id: companionId,
+        rate_note: "Photo pack — 100 photos activation",
+        metadata: {
+          source: "photo_pack_activation",
+          product_key: `${companionId}_100_photos`,
+          companion_display_name: companionDisplayName,
+          ui_language: localStorage.getItem("chatLanguage") || "hindi",
         },
-      });
+      },
+    };
+
+    try {
+      let prepared: RazorpayCheckoutPrepared | undefined;
+      const prefetch = preparedCheckoutRef.current;
+      if (prefetch) {
+        const result = await prefetch;
+        if (result?.order?.key_id) prepared = result;
+      }
+      preparedCheckoutRef.current = null;
+
+      await runRazorpayCheckout(checkoutOptions, prepared);
 
       await upsertAppProfileOnServer(deviceId, {
         phone: normalized,

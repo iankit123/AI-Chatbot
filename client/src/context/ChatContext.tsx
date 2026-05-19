@@ -25,6 +25,7 @@ import {
   canAffordChatMessage,
   clientShouldBlockForPaywall,
 } from "@/lib/chatPaywall";
+import { trackPaywallTriggered } from "@/lib/metaPixel";
 import {
   fetchBillingWallet,
   readLocalWalletCredits,
@@ -216,6 +217,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [messageCount, setMessageCount] = useState(0);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
+  useEffect(() => {
+    if (showRechargeDialog) {
+      trackPaywallTriggered({ source: "chat_recharge" });
+    }
+  }, [showRechargeDialog]);
   const [showPremiumTease, setShowPremiumTease] = useState(false);
   const [showPremiumPhoto, setShowPremiumPhoto] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
