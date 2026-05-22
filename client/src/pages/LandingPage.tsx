@@ -83,13 +83,13 @@ const companions: CompanionProfile[] = [
  * Each card is shown only if `isHomeAssistantCardVisible` matches Home (`@/lib/experiments`).
  */
 const RELATIONSHIP_PAGE_EXTRA_ROLE_IDS = [
-  "kundli",
+  "krishna",
   "english",
   "doctor",
   "parenting",
   "finance",
   "career",
-  "krishna",
+  "kundli",
 ] as const;
 
 export default function LandingPage() {
