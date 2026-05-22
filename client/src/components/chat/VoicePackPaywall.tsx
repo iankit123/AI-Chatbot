@@ -169,7 +169,7 @@ export function VoicePackPaywall({ companionId, onActivated }: VoicePackPaywallP
               : "Please wait…"
             : currentLanguage === "hindi"
               ? `₹${rupees} में एक्टिवेट करें`
-              : `Activate for ₹${rupees}`}
+              : `Click karo - Sirf ₹${rupees} Pay`}
         </Button>
       </div>
     </div>

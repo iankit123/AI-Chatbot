@@ -266,7 +266,7 @@ export function PhotoPackActivationDialog({
             <span className="relative z-10">
               {busy
                 ? "Please wait…"
-                : `Activate for ₹${PHOTO_PACK_ACTIVATION_RUPEES} & View Now`}
+                : `Click karo - Sirf ₹${PHOTO_PACK_ACTIVATION_RUPEES} Pay`}
             </span>
           </button>
 
