@@ -291,6 +291,24 @@ function PhotoLightbox({
   );
 }
 
+function MorePhotosTile({ onUnlock }: { onUnlock: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onUnlock}
+      className="relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-violet-200/90 bg-gradient-to-br from-violet-100 via-fuchsia-50 to-rose-100 px-2 shadow-md outline-none ring-offset-2 transition hover:opacity-95 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-violet-500"
+      aria-label="Unlock more photos"
+    >
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md">
+        <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
+      </span>
+      <span className="text-center text-sm font-bold leading-tight text-slate-900">
+        More photos
+      </span>
+    </button>
+  );
+}
+
 function LockedPhotoTile({
   src,
   alt,
@@ -310,7 +328,7 @@ function LockedPhotoTile({
       <img
         src={src}
         alt=""
-        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] object-cover opacity-95 blur-[32px] saturate-125 transition duration-300 group-hover:blur-[28px]"
+        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] object-cover opacity-95 blur-[3px] saturate-125 transition duration-300 group-hover:blur-[2px]"
         loading="lazy"
         decoding="async"
       />
@@ -495,21 +513,26 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
                 })
               : null}
             {!unlocked
-              ? Array.from({ length: LOCKED_PREVIEW_COUNT }).map((_, i) => {
-                  const src = lockedTeaserUrls[i % lockedTeaserUrls.length];
-                  return (
-                    <LockedPhotoTile
-                      key={`locked-${i}`}
-                      src={src}
-                      alt={
-                        registered
-                          ? `Unlock premium photos — ${companionDisplayName}`
-                          : `Sign in to view more — ${companionDisplayName}`
-                      }
-                      onUnlock={requestUnlock}
-                    />
-                  );
-                })
+              ? (
+                  <>
+                    {Array.from({ length: LOCKED_PREVIEW_COUNT }).map((_, i) => {
+                      const src = lockedTeaserUrls[i % lockedTeaserUrls.length];
+                      return (
+                        <LockedPhotoTile
+                          key={`locked-${i}`}
+                          src={src}
+                          alt={
+                            registered
+                              ? `Unlock premium photos — ${companionDisplayName}`
+                              : `Sign in to view more — ${companionDisplayName}`
+                          }
+                          onUnlock={requestUnlock}
+                        />
+                      );
+                    })}
+                    <MorePhotosTile onUnlock={requestUnlock} />
+                  </>
+                )
               : null}
           </div>
 

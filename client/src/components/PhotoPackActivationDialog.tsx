@@ -6,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +15,7 @@ import {
   normalizeIndianPhone,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
-import { Lock, Sparkles } from "lucide-react";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   prepareRazorpayCheckout,
@@ -25,6 +24,39 @@ import {
 } from "@/lib/razorpay";
 
 export const PHOTO_PACK_ACTIVATION_RUPEES = 29;
+
+function PaywallSparkle({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+      className={cn("h-3.5 w-3.5 text-white/95", className)}
+    >
+      <path d="M12 2l1.4 5.6L19 9l-5.6 1.4L12 16l-1.4-5.6L5 9l5.6-1.4L12 2z" />
+    </svg>
+  );
+}
+
+function PaymentMethodsRow() {
+  return (
+    <div className="flex items-center justify-center gap-5 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+      <span className="text-[15px] font-bold tracking-tight">
+        <span className="text-[#4285F4]">G</span>
+        <span className="text-[#34A853]">o</span>
+        <span className="text-[#FBBC05]">o</span>
+        <span className="text-[#4285F4]">g</span>
+        <span className="text-[#34A853]">l</span>
+        <span className="text-[#EA4335]">e</span>
+        <span className="text-slate-800"> Pay</span>
+      </span>
+      <span className="text-[15px] font-bold text-[#5F259F]">PhonePe</span>
+      <span className="flex items-center gap-0.5 text-[15px] font-bold">
+        <span className="text-[#097939]">UPI</span>
+      </span>
+    </div>
+  );
+}
 
 interface PhotoPackActivationDialogProps {
   open: boolean;
@@ -177,17 +209,19 @@ export function PhotoPackActivationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[360px] gap-0 overflow-hidden border-0 p-0 shadow-xl">
-        <div className="bg-gradient-to-b from-violet-100 via-purple-50 to-rose-100 px-6 pb-6 pt-8 text-center">
+      <DialogContent className="gap-0 overflow-hidden border-0 bg-white p-0 shadow-xl sm:max-w-[380px]">
+        <div className="px-6 pb-4 pt-8 text-center">
           <DialogHeader className="space-y-3 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/80 shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-slate-100 bg-white shadow-sm">
               <Lock className="h-7 w-7 text-slate-700" strokeWidth={1.75} />
             </div>
-            <DialogTitle className="text-xl font-bold text-slate-900">
-              ₹{PHOTO_PACK_ACTIVATION_RUPEES} activation
+            <DialogTitle className="text-xl font-bold leading-snug text-slate-900">
+              {companionDisplayName}&apos;s 120+ Photos Videos
+              <br />
+              Only ₹{PHOTO_PACK_ACTIVATION_RUPEES}
             </DialogTitle>
             <DialogDescription className="text-sm text-slate-600">
-              Unlock full access to {companionDisplayName}&apos;s photo collection (100+ photos and videos).
+              {companionDisplayName}&apos;s ki 100+ photos and videos dekho
             </DialogDescription>
           </DialogHeader>
           <div className="mt-6 space-y-2 text-left">
@@ -216,16 +250,30 @@ export function PhotoPackActivationDialog({
             />
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={busy}
-          className="h-auto w-full gap-2 rounded-none bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 py-6 text-base font-semibold text-white shadow-md hover:bg-gradient-to-r hover:from-violet-500 hover:via-fuchsia-500 hover:to-pink-500 hover:text-white disabled:opacity-60"
-          onClick={() => void handleActivate()}
-        >
-          <Sparkles className="h-5 w-5 text-amber-200" />
-          {busy ? "Please wait…" : `Activate for ₹${PHOTO_PACK_ACTIVATION_RUPEES}`}
-        </Button>
+
+        <div className="border-t border-slate-100 bg-slate-50/80 px-5 pb-6 pt-5">
+          <PaymentMethodsRow />
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleActivate()}
+            className="relative mt-4 w-full overflow-hidden rounded-full bg-gradient-to-r from-[#9d174d] via-[#7e22ce] to-[#4338ca] px-5 py-4 text-center text-[15px] font-bold leading-snug text-white shadow-lg shadow-purple-600/30 transition hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
+          >
+            <PaywallSparkle className="absolute left-5 top-2 opacity-90" />
+            <PaywallSparkle className="absolute left-9 top-6 h-2.5 w-2.5 opacity-75" />
+            <PaywallSparkle className="absolute bottom-2.5 right-7 h-3 w-3 opacity-85" />
+            <span className="relative z-10">
+              {busy
+                ? "Please wait…"
+                : `Activate for ₹${PHOTO_PACK_ACTIVATION_RUPEES} & View Now`}
+            </span>
+          </button>
+
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-600">
+            This is a one-time charge. Safe &amp; Secure UPI Payments.
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   );
