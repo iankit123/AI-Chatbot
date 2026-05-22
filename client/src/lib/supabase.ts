@@ -425,6 +425,31 @@ export const saveChatMessage = async (message: any) => {
   return data.id;
 };
 
+export const updateChatMessageContent = async (
+  messageId: string,
+  content: string,
+) => {
+  const owner = getChatPersistenceOwner();
+  const response = await fetch("/api/chat/messages", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      messageId,
+      content,
+      userId: owner.userId,
+      anonymousUserId: owner.anonymousUserId,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update chat message");
+  }
+  return response.json();
+};
+
 export const getChatMessages = async (
   companionId: string,
   owner: { userId: string | null; anonymousUserId: string | null },

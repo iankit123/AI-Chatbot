@@ -12,6 +12,7 @@ import {
   getChatConversationsFromSupabase,
   getChatMessagesFromSupabase,
   saveChatMessageToSupabase,
+  updateChatMessageContentInSupabase,
 } from "./services/supabaseChat";
 import {
   attachGatewayOrderToPayment,
@@ -178,6 +179,29 @@ export async function registerRoutes(
         error: detail,
         ...(hint ? { hint } : {}),
       });
+    }
+  });
+
+  app.patch('/api/chat/messages', async (req, res) => {
+    try {
+      const patchSchema = ownerSchema.extend({
+        messageId: z.string().uuid(),
+        content: z.string().min(1),
+      });
+      const data = patchSchema.parse(req.body);
+      const message = await updateChatMessageContentInSupabase(
+        data.messageId,
+        data.content,
+        data.userId,
+        data.anonymousUserId,
+      );
+      res.json(message);
+    } catch (error) {
+      console.error('Error updating chat message:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid chat message update', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to update chat message' });
     }
   });
 

@@ -9,6 +9,37 @@ export function getRoleWelcomeMessage(roleId: string): string {
   return WELCOME_MESSAGE_HINDI;
 }
 
+export function isGenericAssistantWelcome(content: string): boolean {
+  const normalized = content.trim().toLowerCase();
+  return normalized === "hi" || normalized === "hello";
+}
+
+/** Replace a saved generic "Hi" opener with the role-specific welcome (e.g. Krishna). */
+export function upgradeStaleRoleWelcomeMessages<
+  T extends { role: string; content: string; id?: string | number },
+>(messages: T[], roleId: string): { messages: T[]; messageIdsToPersist: string[] } {
+  const targetWelcome = getRoleWelcomeMessage(roleId);
+  if (targetWelcome === WELCOME_MESSAGE_HINDI) {
+    return { messages, messageIdsToPersist: [] };
+  }
+
+  let seenFirstAssistant = false;
+  const messageIdsToPersist: string[] = [];
+
+  const upgraded = messages.map((msg) => {
+    if (msg.role !== "assistant" || seenFirstAssistant) return msg;
+    seenFirstAssistant = true;
+    if (!isGenericAssistantWelcome(msg.content)) return msg;
+
+    if (typeof msg.id === "string") {
+      messageIdsToPersist.push(msg.id);
+    }
+    return { ...msg, content: targetWelcome };
+  });
+
+  return { messages: upgraded, messageIdsToPersist };
+}
+
 export const LANGUAGE_OPTIONS = {
   HINDI: 'hindi',
   ENGLISH: 'english'

@@ -128,6 +128,26 @@ export const saveChatMessageToSupabase = async (input: SaveChatMessageInput) => 
   return message;
 };
 
+export const updateChatMessageContentInSupabase = async (
+  messageId: string,
+  content: string,
+  userId?: string | null,
+  anonymousUserId?: string | null,
+) => {
+  const supabase = getSupabaseAdmin();
+  const owner = resolveOwner(userId, anonymousUserId);
+
+  let query = supabase.from("chat_messages").update({ content }).eq("id", messageId);
+
+  query = owner.user_id
+    ? query.eq("user_id", owner.user_id)
+    : query.eq("anonymous_user_id", owner.anonymous_user_id);
+
+  const { data, error } = await query.select("id, content").single();
+  if (error) throw error;
+  return data;
+};
+
 export const getChatMessagesFromSupabase = async (
   companionId: string,
   userId?: string | null,

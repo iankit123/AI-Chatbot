@@ -17,11 +17,15 @@ import {
   auth,
   saveChatMessage,
   getChatMessages,
+  updateChatMessageContent,
   notifyLocalAuthListeners,
   getChatPersistenceOwner,
 } from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
-import { getRoleWelcomeMessage } from "@/lib/constants";
+import {
+  getRoleWelcomeMessage,
+  upgradeStaleRoleWelcomeMessages,
+} from "@/lib/constants";
 import {
   canAffordChatMessage,
   clientShouldBlockForPaywall,
@@ -407,10 +411,21 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             contextInfo: msg.context_info || msg.contextInfo || null,
           }));
           
+          const { messages: upgradedMessages, messageIdsToPersist } =
+            upgradeStaleRoleWelcomeMessages(convertedMessages, companionId);
+          if (messageIdsToPersist.length > 0) {
+            const newContent = getRoleWelcomeMessage(companionId);
+            for (const messageId of messageIdsToPersist) {
+              void updateChatMessageContent(messageId, newContent).catch((error) => {
+                console.error("[ChatContext] Error persisting upgraded welcome:", error);
+              });
+            }
+          }
+
           // Filter out duplicate "Hi" messages from assistant (keep only the first one)
           const filteredMessages: Message[] = [];
           let lastAssistantContent: string | null = null;
-          for (const msg of convertedMessages) {
+          for (const msg of upgradedMessages) {
             let shouldSkip = false;
             
             if (msg.role === 'assistant') {

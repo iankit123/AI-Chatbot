@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   getChatMessagesFromSupabase,
   saveChatMessageToSupabase,
+  updateChatMessageContentInSupabase,
 } from "../../server/services/supabaseChat";
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8" };
@@ -38,6 +39,25 @@ const handler: Handler = async (event) => {
       const message = await saveChatMessageToSupabase(data);
       return {
         statusCode: 201,
+        headers: jsonHeaders,
+        body: JSON.stringify(message),
+      };
+    }
+
+    if (event.httpMethod === "PATCH") {
+      const patchSchema = ownerSchema.extend({
+        messageId: z.string().uuid(),
+        content: z.string().min(1),
+      });
+      const data = patchSchema.parse(JSON.parse(event.body || "{}"));
+      const message = await updateChatMessageContentInSupabase(
+        data.messageId,
+        data.content,
+        data.userId,
+        data.anonymousUserId,
+      );
+      return {
+        statusCode: 200,
         headers: jsonHeaders,
         body: JSON.stringify(message),
       };
