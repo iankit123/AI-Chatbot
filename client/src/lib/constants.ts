@@ -1,6 +1,14 @@
 export const WELCOME_MESSAGE_HINDI = "Hi";
 export const WELCOME_MESSAGE_ENGLISH = "Hi";
 
+export const KRISHNA_WELCOME_MESSAGE =
+  "Bolo beta, Koi Samasya hai yaa kuch baat karni hai?";
+
+export function getRoleWelcomeMessage(roleId: string): string {
+  if (roleId === "krishna") return KRISHNA_WELCOME_MESSAGE;
+  return WELCOME_MESSAGE_HINDI;
+}
+
 export const LANGUAGE_OPTIONS = {
   HINDI: 'hindi',
   ENGLISH: 'english'

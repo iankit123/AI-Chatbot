@@ -21,6 +21,7 @@ import {
   getChatPersistenceOwner,
 } from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
+import { getRoleWelcomeMessage } from "@/lib/constants";
 import {
   canAffordChatMessage,
   clientShouldBlockForPaywall,
@@ -487,7 +488,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
               content:
                 companionId === "english"
                   ? getEnglishChatOpeningHtml(currentLanguage)
-                  : "Hi",
+                  : getRoleWelcomeMessage(companionId),
               role: "assistant",
               companionId: companionId,
               timestamp: new Date(),
