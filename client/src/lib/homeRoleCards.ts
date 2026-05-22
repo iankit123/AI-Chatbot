@@ -22,6 +22,26 @@ export interface HomeRoleCardDefinition {
 /** Same ordering/data as Home assistant cards — single source for layout + routes. */
 export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
   {
+    id: "krishna",
+    title: "Krishna",
+    description: "Spiritual guidance and life wisdom",
+    route: "/krishna",
+    gradient: "from-blue-500 to-indigo-600",
+    image: "/images/krishna-card.png",
+    badgeTone: "blue",
+    ctaClass: "bg-gradient-to-r from-blue-600 to-indigo-600",
+  },
+  {
+    id: "english",
+    title: "Learn English",
+    description: "Practice speaking and grammar",
+    route: "/english",
+    gradient: "from-orange-500 to-amber-600",
+    image: "/images/english-card.png",
+    badgeTone: "orange",
+    ctaClass: "bg-gradient-to-r from-orange-500 to-amber-500",
+  },
+  {
     id: "doctor",
     title: "Personal Doctor AI",
     description: "24/7 health guidance",
@@ -40,26 +60,6 @@ export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
     image: "/images/kundali-card.png",
     badgeTone: "violet",
     ctaClass: "bg-gradient-to-r from-violet-600 to-fuchsia-600",
-  },
-  {
-    id: "english",
-    title: "Learn English",
-    description: "Practice speaking and grammar",
-    route: "/english",
-    gradient: "from-orange-500 to-amber-600",
-    image: "/images/english-card.png",
-    badgeTone: "orange",
-    ctaClass: "bg-gradient-to-r from-orange-500 to-amber-500",
-  },
-  {
-    id: "krishna",
-    title: "Krishna",
-    description: "Spiritual guidance and life wisdom",
-    route: "/krishna",
-    gradient: "from-blue-500 to-indigo-600",
-    image: "/images/krishna-card.png",
-    badgeTone: "blue",
-    ctaClass: "bg-gradient-to-r from-blue-600 to-indigo-600",
   },
   {
     id: "relationship",
