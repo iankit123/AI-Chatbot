@@ -11,6 +11,7 @@ import {
 } from "@/lib/relationshipPhotoGallery";
 import { PhotoPackActivationDialog } from "@/components/PhotoPackActivationDialog";
 import { fetchBillingWallet } from "@/lib/billing";
+import { ACCOUNT_SESSION_REFRESH_EVENT } from "@/lib/sessionRefresh";
 import {
   clearPhotoPackUnlock,
   hasPhotoPackInWallet,
@@ -411,35 +412,44 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
   }, []);
 
   useEffect(() => {
-    setPackCheckDone(false);
-    void fetchBillingWallet(getDeviceId()).then((wallet) => {
-      if (wallet) {
-        const hasPack = hasPhotoPackInWallet(wallet, companionId);
-        if (hasPack) {
-          setPhotoPackUnlocked(companionId);
+    let cancelled = false;
+
+    const reloadPackState = () => {
+      setPackCheckDone(false);
+      void fetchBillingWallet(getDeviceId()).then((wallet) => {
+        if (cancelled) return;
+        if (wallet) {
+          const hasPack = hasPhotoPackInWallet(wallet, companionId);
+          if (hasPack) {
+            setPhotoPackUnlocked(companionId);
+          } else {
+            clearPhotoPackUnlock(companionId);
+          }
+          setUnlocked(hasPack);
         } else {
           clearPhotoPackUnlock(companionId);
+          setUnlocked(false);
         }
-        setUnlocked(hasPack);
-      } else {
-        clearPhotoPackUnlock(companionId);
-        setUnlocked(false);
-      }
-      setPackCheckDone(true);
-    });
+        setPackCheckDone(true);
+      });
+    };
+
+    reloadPackState();
     const onUnlock = (e: Event) => {
       const detail = (e as CustomEvent<{ companionId?: string }>).detail;
       if (!detail?.companionId || detail.companionId === companionId) {
-        void fetchBillingWallet(getDeviceId()).then((wallet) => {
-          const hasPack = wallet ? hasPhotoPackInWallet(wallet, companionId) : false;
-          setUnlocked(hasPack);
-          if (hasPack) setPhotoPackUnlocked(companionId);
-          else clearPhotoPackUnlock(companionId);
-        });
+        reloadPackState();
       }
     };
     window.addEventListener(PHOTO_PACK_UNLOCK_EVENT, onUnlock);
-    return () => window.removeEventListener(PHOTO_PACK_UNLOCK_EVENT, onUnlock);
+    window.addEventListener("local-storage-auth", reloadPackState);
+    window.addEventListener(ACCOUNT_SESSION_REFRESH_EVENT, reloadPackState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PHOTO_PACK_UNLOCK_EVENT, onUnlock);
+      window.removeEventListener("local-storage-auth", reloadPackState);
+      window.removeEventListener(ACCOUNT_SESSION_REFRESH_EVENT, reloadPackState);
+    };
   }, [companionId]);
 
   const requestUnlock = () => {

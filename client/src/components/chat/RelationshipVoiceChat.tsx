@@ -8,8 +8,9 @@ import { fetchServerTtsAudio } from "@/lib/voice/serverTts";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { VoicePackPaywall } from "@/components/chat/VoicePackPaywall";
 import { fetchBillingWallet } from "@/lib/billing";
+import { ACCOUNT_SESSION_REFRESH_EVENT } from "@/lib/sessionRefresh";
 import {
-  applyServerVoicePackUnlocks,
+  hasVoicePackInWallet,
   isVoicePackUnlocked,
   VOICE_PACK_UNLOCK_EVENT,
 } from "@/lib/voicePackUnlock";
@@ -25,29 +26,45 @@ import {
 
 export function RelationshipVoiceChat() {
   const { companionId } = useChat();
-  const [voiceUnlocked, setVoiceUnlocked] = useState(() =>
-    isVoicePackUnlocked(companionId),
-  );
+  const [voiceUnlocked, setVoiceUnlocked] = useState(false);
+  const [packCheckDone, setPackCheckDone] = useState(false);
 
   useEffect(() => {
-    setVoiceUnlocked(isVoicePackUnlocked(companionId));
-    void fetchBillingWallet().then((wallet) => {
-      if (wallet?.voice_packs?.length) {
-        applyServerVoicePackUnlocks(
-          wallet.voice_packs.map((p) => p.companion_id),
-        );
-      }
-      setVoiceUnlocked(isVoicePackUnlocked(companionId));
-    });
+    let cancelled = false;
+    setPackCheckDone(false);
+
+    const refresh = () => {
+      void fetchBillingWallet().then((wallet) => {
+        if (cancelled) return;
+        const hasPack = wallet
+          ? hasVoicePackInWallet(wallet, companionId)
+          : isVoicePackUnlocked(companionId);
+        setVoiceUnlocked(hasPack);
+        setPackCheckDone(true);
+      });
+    };
+
+    refresh();
     const onUnlock = (event: Event) => {
       const detail = (event as CustomEvent<{ companionId?: string }>).detail;
       if (!detail?.companionId || detail.companionId === companionId) {
-        setVoiceUnlocked(isVoicePackUnlocked(companionId));
+        refresh();
       }
     };
     window.addEventListener(VOICE_PACK_UNLOCK_EVENT, onUnlock);
-    return () => window.removeEventListener(VOICE_PACK_UNLOCK_EVENT, onUnlock);
+    window.addEventListener("local-storage-auth", refresh);
+    window.addEventListener(ACCOUNT_SESSION_REFRESH_EVENT, refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(VOICE_PACK_UNLOCK_EVENT, onUnlock);
+      window.removeEventListener("local-storage-auth", refresh);
+      window.removeEventListener(ACCOUNT_SESSION_REFRESH_EVENT, refresh);
+    };
   }, [companionId]);
+
+  if (!packCheckDone) {
+    return null;
+  }
 
   if (!voiceUnlocked) {
     return (

@@ -1,3 +1,5 @@
+import { stripTextForTts } from "@/lib/voice/stripTextForTts";
+
 export interface BrowserTTSOptions {
   voiceName?: string;
   rate?: number;
@@ -48,7 +50,7 @@ export const speakWithBrowserTTS = (
   if (!("speechSynthesis" in window)) {
     return Promise.reject(new Error("Speech synthesis is not supported in this browser."));
   }
-  const content = text.trim();
+  const content = stripTextForTts(text);
   if (!content) return Promise.resolve();
 
   return new Promise((resolve, reject) => {

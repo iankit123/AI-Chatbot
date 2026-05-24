@@ -16,6 +16,7 @@ import {
   signInWithPhoneLocal,
   upsertAppProfileOnServer,
 } from "@/lib/supabase";
+import { refreshAccountSession } from "@/lib/sessionRefresh";
 import { trackProfileCreated } from "@/lib/metaPixel";
 
 export interface PhoneNameSignInFieldsProps {
@@ -73,10 +74,11 @@ export function PhoneNameSignInFields({
     try {
       signInWithPhoneLocal(name.trim(), normalized);
       const deviceId = getDeviceId();
-      void upsertAppProfileOnServer(deviceId, {
+      await upsertAppProfileOnServer(deviceId, {
         phone: normalized,
         name: name.trim(),
-      });
+      }).catch(() => {});
+      await refreshAccountSession();
 
       (document.activeElement as HTMLElement | null)?.blur?.();
 

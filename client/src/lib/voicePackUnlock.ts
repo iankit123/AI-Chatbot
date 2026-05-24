@@ -23,6 +23,42 @@ export function setVoicePackUnlocked(companionId: string): void {
   );
 }
 
+export function clearVoicePackUnlock(companionId: string): void {
+  if (!companionId) return;
+  try {
+    localStorage.removeItem(`${STORAGE_PREFIX}${companionId}`);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearAllVoicePackUnlocks(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(STORAGE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasVoicePackInWallet(
+  wallet: { voice_packs: { companion_id: string }[] },
+  companionId: string,
+): boolean {
+  const id = companionId.trim().toLowerCase();
+  if (!id) return false;
+  return wallet.voice_packs.some((p) => p.companion_id === id);
+}
+
+export function syncVoicePackUnlocksFromServer(companionIds: string[]): void {
+  clearAllVoicePackUnlocks();
+  applyServerVoicePackUnlocks(companionIds);
+}
+
 export function applyServerVoicePackUnlocks(
   packs: { companion_id: string }[] | string[],
 ): void {

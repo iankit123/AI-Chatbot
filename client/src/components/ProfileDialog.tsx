@@ -16,6 +16,7 @@ import {
   notifyLocalAuthListeners,
   signOutUser,
 } from "@/lib/supabase";
+import { clearLocalEntitlementCache } from "@/lib/sessionRefresh";
 
 interface ProfileDialogProps {
   open: boolean;
@@ -65,6 +66,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   }, []);
 
   const handleSignOut = async () => {
+    clearLocalEntitlementCache();
     await signOutUser().catch(() => {
       auth.currentUser = null;
       localStorage.removeItem("authUser");

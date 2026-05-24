@@ -36,6 +36,7 @@ import {
   readLocalWalletCredits,
   syncWalletCreditsToLocal,
 } from "@/lib/billing";
+import { ACCOUNT_SESSION_REFRESH_EVENT } from "@/lib/sessionRefresh";
 import { getDeviceId, getStoredBillingPhoneDigits } from "@/lib/supabase";
 import { RechargeChatDialog } from "@/components/RechargeChatDialog";
 import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
@@ -355,6 +356,22 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
 
   useEffect(() => {
     void fetchBillingWallet();
+  }, []);
+
+  // Reload chats and wallet when the signed-in phone changes on this device.
+  useEffect(() => {
+    const reloadForAccount = () => {
+      setMessages([]);
+      welcomeMessageAddedRef.current.clear();
+      setHistorySessionKey((k) => k + 1);
+      void fetchBillingWallet();
+    };
+    window.addEventListener("local-storage-auth", reloadForAccount);
+    window.addEventListener(ACCOUNT_SESSION_REFRESH_EVENT, reloadForAccount);
+    return () => {
+      window.removeEventListener("local-storage-auth", reloadForAccount);
+      window.removeEventListener(ACCOUNT_SESSION_REFRESH_EVENT, reloadForAccount);
+    };
   }, []);
 
   // On mount, load user profile if exists

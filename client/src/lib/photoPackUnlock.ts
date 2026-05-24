@@ -27,6 +27,24 @@ export function setPhotoPackUnlocked(companionId: string): void {
   );
 }
 
+export function clearAllPhotoPackUnlocks(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(STORAGE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function syncPhotoPackUnlocksFromServer(companionIds: string[]): void {
+  clearAllPhotoPackUnlocks();
+  applyServerPhotoPackUnlocks(companionIds);
+}
+
 /** Sync unlock flags from `profiles.unlocked_photo_packs` after payment verify / wallet fetch. */
 export function applyServerPhotoPackUnlocks(companionIds: string[]): void {
   for (const id of companionIds) {
