@@ -1,3 +1,5 @@
+import { getEnglishChatOpeningHtml } from "./englishChatOpening";
+
 export const WELCOME_MESSAGE_HINDI = "Hi";
 export const WELCOME_MESSAGE_ENGLISH = "Hi";
 
@@ -38,6 +40,59 @@ export function upgradeStaleRoleWelcomeMessages<
   });
 
   return { messages: upgraded, messageIdsToPersist };
+}
+
+const normalizeContent = (content: string) =>
+  content.replace(/\s+/g, " ").trim().toLowerCase();
+
+/** True when an assistant message is a chat opener (role welcome, generic "Hi", or the Learn English opening). */
+export function isAssistantOpenerMessage(
+  msg: { role: string; content: string; contextInfo?: string | null },
+  roleId: string,
+): boolean {
+  if (msg.role !== "assistant") return false;
+  if (msg.contextInfo === "english_lesson_opening") return true;
+  if (isGenericAssistantWelcome(msg.content)) return true;
+  const normalized = normalizeContent(msg.content);
+  if (normalized === normalizeContent(getRoleWelcomeMessage(roleId))) return true;
+  if (roleId === "english") {
+    return (
+      normalized === normalizeContent(getEnglishChatOpeningHtml("hindi")) ||
+      normalized === normalizeContent(getEnglishChatOpeningHtml("english"))
+    );
+  }
+  return false;
+}
+
+/**
+ * Keep only the first opener/welcome message in a loaded history and drop
+ * consecutive identical assistant messages. Old sessions saved a fresh welcome
+ * row each visit; this collapses them to the single opener the user should see.
+ */
+export function dedupeAssistantOpenerMessages<
+  T extends { role: string; content: string; contextInfo?: string | null },
+>(messages: T[], roleId: string): T[] {
+  const result: T[] = [];
+  let openerSeen = false;
+  let prevAssistantContent: string | null = null;
+
+  for (const msg of messages) {
+    if (msg.role === "assistant") {
+      const normalized = normalizeContent(msg.content);
+      if (isAssistantOpenerMessage(msg, roleId)) {
+        if (openerSeen) continue;
+        openerSeen = true;
+      } else if (prevAssistantContent === normalized) {
+        continue;
+      }
+      prevAssistantContent = normalized;
+    } else {
+      prevAssistantContent = null;
+    }
+    result.push(msg);
+  }
+
+  return result;
 }
 
 export const LANGUAGE_OPTIONS = {

@@ -23,6 +23,7 @@ import {
 } from "@/lib/supabase";
 import { getEnglishChatOpeningHtml } from "@/lib/englishChatOpening";
 import {
+  dedupeAssistantOpenerMessages,
   getRoleWelcomeMessage,
   upgradeStaleRoleWelcomeMessages,
 } from "@/lib/constants";
@@ -287,6 +288,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   /** Bumped when user explicitly starts a new chat so the history effect re-runs without loading from server. */
   const [historySessionKey, setHistorySessionKey] = useState(0);
   const shouldClearChatRef = useRef(false);
+  /** "companionId:historySessionKey" once that history fetch has settled — gates the welcome message so it never races the history load. */
+  const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null);
 
   useEffect(() => {
     companionIdRef.current = companionId;
@@ -394,15 +397,20 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   // Load previous chat history for authenticated and anonymous users
   // Skip server load once after explicit "New chat" (shouldClearChatRef)
   useEffect(() => {
+    const historyKey = `${companionId}:${historySessionKey}`;
+
     if (shouldClearChatRef.current) {
       console.log("[ChatContext] Starting fresh chat - skipping history reload");
       setMessages([]);
       setMessageCount(0);
       welcomeMessageAddedRef.current.clear();
       shouldClearChatRef.current = false;
+      setLoadedHistoryKey(historyKey);
       return;
     }
-    
+
+    let cancelled = false;
+
     const loadChatHistory = async () => {
       try {
         const owner = getChatPersistenceOwner();
@@ -414,6 +422,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         );
 
         const storedMessages = await getChatMessages(companionId, owner);
+        if (cancelled) return;
         if (storedMessages && storedMessages.length > 0) {
           console.log("[ChatContext] Found previous chat history with", storedMessages.length, "messages");
           
@@ -439,32 +448,20 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             }
           }
 
-          // Filter out duplicate "Hi" messages from assistant (keep only the first one)
-          const filteredMessages: Message[] = [];
-          let lastAssistantContent: string | null = null;
-          for (const msg of upgradedMessages) {
-            let shouldSkip = false;
-            
-            if (msg.role === 'assistant') {
-              const content = msg.content.trim().toLowerCase();
-              // Skip duplicate "Hi" or "Hello" messages from assistant
-              if ((content === 'hi' || content === 'hello') && lastAssistantContent === content) {
-                console.log("[ChatContext] Filtering out duplicate welcome message:", msg.content);
-                shouldSkip = true; // Skip this message, don't add it
-              } else {
-                lastAssistantContent = content;
-              }
-            } else {
-              // Reset last assistant content when user message appears
-              lastAssistantContent = null;
-            }
-            
-            // Only add message if we didn't skip it
-            if (!shouldSkip) {
-              filteredMessages.push(msg);
-            }
+          // Old sessions saved a fresh welcome/opener row on every visit; keep
+          // only the first opener and drop consecutive identical bot messages.
+          const filteredMessages = dedupeAssistantOpenerMessages(
+            upgradedMessages,
+            companionId,
+          );
+          if (filteredMessages.length < upgradedMessages.length) {
+            console.log(
+              "[ChatContext] Filtered out",
+              upgradedMessages.length - filteredMessages.length,
+              "duplicate welcome/opener messages from history",
+            );
           }
-          
+
           // Set the messages in state
           setMessages(filteredMessages);
           
@@ -483,67 +480,67 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       } catch (error) {
         console.error("[ChatContext] Error loading chat history:", error);
         // If error loading history, just continue with empty chat - welcome message will be added
+      } finally {
+        // Mark this history fetch as settled so the welcome effect can run.
+        if (!cancelled) {
+          setLoadedHistoryKey(historyKey);
+        }
       }
     };
-    
+
     loadChatHistory();
+
+    return () => {
+      cancelled = true;
+    };
   }, [companionId, historySessionKey]);
 
   // Add first welcome message when chat starts (only for new chats, not when loading history)
-  // Only add once per companion per session
+  // Only add once per companion per session, and only after the history fetch
+  // for this companion has settled — otherwise a slow fetch races the welcome
+  // and a duplicate welcome row gets persisted every visit.
   useEffect(() => {
-    // Only add welcome message if:
-    // 1. Messages array is empty (new chat or no history)
-    // 2. Companion is selected
-    // 3. Welcome message hasn't been added for this companion yet in this session
-    // 4. Give enough time for history to load (500ms delay)
+    if (companionId === "kundli") return;
+    if (loadedHistoryKey !== `${companionId}:${historySessionKey}`) return;
     if (
-      companionId === "kundli" ||
-      !messages.length &&
-      companionId &&
-      botName &&
-      !welcomeMessageAddedRef.current.has(companionId)
+      messages.length ||
+      !companionId ||
+      !botName ||
+      welcomeMessageAddedRef.current.has(companionId)
     ) {
-      if (companionId === "kundli") {
-        return;
-      }
-      const timer = setTimeout(() => {
-        // Double-check messages are still empty after delay (history loading might have finished)
-        // and welcome message hasn't been added by another effect
-        setMessages((prevMessages) => {
-          if (prevMessages.length === 0 && !welcomeMessageAddedRef.current.has(companionId)) {
-            // Mark that welcome message has been added for this companion
-            welcomeMessageAddedRef.current.add(companionId);
-            
-            const welcomeMessage: Message = {
-              id: Date.now(),
-              content:
-                companionId === "english"
-                  ? getEnglishChatOpeningHtml(currentLanguage)
-                  : getRoleWelcomeMessage(companionId),
-              role: "assistant",
-              companionId: companionId,
-              timestamp: new Date(),
-              photoUrl: null,
-              isPremium: null,
-              contextInfo: companionId === "english" ? "english_lesson_opening" : null,
-            };
-            
-            console.log("[ChatContext] Adding first welcome message for companion:", companionId);
-            
-            saveChatMessage(welcomeMessage).catch((error) => {
-              console.error("[ChatContext] Error saving welcome message:", error);
-            });
-            
-            return [welcomeMessage];
-          }
-          return prevMessages;
-        });
-      }, 500); // Increased delay to allow history loading to complete
-      
-      return () => clearTimeout(timer);
+      return;
     }
-  }, [messages.length, companionId, botName, currentLanguage]);
+
+    setMessages((prevMessages) => {
+      if (prevMessages.length === 0 && !welcomeMessageAddedRef.current.has(companionId)) {
+        // Mark that welcome message has been added for this companion
+        welcomeMessageAddedRef.current.add(companionId);
+
+        const welcomeMessage: Message = {
+          id: Date.now(),
+          content:
+            companionId === "english"
+              ? getEnglishChatOpeningHtml(currentLanguage)
+              : getRoleWelcomeMessage(companionId),
+          role: "assistant",
+          companionId: companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: companionId === "english" ? "english_lesson_opening" : null,
+        };
+
+        console.log("[ChatContext] Adding first welcome message for companion:", companionId);
+
+        saveChatMessage(welcomeMessage).catch((error) => {
+          console.error("[ChatContext] Error saving welcome message:", error);
+        });
+
+        return [welcomeMessage];
+      }
+      return prevMessages;
+    });
+  }, [loadedHistoryKey, historySessionKey, messages.length, companionId, botName, currentLanguage]);
 
   useEffect(() => {
     const authState = isAuthenticated();
