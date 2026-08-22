@@ -41,9 +41,9 @@ const HINDI: Record<string, RoleCardPresentation> = {
     startChat: "चैट शुरू करें",
   },
   relationship: {
-    overlayTitle: "रिलेशनशिप की बात करें",
-    description: "इमोशनल सपोर्ट और कनेक्शन",
-    badge: "इमोशनल सपोर्ट",
+    overlayTitle: "नए दोस्त बनाएं",
+    description: "दोस्ती, बातचीत और कनेक्शन",
+    badge: "फ्रेंडली चैट",
     startChat: "चैट शुरू करें",
   },
   krishna: {
