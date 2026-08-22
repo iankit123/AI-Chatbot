@@ -2,7 +2,7 @@ import type { AppEventName } from "@shared/appEvents";
 import { logAppEventToServer } from "@/lib/logAppEvent";
 
 /** Meta Pixel ID — base script lives in client/index.html */
-export const META_PIXEL_ID = "979751831106319";
+export const META_PIXEL_ID = "1838700220429198";
 
 type FbqCommand = "init" | "track" | "trackCustom";
 
