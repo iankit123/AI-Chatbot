@@ -103,7 +103,16 @@ export const LANGUAGE_OPTIONS = {
 /** Voice tab — premium activation amount shown in UI and logged to payment_attempts */
 export const VOICE_CHAT_ACTIVATION_RUPEES = 29;
 
-export type RoleType = 'doctor' | 'kundli' | 'parenting' | 'finance' | 'career' | 'relationship' | 'krishna' | 'english';
+export type RoleType =
+  | 'doctor'
+  | 'kundli'
+  | 'parenting'
+  | 'finance'
+  | 'career'
+  | 'relationship'
+  | 'relationship-advice'
+  | 'krishna'
+  | 'english';
 
 // Role-specific suggestion prompts
 export const ROLE_SUGGESTIONS: Record<RoleType, string[]> = {
@@ -138,6 +147,14 @@ export const ROLE_SUGGESTIONS: Record<RoleType, string[]> = {
     "Salary negotiation kaise karein?"
   ],
   relationship: [],
+  'relationship-advice': [
+    "Mai girlfriend se kaise baat karu?",
+    "Meri girlfriend ka ek friend boy hai, mujhe kya karna chahiye?",
+    "Breakup ke baad move on kaise karu?",
+    "Ghar walo ko love marriage ke liye kaise manau?",
+    "Wo mujhse baat karna kam kar rahi hai, kya karu?",
+    "Shaadi ke baad patni se jhagda hota hai, kya karu?",
+  ],
   krishna: [
     "Mujhe life me clarity chahiye",
     "Stress me shaant kaise rahu?",

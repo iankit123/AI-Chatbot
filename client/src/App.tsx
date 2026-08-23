@@ -11,6 +11,7 @@ import FinanceChat from "./pages/FinanceChat";
 import CareerChat from "./pages/CareerChat";
 import KrishnaChat from "./pages/KrishnaChat";
 import EnglishChat from "./pages/EnglishChat";
+import RelationshipAdviceChat from "./pages/RelationshipAdviceChat";
 import AboutUs from "./pages/AboutUs";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/old-chats" component={OldChats} />
       <Route path="/relationship-coach" component={LandingPage} />
+      <Route path="/relationship-advice" component={RelationshipAdviceChat} />
       <Route path="/chat" component={Chat} />
       <Route path="/doctor" component={DoctorChat} />
       <Route path="/kundli" component={KundliChat} />

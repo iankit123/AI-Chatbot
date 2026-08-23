@@ -31,7 +31,7 @@ import {
   canAffordChatMessage,
   clientShouldBlockForPaywall,
 } from "@/lib/chatPaywall";
-import { trackPaywallTriggered } from "@/lib/metaPixel";
+import { trackChatStarted, trackPaywallTriggered } from "@/lib/metaPixel";
 import {
   fetchBillingWallet,
   readLocalWalletCredits,
@@ -701,6 +701,15 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           return;
         }
       }
+
+      // Ad-funnel signal: message passed the profile + paywall gates, so it is really being sent.
+      // `trackChatStarted` de-dupes per companion per session.
+      trackChatStarted({
+        companion_id: companionId,
+        companion_name: botName,
+        language: currentLanguage,
+        is_authenticated: isAuthenticated(),
+      });
 
       // Check if this message is affirmative regardless of where in the flow we are
       const isAffirmativeResponse = isAffirmative(trimmedContent);

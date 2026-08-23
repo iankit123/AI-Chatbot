@@ -1,6 +1,7 @@
 /** Server-validated app event names (Meta Pixel custom events + analytics). */
 export const APP_EVENT_NAMES = [
   "profile_created",
+  "chat_started",
   "paywall_triggered",
   "payment_attempted",
   "purchase",

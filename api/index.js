@@ -898,6 +898,40 @@ The app already displays medical disclaimers permanently.
 Do NOT repeat disclaimer boilerplate in every answer.
 `;
 
+// server/prompts/chatbots/relationshipAdvice.ts
+var RELATIONSHIP_ADVICE_SYSTEM_PROMPT = `You are a Relationship Advice assistant \u2014 a calm, practical relationship coach helping people with love, dating, marriage, family and friendship problems.
+
+WHO YOU ARE:
+- You are an ADVISOR, not a partner, girlfriend, boyfriend or companion.
+- You are gender-neutral. Never take on a romantic persona, never role-play as someone's partner.
+- The user may be male or female. Do not assume \u2014 use neutral phrasing until they tell you.
+
+CRITICAL SAFETY RULES - STRICTLY ENFORCE:
+- Give relationship guidance ONLY: communication, trust, conflict, boundaries, breakups, family pressure, long distance, marriage decisions.
+- NO flirty, romantic, sexual, possessive, or emotionally dependent behavior. Never send or offer photos, voice notes, or personal contact.
+- NEVER encourage stalking, checking someone's phone, tracking, blackmail, revenge, or controlling behaviour. If the user asks for that, redirect firmly to honest conversation.
+- NEVER encourage or excuse violence, threats, or abuse. If the user describes abuse or being unsafe, gently suggest they reach out to someone they trust or a local helpline.
+- If the user sounds hopeless, self-harming, or suicidal, respond with warmth, take it seriously, and encourage them to talk to someone they trust or a mental-health professional immediately.
+- Never guarantee outcomes ("she will definitely come back"). Talk in terms of what they can control.
+- Do not judge or lecture the user. No moralising.
+
+HOW TO ANSWER:
+- Start by briefly acknowledging what they feel \u2014 one short line, specific to what they said, not a generic "I understand your feelings".
+- Then give 2-3 concrete, practical things they can actually do or say.
+- Where useful, give them the actual words to say (a sample line they can send or speak).
+- End with one short question that moves the conversation forward.
+- Be direct and warm, like a level-headed friend who has seen this before.
+
+Language style:
+- Match the user's language. Hindi/Hinglish in Roman script by default; switch to English if they write in English.
+- Never use Devanagari script.
+- Simple everyday words, no therapy jargon, no English words most people would not know.
+- Speak in first person, but stay a coach \u2014 "main suggest karunga/karungi" is wrong, just say "ek cheez try karo".
+
+RESPONSE LENGTH: Keep responses tight \u2014 40-70 words. Practical over poetic. Never send an essay.
+
+IMPORTANT: Relationship disclaimers are shown permanently in the app UI. Do NOT repeat disclaimer boilerplate in replies \u2014 answer directly only.`;
+
 // server/prompts/chatbots/relationship.ts
 var RELATIONSHIP_CORE_PROMPT = `
 You are a young Indian woman chatting casually with a man in a private chat app.
@@ -1103,7 +1137,8 @@ var ROLE_SYSTEM_PROMPTS = {
   finance: FINANCE_SYSTEM_PROMPT,
   career: CAREER_SYSTEM_PROMPT,
   krishna: KRISHNA_SYSTEM_PROMPT,
-  english: ENGLISH_SYSTEM_PROMPT
+  english: ENGLISH_SYSTEM_PROMPT,
+  "relationship-advice": RELATIONSHIP_ADVICE_SYSTEM_PROMPT
 };
 
 // server/lib/callNumberRequest.ts
@@ -1223,7 +1258,8 @@ Respond as if you are a female chatting with a man \u2014 still follow feminine 
       "finance",
       "career",
       "krishna",
-      "english"
+      "english",
+      "relationship-advice"
     ];
     const isRoleBased = llmContext.companionId && roleTypes.includes(llmContext.companionId);
     let systemPromptContent = "";
@@ -1433,6 +1469,15 @@ var saveChatMessageToSupabase = async (input) => {
   ).single();
   if (messageError) throw messageError;
   return message;
+};
+var updateChatMessageContentInSupabase = async (messageId, content, userId, anonymousUserId) => {
+  const supabase = getSupabaseAdmin();
+  const owner = resolveOwner(userId, anonymousUserId);
+  let query = supabase.from("chat_messages").update({ content }).eq("id", messageId);
+  query = owner.user_id ? query.eq("user_id", owner.user_id) : query.eq("anonymous_user_id", owner.anonymous_user_id);
+  const { data, error } = await query.select("id, content").single();
+  if (error) throw error;
+  return data;
 };
 var getChatMessagesFromSupabase = async (companionId, userId, anonymousUserId) => {
   const supabase = getSupabaseAdmin();
@@ -2268,6 +2313,7 @@ var insertAppEventRow = async (input) => {
 // shared/appEvents.ts
 var APP_EVENT_NAMES = [
   "profile_created",
+  "chat_started",
   "paywall_triggered",
   "payment_attempted",
   "purchase"
@@ -2394,6 +2440,28 @@ async function registerRoutes(app2, opts) {
         error: detail,
         ...hint ? { hint } : {}
       });
+    }
+  });
+  app2.patch("/api/chat/messages", async (req, res) => {
+    try {
+      const patchSchema = ownerSchema.extend({
+        messageId: z.string().uuid(),
+        content: z.string().min(1)
+      });
+      const data = patchSchema.parse(req.body);
+      const message = await updateChatMessageContentInSupabase(
+        data.messageId,
+        data.content,
+        data.userId,
+        data.anonymousUserId
+      );
+      res.json(message);
+    } catch (error) {
+      console.error("Error updating chat message:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid chat message update", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update chat message" });
     }
   });
   app2.get("/api/chat/messages", async (req, res) => {

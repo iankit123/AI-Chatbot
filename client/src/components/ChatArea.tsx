@@ -14,6 +14,7 @@ const ROLE_CHAT_IDS: RoleType[] = [
   'career',
   'krishna',
   'english',
+  'relationship-advice',
 ];
 
 function readCompanionSelection(): { companionId: string; currentRole: RoleType | null } {

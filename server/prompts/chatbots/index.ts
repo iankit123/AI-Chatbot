@@ -5,8 +5,17 @@ import { ENGLISH_SYSTEM_PROMPT } from "./english";
 import { KRISHNA_SYSTEM_PROMPT } from "./krishna";
 import { KUNDLI_SYSTEM_PROMPT } from "./kundli";
 import { PARENTING_SYSTEM_PROMPT } from "./parenting";
+import { RELATIONSHIP_ADVICE_SYSTEM_PROMPT } from "./relationshipAdvice";
 
-export type RolePromptId = "doctor" | "kundli" | "parenting" | "finance" | "career" | "krishna" | "english";
+export type RolePromptId =
+  | "doctor"
+  | "kundli"
+  | "parenting"
+  | "finance"
+  | "career"
+  | "krishna"
+  | "english"
+  | "relationship-advice";
 
 export const ROLE_SYSTEM_PROMPTS: Record<RolePromptId, string> = {
   doctor: DOCTOR_SYSTEM_PROMPT,
@@ -16,6 +25,7 @@ export const ROLE_SYSTEM_PROMPTS: Record<RolePromptId, string> = {
   career: CAREER_SYSTEM_PROMPT,
   krishna: KRISHNA_SYSTEM_PROMPT,
   english: ENGLISH_SYSTEM_PROMPT,
+  "relationship-advice": RELATIONSHIP_ADVICE_SYSTEM_PROMPT,
 };
 
 export {

@@ -41,9 +41,15 @@ const HINDI: Record<string, RoleCardPresentation> = {
     startChat: "चैट शुरू करें",
   },
   relationship: {
-    overlayTitle: "नए दोस्त बनाएं",
-    description: "दोस्ती, बातचीत और कनेक्शन",
-    badge: "फ्रेंडली चैट",
+    overlayTitle: "रिलेशनशिप सलाह लें",
+    description: "प्यार, रिश्ते और परिवार की सलाह",
+    badge: "रिलेशनशिप कोच",
+    startChat: "चैट शुरू करें",
+  },
+  "relationship-advice": {
+    overlayTitle: "रिलेशनशिप सलाह लें",
+    description: "प्यार, रिश्ते और परिवार की सलाह",
+    badge: "रिलेशनशिप कोच",
     startChat: "चैट शुरू करें",
   },
   krishna: {
@@ -92,9 +98,15 @@ const ENGLISH: Record<string, RoleCardPresentation> = {
     startChat: "Start Chat",
   },
   relationship: {
-    overlayTitle: "Talk to Relationship Coach",
-    description: "Emotional support & connection",
-    badge: "EMOTIONAL SUPPORT",
+    overlayTitle: "Get Relationship Advice",
+    description: "Love, dating and family guidance",
+    badge: "RELATIONSHIP COACH",
+    startChat: "Start Chat",
+  },
+  "relationship-advice": {
+    overlayTitle: "Get Relationship Advice",
+    description: "Love, dating and family guidance",
+    badge: "RELATIONSHIP COACH",
     startChat: "Start Chat",
   },
   krishna: {

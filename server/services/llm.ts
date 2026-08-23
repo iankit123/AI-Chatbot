@@ -21,7 +21,8 @@ type CompanionRoleId =
   | "finance"
   | "career"
   | "krishna"
-  | "english";
+  | "english"
+  | "relationship-advice";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -167,6 +168,7 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
       "career",
       "krishna",
       "english",
+      "relationship-advice",
     ];
     const isRoleBased =
       llmContext.companionId && roleTypes.includes(llmContext.companionId as CompanionRoleId);

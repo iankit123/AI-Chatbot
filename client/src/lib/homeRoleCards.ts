@@ -63,9 +63,23 @@ export const HOME_ROLE_CARDS: HomeRoleCardDefinition[] = [
   },
   {
     id: "relationship",
-    title: "Relationship Coach",
-    description: "Emotional support & connection",
+    title: "Relationship Advice",
+    description: "Love, dating and family guidance",
     route: "/relationship-coach",
+    gradient: "from-rose-500 to-red-600",
+    image: "/images/relationship-card.png",
+    badgeTone: "pink",
+    ctaClass: "bg-gradient-to-r from-pink-500 to-rose-500",
+  },
+  /**
+   * Advisory relationship chat. Rendered as the hero card on `/relationship-coach`,
+   * NOT as a Home tile — Home hides it via `HOME_CARD_DEFAULT_PERCENT` in `@/lib/experiments`.
+   */
+  {
+    id: "relationship-advice",
+    title: "Relationship Advice",
+    description: "Love, dating and family guidance",
+    route: "/relationship-advice",
     gradient: "from-rose-500 to-red-600",
     image: "/images/relationship-card.png",
     badgeTone: "pink",

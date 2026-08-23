@@ -28,6 +28,8 @@ export function getPersistentChatDisclaimer(companionId: string): string | null 
       "Yeh career guidance hai. Job opportunities aur placements guarantee nahi ki ja sakti. Proper skills aur networking important hai.",
     krishna:
       "Yeh spiritual life guidance hai inspired by Gita values — miracles ya guaranteed predictions nahi. Medical, legal ya finance ke liye qualified professionals se consult karein.",
+    "relationship-advice":
+      "Yeh general relationship guidance hai, professional counselling nahi. Agar aap ya koi aur safe feel nahi kar rahe, to kisi bharose ke insaan ya qualified counsellor se zaroor baat karein.",
     english:
       "यह अंग्रेज़ी सीखने में मदद है — कोई परीक्षा या वीज़ा की गारंटी नहीं। ज़रूरत हो तो किसी योग्य शिक्षक या संस्थान से भी सीखें।",
   };

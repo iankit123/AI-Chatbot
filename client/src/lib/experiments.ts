@@ -22,6 +22,8 @@ const HOME_CARD_DEFAULT_PERCENT: Record<string, number> = {
   finance: 0,
   career: 100,
   relationship: 100,
+  /** Hero card on `/relationship-coach` only — never a Home tile. */
+  "relationship-advice": 0,
   krishna: 100,
   english: 100,
 };

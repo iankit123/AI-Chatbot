@@ -41,6 +41,28 @@ export function trackProfileCreated(
   trackCustom("profile_created", params);
 }
 
+/**
+ * User sent their first message in this chat (per companion, per browser session).
+ * This is the mid-funnel signal Meta ad sets optimize for — it fires far more often
+ * than `purchase`, so campaigns can actually exit the learning phase on a small budget.
+ */
+export function trackChatStarted(params: {
+  companion_id: string;
+  companion_name?: string;
+  language?: string;
+  is_authenticated?: boolean;
+}): void {
+  const companionId = params.companion_id || "unknown";
+  const sessionKey = `chat_started_${companionId}`;
+  try {
+    if (sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, "1");
+  } catch {
+    /* private mode / storage disabled — fall through and still fire once per page load */
+  }
+  trackCustom("chat_started", params);
+}
+
 /** User hit the chat recharge paywall (free messages exhausted). */
 export function trackPaywallTriggered(
   params?: Record<string, unknown>,

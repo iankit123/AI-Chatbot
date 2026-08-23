@@ -7,7 +7,6 @@ import { useChat } from "@/context/ChatContext";
 import { HOME_ROLE_CARD_BY_ID } from "@/lib/homeRoleCards";
 import { getRoleCardPresentation } from "@/lib/homeRoleCardPresentation";
 import { isHomeAssistantCardVisible } from "@/lib/experiments";
-import { BRAND_NAME } from "@shared/brand";
 
 interface CompanionProfile {
   id: string;
@@ -131,16 +130,20 @@ export default function LandingPage() {
     setTimeout(() => setLocation("/chat"), 100);
   };
 
-  const title =
-    currentLanguage === "hindi" ? "अपना साथी चुनें" : "Choose your companion";
-  const subtitle =
-    currentLanguage === "hindi"
-      ? "बातचीत शुरू करने के लिए किसी एक को चुनें"
-      : "Pick someone to start chatting";
+  const isHindi = currentLanguage === "hindi";
 
-  const heroLineBefore =
-    currentLanguage === "hindi" ? "Baat karne ke liye " : "Choose your ";
-  const heroLineAfter = currentLanguage === "hindi" ? " chune" : " to chat";
+  const title = isHindi ? "रिलेशनशिप सलाह" : "Relationship Advice";
+  const subtitle = isHindi
+    ? "अपनी बात कहिए, सही सलाह पाइए"
+    : "Talk it out, get practical advice";
+
+  const friendsHeading = isHindi ? "नए दोस्त बनाएं" : "Make new friends";
+  const friendsSubheading = isHindi
+    ? "दोस्ती, बातचीत और कनेक्शन — किसी एक से बात शुरू करें"
+    : "Friendship, chat and connection — pick someone to talk to";
+
+  const adviceCard = HOME_ROLE_CARD_BY_ID["relationship-advice"];
+  const adviceCardCopy = getRoleCardPresentation(currentLanguage, "relationship-advice");
 
   return (
     <div className="flex min-h-screen flex-col bg-white pb-20">
@@ -164,16 +167,32 @@ export default function LandingPage() {
       </header>
 
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-4">
-        <section
-          className="mb-6 text-center"
-          aria-label={currentLanguage === "hindi" ? "मुख्य संदेश" : "Hero"}
-        >
-          <p className="font-outfit text-[22px] font-extrabold leading-snug tracking-tight text-slate-900 sm:text-[26px]">
-            {heroLineBefore}
-            <span className="bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-500 bg-clip-text text-transparent">
-              {BRAND_NAME}
-            </span>
-            {heroLineAfter}
+        {adviceCard && (
+          <section className="mb-8" aria-label={title}>
+            <HomeRoleCard
+              roleId={adviceCard.id}
+              image={adviceCard.image}
+              badge={adviceCardCopy.badge}
+              overlayTitle={adviceCardCopy.overlayTitle}
+              description={adviceCardCopy.description}
+              ctaClass={adviceCard.ctaClass}
+              badgeTone={adviceCard.badgeTone}
+              startChatLabel={adviceCardCopy.startChat}
+              onClick={() => setLocation(adviceCard.route)}
+            />
+          </section>
+        )}
+
+        <section className="mb-4" aria-label={friendsHeading}>
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" aria-hidden />
+            <h2 className="font-outfit text-[19px] font-extrabold tracking-tight text-slate-900 sm:text-[21px]">
+              {friendsHeading}
+            </h2>
+            <span className="h-px flex-1 bg-slate-200" aria-hidden />
+          </div>
+          <p className="mt-1.5 text-center text-xs text-slate-500 sm:text-sm">
+            {friendsSubheading}
           </p>
         </section>
 
