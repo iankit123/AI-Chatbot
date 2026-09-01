@@ -13,6 +13,8 @@ import { PHOTO_GALLERY_CTA_CONTEXT } from "@/lib/photoGalleryCta";
 import { VOICE_CHAT_CTA_CONTEXT } from "@/lib/voiceChatCta";
 import { PhotoGalleryCtaCard } from "@/components/chat/PhotoGalleryCtaCard";
 import { VoiceChatCtaCard } from "@/components/chat/VoiceChatCtaCard";
+import { KrishnaSpeakingDialog } from "@/components/KrishnaSpeakingDialog";
+import { Volume2 } from "lucide-react";
 
 interface ChatMessageProps {
   message: Message;
@@ -44,6 +46,7 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
   const isBot = message.role === "assistant";
   const { botName, openVoiceChatTab, openPhotosTab } = useChat();
   const [currentRole, setCurrentRole] = useState<RoleType | null>(null);
+  const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {
     try {
@@ -173,6 +176,9 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
     );
   }
 
+  /** Spoken playback is a Krishna-only experience for now. */
+  const canSpeak = currentRole === "krishna" && message.content.trim().length > 0;
+
   if (isBot) {
     return (
       <div className="mb-2 flex items-end justify-start gap-2">
@@ -217,6 +223,24 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
               {formatTime(message.timestamp)}
             </span>
           </div>
+
+          {canSpeak && (
+            <>
+              <button
+                type="button"
+                onClick={() => setSpeaking(true)}
+                className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-[#140f2e] px-3 py-1 text-[12px] font-medium text-amber-300"
+              >
+                <Volume2 className="h-3.5 w-3.5" />
+                Krishna se sunein
+              </button>
+              <KrishnaSpeakingDialog
+                open={speaking}
+                onOpenChange={setSpeaking}
+                text={message.content}
+              />
+            </>
+          )}
         </div>
       </div>
     );
