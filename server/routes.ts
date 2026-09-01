@@ -4,6 +4,11 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { z } from "zod";
 import { filterWelcomeMessagesFromHistory } from "./lib/chatHistory";
+import {
+  roleSupportsFollowUpQuestion,
+  splitFollowUpQuestion,
+} from "./lib/followUpQuestion";
+import { FOLLOW_UP_QUESTION_CONTEXT } from "@shared/followUpQuestion";
 import { firstNameOnly } from "@shared/userName";
 import { generateResponse } from "./services/llm";
 import express from "express";
@@ -911,7 +916,7 @@ export async function registerRoutes(
         }
         
         // Generate AI response with additional context
-        const responseContent = await generateResponse(
+        const rawResponse = await generateResponse(
           validatedData.content,
           conversationHistory,
           validatedData.language,
@@ -920,6 +925,17 @@ export async function registerRoutes(
             companionName: companionName || undefined,
             userName: userName || undefined,
           }
+        );
+
+        // Roles like Krishna end with a question so the conversation keeps going.
+        // It is sent as its own message instead of being buried in the advice.
+        const { content: responseContent, followUpQuestion } = splitFollowUpQuestion(
+          rawResponse,
+          {
+            allowTrailingQuestionFallback: roleSupportsFollowUpQuestion(
+              validatedData.companionId,
+            ),
+          },
         );
         
         // Save the AI response with companion ID
@@ -930,11 +946,21 @@ export async function registerRoutes(
           photoUrl: validatedData.photoUrl,
           isPremium: validatedData.isPremium
         });
+
+        const followUpMessage = followUpQuestion
+          ? await storage.createMessage({
+              content: followUpQuestion,
+              role: 'assistant',
+              companionId: validatedData.companionId,
+              contextInfo: FOLLOW_UP_QUESTION_CONTEXT,
+            })
+          : undefined;
         
         // Return both messages
         res.status(201).json({
           userMessage,
           botMessage,
+          ...(followUpMessage ? { followUpMessage } : {}),
           ...(walletCreditsAfter !== undefined
             ? { wallet_credits: walletCreditsAfter }
             : {}),

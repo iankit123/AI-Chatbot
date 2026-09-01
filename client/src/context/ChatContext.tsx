@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { Message } from "@shared/schema";
+import { FOLLOW_UP_QUESTION_CONTEXT } from "@shared/followUpQuestion";
 import { firstNameOnly } from "@shared/userName";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +56,9 @@ import {
   shouldOfferPhotoGalleryCta,
   clearPhotoGalleryCtaShown,
 } from "@/lib/photoGalleryCta";
+
+/** Pause before the follow-up question lands, so it reads as a second message. */
+const FOLLOW_UP_DELAY_MS = 1600;
 
 const AFFIRMATIVE_WORDS = [
   "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
@@ -1143,15 +1147,36 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           }
         }
         
-        const pending = buildPendingBotMessages(
-          botMessage,
-          content,
-          companionId,
-          botName,
-          currentLanguage,
-          tempId,
-          messageCount,
-        );
+        // Guidance roles (e.g. Krishna) send a short question as its own bubble
+        // so the user has something easy to reply to.
+        const followUpContent: string | undefined =
+          data.followUpMessage?.content ?? data.followUpQuestion;
+        const followUpMessage: Message | null = followUpContent
+          ? {
+              ...(data.followUpMessage ?? {}),
+              id: tempId - 4,
+              content: followUpContent,
+              role: "assistant",
+              companionId,
+              timestamp: new Date(Date.now() + 1),
+              photoUrl: null,
+              isPremium: null,
+              contextInfo: FOLLOW_UP_QUESTION_CONTEXT,
+            }
+          : null;
+
+        const pending = [
+          ...buildPendingBotMessages(
+            botMessage,
+            content,
+            companionId,
+            botName,
+            currentLanguage,
+            tempId,
+            messageCount,
+          ),
+          ...(followUpMessage ? [followUpMessage] : []),
+        ];
         botMessagesToAddRef.current = pending;
         console.log("[ChatContext] Bot messages stored in ref, will add after typing completes");
         
@@ -1190,6 +1215,36 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       console.log("[ChatContext] Finally block - elapsed:", elapsedTime, "ms, remaining:", remainingTime, "ms");
       console.log("[ChatContext] Has pending messages:", botMessagesToAddRef.current.length);
       
+      // Adds the pending bot messages; a follow-up question is held back a moment
+      // and preceded by the typing indicator so it arrives as its own message.
+      const flushPendingBotMessages = () => {
+        if (botMessagesToAddRef.current.length === 0) {
+          console.log("[ChatContext] No message to add");
+          return;
+        }
+        const messagesToAdd = botMessagesToAddRef.current;
+        botMessagesToAddRef.current = [];
+
+        const followUpIndex = messagesToAdd.findIndex(
+          (m) => m.contextInfo === FOLLOW_UP_QUESTION_CONTEXT,
+        );
+        if (followUpIndex <= 0) {
+          setMessages((prev) => mergePendingBotMessages(prev, messagesToAdd));
+          return;
+        }
+
+        setMessages((prev) =>
+          mergePendingBotMessages(prev, messagesToAdd.slice(0, followUpIndex)),
+        );
+        setIsTyping(true);
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages((prev) =>
+            mergePendingBotMessages(prev, messagesToAdd.slice(followUpIndex)),
+          );
+        }, FOLLOW_UP_DELAY_MS);
+      };
+
       if (remainingTime > 0) {
         console.log("[ChatContext] Waiting", remainingTime, "ms before hiding typing and showing message");
         setTimeout(() => {
@@ -1197,25 +1252,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           setIsTyping(false);
           
           // Add bot messages AFTER typing indicator disappears
-          if (botMessagesToAddRef.current.length > 0) {
-            const messagesToAdd = botMessagesToAddRef.current;
-            botMessagesToAddRef.current = [];
-            setMessages((prev) => mergePendingBotMessages(prev, messagesToAdd));
-          } else {
-            console.log("[ChatContext] No message to add");
-          }
+          flushPendingBotMessages();
         }, remainingTime);
       } else {
         console.log("[ChatContext] No wait needed - hiding typing and showing message immediately");
         setIsTyping(false);
         
-        if (botMessagesToAddRef.current.length > 0) {
-          const messagesToAdd = botMessagesToAddRef.current;
-          botMessagesToAddRef.current = [];
-          setMessages((prev) => mergePendingBotMessages(prev, messagesToAdd));
-        } else {
-          console.log("[ChatContext] No message to add");
-        }
+        flushPendingBotMessages();
       }
       
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });

@@ -169,6 +169,71 @@ function isAskingWhatCompanionIsDoing(text) {
   return /kya\s+kar\s+rahi\s+ho/.test(n) || /kya\s+kar\s+rahe\s+ho/.test(n) || /kya\s+kar\s+rahi\s+hu/.test(n) || /what\s+are\s+you\s+doing/.test(n) || /what\s+you\s+doing/.test(n) || /tum\s+kya\s+kar\s+rahi/.test(n);
 }
 
+// server/lib/followUpQuestion.ts
+var FOLLOW_UP_MARKER = "[[FOLLOWUP]]";
+var FOLLOW_UP_ROLES = /* @__PURE__ */ new Set(["krishna"]);
+function roleSupportsFollowUpQuestion(companionId) {
+  return !!companionId && FOLLOW_UP_ROLES.has(companionId);
+}
+var MARKER_PATTERN = /(?:^|\n)[ \t]*[*_`>]*[ \t]*(?:\[{1,2}[ \t]*follow[ _-]?up(?:[ \t]+question)?[ \t]*\]{1,2}|follow[ _-]?up(?:[ \t]+question)?[ \t]*:)[ \t]*[*_`]*[ \t]*:?[ \t]*/i;
+var MARKER_PATTERN_GLOBAL = new RegExp(MARKER_PATTERN.source, "gi");
+var MAX_FOLLOW_UP_LENGTH = 240;
+var MIN_FOLLOW_UP_LENGTH = 5;
+function cleanQuestion(line) {
+  return line.replace(/^[\s*_`"'“”‘’-]+/, "").replace(/[\s*_`"'“”‘’]+$/, "").replace(/\s+/g, " ").trim();
+}
+function isUsableQuestion(question, content) {
+  if (question.length < MIN_FOLLOW_UP_LENGTH || question.length > MAX_FOLLOW_UP_LENGTH) {
+    return false;
+  }
+  return question.toLowerCase() !== content.trim().toLowerCase();
+}
+function trailingQuestion(content) {
+  const trimmed = content.trim();
+  if (!trimmed.endsWith("?")) return null;
+  const body = trimmed.slice(0, -1);
+  const boundary = Math.max(
+    body.lastIndexOf("."),
+    body.lastIndexOf("!"),
+    body.lastIndexOf("?"),
+    body.lastIndexOf("\u0964"),
+    // danda
+    body.lastIndexOf("\n")
+  );
+  if (boundary <= 0) return null;
+  const head = trimmed.slice(0, boundary + 1).trim();
+  const question = cleanQuestion(trimmed.slice(boundary + 1));
+  if (!head || !isUsableQuestion(question, head)) return null;
+  return { content: head, followUpQuestion: question };
+}
+function splitFollowUpQuestion(raw, options = {}) {
+  const text = (raw ?? "").trim();
+  if (!text) return { content: text, followUpQuestion: null };
+  const match = MARKER_PATTERN.exec(text);
+  if (match) {
+    const content = text.slice(0, match.index).trim();
+    const rest = text.slice(match.index + match[0].length);
+    const firstLine = rest.split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+    const question = cleanQuestion(firstLine);
+    if (content && isUsableQuestion(question, content)) {
+      return { content, followUpQuestion: question };
+    }
+    const merged = [content, cleanQuestion(rest.replace(MARKER_PATTERN_GLOBAL, " "))].filter(Boolean).join("\n\n").trim();
+    return {
+      content: merged || text.replace(MARKER_PATTERN_GLOBAL, " ").trim(),
+      followUpQuestion: null
+    };
+  }
+  if (options.allowTrailingQuestionFallback) {
+    const fallback = trailingQuestion(text);
+    if (fallback) return fallback;
+  }
+  return { content: text, followUpQuestion: null };
+}
+
+// shared/followUpQuestion.ts
+var FOLLOW_UP_QUESTION_CONTEXT = "follow_up_question";
+
 // shared/userName.ts
 function firstNameOnly(full) {
   const trimmed = (full ?? "").trim();
@@ -548,6 +613,37 @@ BOUNDARIES:
 * No miracle claims.
 * No predicting destiny.
 * No manipulative spirituality.
+
+FOLLOW-UP QUESTION (VERY IMPORTANT):
+Your reply must not close the conversation.
+After your main reply, add a new line containing exactly ${FOLLOW_UP_MARKER} and then ONE short follow-up question.
+
+Format:
+<your main reply>
+${FOLLOW_UP_MARKER} <one short question>
+
+Rules for that question:
+
+* It must be about THEIR situation \u2014 something only they can answer.
+* Ask for a concrete detail, a fact, or a feeling they have not shared yet.
+* Keep it under 15 words, one question only, ending with "?".
+* Same language as your reply (Hinglish for Hinglish, English for English).
+* Never rhetorical, never philosophical, never a quiz about the Gita.
+* Never a generic filler like "aur batao?", "kya lagta hai?", "aap kya sochte ho?", "how do you feel?".
+* Never repeat a question you already asked earlier in this conversation.
+
+Example \u2014 user says "meri beti ki shaadi nahi ho rahi". Pick ANY ONE of these:
+${FOLLOW_UP_MARKER} Aapne abhi tak kitne rishte dekhe hain?
+${FOLLOW_UP_MARKER} Aapki beti ko koi ladka pasand aaya tha kabhi?
+${FOLLOW_UP_MARKER} Kitne samay se aap uske liye rishta dhoondh rahe hain?
+
+Example \u2014 user says "job me mann nahi lagta". Pick ANY ONE of these:
+${FOLLOW_UP_MARKER} Ye feeling kab se aa rahi hai?
+${FOLLOW_UP_MARKER} Kaam ka kaunsa hissa sabse zyada thakata hai?
+
+Send the marker line exactly once, with exactly one question after it.
+The question goes ONLY after the marker \u2014 never inside your main reply.
+Skip the marker line only when the user is clearly ending the chat (e.g. "thank you", "bye", "bas itna hi").
 
 IMPORTANT:
 The app already displays spiritual disclaimers permanently.
@@ -3092,7 +3188,7 @@ async function registerRoutes(app2, opts) {
           }
           walletCreditsAfter = deduct.wallet_credits;
         }
-        const responseContent = await generateResponse(
+        const rawResponse = await generateResponse(
           validatedData.content,
           conversationHistory,
           validatedData.language,
@@ -3102,6 +3198,14 @@ async function registerRoutes(app2, opts) {
             userName: userName || void 0
           }
         );
+        const { content: responseContent, followUpQuestion } = splitFollowUpQuestion(
+          rawResponse,
+          {
+            allowTrailingQuestionFallback: roleSupportsFollowUpQuestion(
+              validatedData.companionId
+            )
+          }
+        );
         const botMessage = await storage.createMessage({
           content: responseContent,
           role: "assistant",
@@ -3109,9 +3213,16 @@ async function registerRoutes(app2, opts) {
           photoUrl: validatedData.photoUrl,
           isPremium: validatedData.isPremium
         });
+        const followUpMessage = followUpQuestion ? await storage.createMessage({
+          content: followUpQuestion,
+          role: "assistant",
+          companionId: validatedData.companionId,
+          contextInfo: FOLLOW_UP_QUESTION_CONTEXT
+        }) : void 0;
         res.status(201).json({
           userMessage,
           botMessage,
+          ...followUpMessage ? { followUpMessage } : {},
           ...walletCreditsAfter !== void 0 ? { wallet_credits: walletCreditsAfter } : {}
         });
       } catch (error) {
