@@ -7,19 +7,29 @@ import { useEffect, useRef, useState } from "react";
  * highlight — it makes the caption visibly lag then jump. rAF gives us the position
  * once per painted frame, which is what a karaoke highlight needs.
  *
+ * Takes the element itself rather than a ref object. The <audio> is rendered inside
+ * a Radix portal, which mounts after this component's effects run, so a ref would be
+ * null on the first pass and — with a stable ref object as the only dependency — the
+ * effect would never re-run to attach its listeners. Pass a callback-ref element and
+ * the effect re-runs the moment it mounts.
+ *
  * ── Handoff seam ──
  * The VoxCPM handoff exports a `useAudioClock` from `drop-in/KaraokeCaption.tsx`.
  * If its behaviour differs, prefer theirs and delete this file.
  */
-export function useAudioClock(audioRef: React.RefObject<HTMLAudioElement | null>) {
+export function useAudioClock(el: HTMLAudioElement | null) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
   const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
+    if (!el) {
+      setCurrentTime(0);
+      setDuration(0);
+      setPlaying(false);
+      return;
+    }
 
     const tick = () => {
       setCurrentTime(el.currentTime);
@@ -64,7 +74,7 @@ export function useAudioClock(audioRef: React.RefObject<HTMLAudioElement | null>
         frameRef.current = null;
       }
     };
-  }, [audioRef]);
+  }, [el]);
 
   return { currentTime, duration, playing };
 }

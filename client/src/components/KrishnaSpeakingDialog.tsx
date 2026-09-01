@@ -39,9 +39,9 @@ export function KrishnaSpeakingDialog({
 }: KrishnaSpeakingDialogProps) {
   const [state, setState] = useState<LoadState>({ kind: "idle" });
   const [mediaFailed, setMediaFailed] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
   const activeLineRef = useRef<HTMLParagraphElement | null>(null);
-  const { currentTime, playing } = useAudioClock(audioRef);
+  const { currentTime, playing } = useAudioClock(audioEl);
 
   const resolvedMedia = mediaFailed ? FALLBACK_MEDIA_SRC : mediaSrc;
 
@@ -91,10 +91,10 @@ export function KrishnaSpeakingDialog({
   // the play button below is the fallback.
   useEffect(() => {
     if (state.kind !== "ready") return;
-    audioRef.current?.play().catch(() => {
+    audioEl?.play().catch(() => {
       /* user can press play */
     });
-  }, [state]);
+  }, [state, audioEl]);
 
   const segments = state.kind === "ready" ? state.clip.segments : [];
   const duration = state.kind === "ready" ? state.clip.durationSec : 0;
@@ -106,14 +106,14 @@ export function KrishnaSpeakingDialog({
   }, [active.segmentIndex]);
 
   const toggle = () => {
-    const el = audioRef.current;
+    const el = audioEl;
     if (!el) return;
     if (el.paused) void el.play().catch(() => undefined);
     else el.pause();
   };
 
   const replay = () => {
-    const el = audioRef.current;
+    const el = audioEl;
     if (!el) return;
     el.currentTime = 0;
     void el.play().catch(() => undefined);
@@ -123,7 +123,7 @@ export function KrishnaSpeakingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(56rem,95vw)] gap-0 overflow-hidden border-none bg-[#140f2e] p-0 text-white sm:rounded-2xl">
+      <DialogContent className="max-w-[min(56rem,95vw)] gap-0 overflow-hidden border-none bg-[#140f2e] p-0 text-white sm:rounded-2xl [&>button]:border-white/25 [&>button]:bg-black/45 [&>button]:text-white [&>button]:backdrop-blur-sm [&>button:hover]:bg-black/65 [&>button:hover]:text-white [&>button:focus]:ring-white/40 [&>button:focus]:ring-offset-0">
         <DialogTitle className="sr-only">Krishna is speaking</DialogTitle>
 
         <div className="grid grid-cols-1 sm:grid-cols-2">
@@ -171,7 +171,7 @@ export function KrishnaSpeakingDialog({
                       ref={isActiveLine ? activeLineRef : undefined}
                       className={cn(
                         "mb-2 text-lg leading-relaxed transition-opacity duration-300 sm:text-xl",
-                        isActiveLine ? "opacity-100" : "opacity-30",
+                        isActiveLine ? "opacity-100" : si < active.segmentIndex ? "opacity-70" : "opacity-40",
                       )}
                     >
                       {segment.words.map((word, wi) => {
@@ -240,7 +240,7 @@ export function KrishnaSpeakingDialog({
                 playsInline
                 onError={() => setMediaFailed(true)}
                 className={cn(
-                  "h-full w-full object-cover transition-transform [transition-duration:4000ms] ease-in-out",
+                  "h-full w-full object-cover object-[72%_center] transition-transform [transition-duration:4000ms] ease-in-out",
                   playing ? "scale-[1.03]" : "scale-100",
                 )}
               />
@@ -250,7 +250,7 @@ export function KrishnaSpeakingDialog({
                 alt="Krishna"
                 onError={() => setMediaFailed(true)}
                 className={cn(
-                  "h-full w-full object-cover transition-transform [transition-duration:4000ms] ease-in-out",
+                  "h-full w-full object-cover object-[72%_center] transition-transform [transition-duration:4000ms] ease-in-out",
                   playing ? "scale-[1.03]" : "scale-100",
                 )}
               />
@@ -272,7 +272,7 @@ export function KrishnaSpeakingDialog({
           </div>
         </div>
 
-        <audio ref={audioRef} src={state.kind === "ready" ? state.clip.audioUrl : undefined} />
+        <audio ref={setAudioEl} src={state.kind === "ready" ? state.clip.audioUrl : undefined} />
       </DialogContent>
     </Dialog>
   );
