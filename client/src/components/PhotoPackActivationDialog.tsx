@@ -23,7 +23,7 @@ import {
   type RazorpayCheckoutPrepared,
 } from "@/lib/razorpay";
 
-export const PHOTO_PACK_ACTIVATION_RUPEES = 29;
+export const PHOTO_PACK_ACTIVATION_RUPEES = 99;
 
 function PaywallSparkle({ className }: { className?: string }) {
   return (

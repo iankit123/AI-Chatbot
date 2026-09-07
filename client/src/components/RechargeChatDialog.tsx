@@ -21,19 +21,18 @@ import { ArrowRight } from "lucide-react";
 import { ROLE_ADVISOR_COMPANION_IDS } from "@/lib/relationshipPhotoGallery";
 import { runRazorpayCheckout } from "@/lib/razorpay";
 
-const RATE_NOTE = "₹0.20 per message after free trial (₹1 = 5 msgs, ₹20 = 100 msgs)";
+const RATE_NOTE = "₹0.20 per message after free trial (₹1 = 5 msgs, ₹99 = 495 msgs)";
 
 /** Until PSP confirms payment, user always sees this and stays behind the paywall. */
 const PAYMENT_UX_ERROR =
   "Technical error in payment. Please try again in sometime.";
 
+/** Minimum top-up is ₹99 — keep every pack at or above it. */
 const PACKS: { rupees: number; bonus: string; highlight?: boolean }[] = [
-  { rupees: 20, bonus: "100% Extra" },
-  { rupees: 50, bonus: "100% Extra" },
-  { rupees: 100, bonus: "100% Extra", highlight: true },
-  { rupees: 200, bonus: "50% Extra" },
-  // { rupees: 500, bonus: "50% Extra" },
-  // { rupees: 1000, bonus: "5% Extra" },
+  { rupees: 99, bonus: "100% Extra" },
+  { rupees: 199, bonus: "100% Extra" },
+  { rupees: 499, bonus: "100% Extra", highlight: true },
+  { rupees: 999, bonus: "50% Extra" },
 ];
 
 function getCompanionContextForBilling(): {
@@ -126,7 +125,7 @@ interface RechargeChatDialogProps {
 
 export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeChatDialogProps) {
   const [step, setStep] = useState<"pick" | "phone">("pick");
-  const [selectedRupees, setSelectedRupees] = useState<number>(50);
+  const [selectedRupees, setSelectedRupees] = useState<number>(199);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [wallet, setWallet] = useState<BillingWalletState | null>(null);
@@ -250,7 +249,7 @@ export function RechargeChatDialog({ open, onOpenChange, onComplete }: RechargeC
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               Chat is <span className="font-medium text-foreground">₹0.20 per message</span> after your free
-              messages (₹20 ≈ 100 messages). Choose a top-up and confirm your number to continue.
+              messages (₹99 ≈ 495 messages). Choose a top-up and confirm your number to continue.
             </DialogDescription>
           </DialogHeader>
 

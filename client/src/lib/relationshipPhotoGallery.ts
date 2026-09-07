@@ -29,7 +29,7 @@ export type CompanionGalleryConfig = {
   media?: GalleryMedia[];
   /** Legacy image-only list (used when `media` is omitted) */
   photoUrls?: string[];
-  /** Unlocked after ₹29 photo pack payment (`public/images/paid/<id>/`). */
+  /** Unlocked after the photo pack payment (`public/images/paid/<id>/`). */
   paidPhotoFilenames?: string[];
   /** Promo row below thumbnails */
   promoCardTitle: string;

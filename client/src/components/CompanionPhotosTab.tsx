@@ -9,7 +9,10 @@ import {
   RELATIONSHIP_PHOTO_GALLERIES,
   type GalleryMedia,
 } from "@/lib/relationshipPhotoGallery";
-import { PhotoPackActivationDialog } from "@/components/PhotoPackActivationDialog";
+import {
+  PhotoPackActivationDialog,
+  PHOTO_PACK_ACTIVATION_RUPEES,
+} from "@/components/PhotoPackActivationDialog";
 import { fetchBillingWallet } from "@/lib/billing";
 import { ACCOUNT_SESSION_REFRESH_EVENT } from "@/lib/sessionRefresh";
 import {
@@ -480,7 +483,8 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
             </p>
           ) : !unlocked && packCheckDone ? (
             <p className="mb-3 rounded-xl border border-violet-200/80 bg-violet-50 px-3 py-2.5 text-center text-sm text-violet-950">
-              Activate the photo pack (₹29) to unlock all of {companionDisplayName}&apos;s
+              Activate the photo pack (₹{PHOTO_PACK_ACTIVATION_RUPEES}) to unlock all of{" "}
+              {companionDisplayName}&apos;s
               photos.
             </p>
           ) : null}
@@ -567,7 +571,7 @@ export function CompanionPhotosTab({ companionId, companionDisplayName }: Compan
                 </span>
               </button>
               <p className="mt-2 pb-1 text-center text-[11px] text-slate-500">
-                Tap to view ₹29 activation options
+                Tap to view ₹{PHOTO_PACK_ACTIVATION_RUPEES} activation options
               </p>
             </>
           ) : !registered ? (

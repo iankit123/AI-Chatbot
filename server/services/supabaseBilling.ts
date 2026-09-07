@@ -97,8 +97,13 @@ type PaymentRowLite = {
   metadata?: unknown;
 };
 
-/** ₹29 photo pack activation (see PhotoPackActivationDialog). */
-const PHOTO_PACK_AMOUNT_RUPEES = 29;
+/**
+ * Legacy ₹29 photo pack activations, kept only so old rows without a
+ * product_type still resolve. Do not add the current photo pack price here:
+ * chat recharge packs now start at ₹99 and also carry a companion_id, so an
+ * amount match would misclassify them.
+ */
+const LEGACY_PHOTO_PACK_AMOUNT_RUPEES = 29;
 
 /** Column or metadata (legacy rows may only have metadata.source). */
 export function resolvePaymentProductType(row: PaymentRowLite): PaymentProductType {
@@ -127,7 +132,7 @@ export function resolvePaymentProductType(row: PaymentRowLite): PaymentProductTy
   if (product === "chat_recharge") return "chat_recharge";
 
   const amount = Number(row.amount_rupees ?? 0);
-  if (amount === PHOTO_PACK_AMOUNT_RUPEES && resolvePaymentCompanionId(row)) {
+  if (amount === LEGACY_PHOTO_PACK_AMOUNT_RUPEES && resolvePaymentCompanionId(row)) {
     return "photo_pack";
   }
 
