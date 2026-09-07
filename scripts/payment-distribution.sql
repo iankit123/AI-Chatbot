@@ -1,6 +1,34 @@
 -- Where are users actually paying? Paste into the Supabase SQL editor.
 -- Change the '5 days' interval below if you want a different window.
 
+-- 0) ONE-PASTE SUMMARY: every successful payment in the window, decorated.
+--    Run this, paste the whole result back. Answers chat/image/audio,
+--    which profile, which character, and who paid, in one grid.
+SELECT
+  pa.created_at,
+  pa.amount_rupees,
+  CASE pa.product_type
+    WHEN 'chat_recharge'  THEN 'chat'
+    WHEN 'voice_chat'     THEN 'audio'
+    WHEN 'photo_pack'     THEN 'image'
+    WHEN 'premium_photo'  THEN 'image'
+    ELSE 'other'
+  END                                     AS bucket,
+  pa.product_type,
+  lower(pa.companion_id)                  AS companion,
+  CASE WHEN lower(pa.companion_id) IN
+         ('naina','priya','ananya','meera','riya','neha')
+       THEN 'profile' ELSE 'character' END AS companion_kind,
+  pr.name                                 AS user_name,
+  pa.phone_number,
+  pa.rate_note
+FROM payment_attempts pa
+LEFT JOIN profiles pr ON pr.device_id = pa.device_id
+WHERE pa.status = 'success'
+  AND pa.created_at >= now() - interval '5 days'
+ORDER BY pa.created_at DESC;
+
+
 -- 1) chat vs image vs audio
 SELECT
   CASE product_type
