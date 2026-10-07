@@ -6,6 +6,7 @@ import "./load-env";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { registerRoutes } from "./routes";
+import { registerYobabyPayRoutes } from "./yobabyPay";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -27,6 +28,7 @@ let initialized = false;
 async function initialize() {
   if (initialized) return;
 
+  registerYobabyPayRoutes(app);
   await registerRoutes(app, { createHttpServer: false });
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

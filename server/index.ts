@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerRoutes } from "./routes";
+import { registerYobabyPayRoutes } from "./yobabyPay";
 import { setupVite, serveStatic, log } from "./vite";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,6 +100,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  registerYobabyPayRoutes(app);
   const server = await registerRoutes(app, { createHttpServer: true });
   if (!server) {
     throw new Error("registerRoutes did not create an HTTP server (unexpected outside Vercel)");
