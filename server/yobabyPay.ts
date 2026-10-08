@@ -3,12 +3,14 @@
  * website approval comes through. Kept apart from puchlo's billing (payment_attempts / wallet): nothing here
  * touches puchlo's database, and these orders carry notes.site = "yobaby.in".
  *
- *   GET  /api/yb/checkout?phone=98xxxxxxxx&uid=<yobaby user id>
- *        yobaby.in's "Pay ₹29" sends the buyer here: creates the Razorpay order and opens Checkout.
+ *   GET  /api/yb/checkout?product=pro_1m|recipe_book&phone=98xxxxxxxx&uid=<yobaby user id>
+ *        yobaby.in's "Pay ₹29" (Pro) / "Pay ₹99" (recipe book PDF) sends the buyer here: creates the Razorpay order
+ *        and opens Checkout. No product = pro_1m.
  *   POST /api/yb/callback
  *        Razorpay's redirect after paying (callback_url). Verifies the signature, reads the phone and uid back from
  *        the order's notes, records the payment in yobaby's Supabase (record_payment() adds 30 days of Pro to that
- *        number) and sends the buyer back to yobaby.in/?pay=ok (or pending / failed; closing Checkout → cancelled).
+ *        number; a recipe_book payment lets that number download the PDF) and sends the buyer back to
+ *        yobaby.in/?pay=ok&product=… (or pending / failed; closing Checkout → cancelled).
  *
  * Env: RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET (puchlo's), YOBABY_SUPABASE_SECRET_KEY (the yobaby Supabase project's
  * secret / service_role key); optional YOBABY_SUPABASE_URL and YOBABY_URL.
@@ -19,8 +21,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /** What yobaby.in sells here. Keep in step with MARKETS.IN in yobaby's site/account.js. */
 const PRODUCTS = {
-  pro_1m: { rupees: 29, label: "Pro · 1 month" },
+  pro_1m: { rupees: 29, label: "Pro · 1 month", blurb: "every recipe and video for 1 month" },
+  recipe_book: { rupees: 99, label: "Recipe book · PDF", blurb: "every recipe in one PDF to download" },
 } as const;
+type ProductId = keyof typeof PRODUCTS;
+const productId = (v: unknown): ProductId | null =>
+  v === undefined || v === "" ? "pro_1m" : Object.hasOwn(PRODUCTS, String(v)) ? (String(v) as ProductId) : null;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -35,7 +41,8 @@ type RazorpayOrder = {
 };
 
 const yobabyUrl = () => (process.env.YOBABY_URL?.trim() || "https://www.yobaby.in").replace(/\/+$/, "");
-const backUrl = (status?: PayStatus) => `${yobabyUrl()}/${status ? `?pay=${status}` : ""}`;
+const backUrl = (status?: PayStatus, product?: string) =>
+  `${yobabyUrl()}/${status ? `?pay=${status}${product && Object.hasOwn(PRODUCTS, product) ? `&product=${product}` : ""}` : ""}`;
 
 function getRazorpayCredentials(): { keyId: string; keySecret: string } {
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
@@ -84,7 +91,9 @@ function validSignature(orderId: string, paymentId: string, signature: string): 
 }
 
 /** Opens Razorpay Checkout as soon as it loads; the button is there if it was closed or blocked. */
-function checkoutPage(options: Record<string, unknown>, rupees: number): string {
+function checkoutPage(options: Record<string, unknown>, id: ProductId): string {
+  const { rupees, blurb } = PRODUCTS[id];
+  const title = id === "recipe_book" ? "Little Bites recipe book" : "Little Bites Pro";
   // JSON inside <script>: escape "<" so no value can end the tag.
   const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
   const icon = `${yobabyUrl()}/icons/icon-192.png`;
@@ -111,16 +120,16 @@ function checkoutPage(options: Record<string, unknown>, rupees: number): string 
 <body>
 <main>
   <img src="${icon}" alt="">
-  <h1>Little Bites Pro</h1>
-  <p>₹${rupees} · every recipe and video for 1 month</p>
+  <h1>${title}</h1>
+  <p>₹${rupees} · ${blurb}</p>
   <button id="pay" type="button">Pay ₹${rupees}</button>
-  <a href="${backUrl("cancelled")}">Back to Little Bites</a>
+  <a href="${backUrl("cancelled", id)}">Back to Little Bites</a>
   <small>Secure payment by Razorpay</small>
 </main>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
   var options = ${json(options)};
-  options.modal = { ondismiss: function () { location.replace(${json(backUrl("cancelled"))}); } };
+  options.modal = { ondismiss: function () { location.replace(${json(backUrl("cancelled", id))}); } };
   var checkout = null;
   function pay() {
     if (!window.Razorpay) return location.reload();
@@ -138,8 +147,9 @@ export function registerYobabyPayRoutes(app: Express): void {
   app.get("/api/yb/checkout", async (req: Request, res: Response) => {
     const phone = String(req.query.phone ?? "");
     const uid = String(req.query.uid ?? "");
-    if (!/^[6-9]\d{9}$/.test(phone)) return res.redirect(303, backUrl("failed"));
-    const product = PRODUCTS.pro_1m;
+    const id = productId(req.query.product);
+    if (!id || !/^[6-9]\d{9}$/.test(phone)) return res.redirect(303, backUrl("failed", id ?? undefined));
+    const product = PRODUCTS[id];
     try {
       yobabyDb(); // don't take money that can't be recorded
       const { keyId } = getRazorpayCredentials();
@@ -147,7 +157,7 @@ export function registerYobabyPayRoutes(app: Express): void {
         amount: product.rupees * 100,
         currency: "INR",
         receipt: `YB_${Date.now().toString(36).toUpperCase()}`,
-        notes: { site: "yobaby.in", product: "pro_1m", phone, ...(UUID.test(uid) ? { uid } : {}) },
+        notes: { site: "yobaby.in", product: id, phone, ...(UUID.test(uid) ? { uid } : {}) },
       });
       const proto = String(req.get("x-forwarded-proto") || req.protocol).split(",")[0];
       res.set("Cache-Control", "no-store");
@@ -166,12 +176,12 @@ export function registerYobabyPayRoutes(app: Express): void {
             redirect: true,
             theme: { color: "#FF6B57" },
           },
-          product.rupees,
+          id,
         ),
       );
     } catch (error) {
       console.error("[yobaby-pay] checkout failed:", error);
-      res.redirect(303, backUrl("failed"));
+      res.redirect(303, backUrl("failed", id));
     }
   });
 
@@ -214,9 +224,9 @@ export function registerYobabyPayRoutes(app: Express): void {
       });
       if (error) throw error;
       console.log(`[yobaby-pay] paid order=${orderId} payment=${paymentId}`, data);
-      res.redirect(303, backUrl("ok"));
+      res.redirect(303, backUrl("ok", notes.product));
     } catch (error) {
-      // Money taken (signature checked) but Pro not recorded: add it from these ids by hand.
+      // Money taken (signature checked) but not recorded: add it from these ids by hand.
       console.error(`[yobaby-pay] PAID BUT NOT RECORDED order=${orderId} payment=${paymentId}:`, error);
       res.redirect(303, backUrl("pending"));
     }
