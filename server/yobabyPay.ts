@@ -3,12 +3,14 @@
  * website approval comes through. Kept apart from puchlo's billing (payment_attempts / wallet): nothing here
  * touches puchlo's database, and these orders carry notes.site = "yobaby.in".
  *
- *   GET  /api/yb/checkout?product=pro_1m|recipe_book&phone=98xxxxxxxx&uid=<yobaby user id>
- *        yobaby.in's "Pay ₹29" (Pro) / "Pay ₹99" (recipe book PDF) sends the buyer here: creates the Razorpay order
- *        and opens Checkout. No product = pro_1m.
+ *   GET  /api/yb/checkout?product=pro_1m|recipe_book[&phone=98xxxxxxxx]&uid=<yobaby user id>
+ *        yobaby.in's "Buy" (Pro ₹29 / recipe book PDF ₹99) sends the buyer here: creates the Razorpay order and opens
+ *        Checkout. No product = pro_1m. The phone is optional: when yobaby.in knows it, it's prefilled; otherwise the
+ *        buyer types it into Razorpay Checkout.
  *   POST /api/yb/callback
- *        Razorpay's redirect after paying (callback_url). Verifies the signature, reads the phone and uid back from
- *        the order's notes, records the payment in yobaby's Supabase (record_payment() adds 30 days of Pro to that
+ *        Razorpay's redirect after paying (callback_url). Verifies the signature, takes the buyer's number from the
+ *        payment (the contact entered in Checkout; else the order's notes) and the uid from the order's notes, records
+ *        the payment in yobaby's Supabase (record_payment() adds 30 days of Pro to that
  *        number; a recipe_book payment lets that number download the PDF) and sends the buyer back to
  *        yobaby.in/?pay=ok&product=… (or pending / failed; closing Checkout → cancelled).
  *
@@ -31,6 +33,14 @@ const productId = (v: unknown): ProductId | null =>
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type PayStatus = "ok" | "pending" | "failed" | "cancelled";
+
+type RazorpayPayment = { id: string; order_id: string; contact?: string | null };
+
+/** "+91 98765 43210" / "919876543210" / "9876543210" -> "9876543210"; anything else -> null. */
+const indianMobile = (v: unknown): string | null => {
+  const digits = String(v ?? "").replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "");
+  return /^[6-9]\d{9}$/.test(digits) ? digits : null;
+};
 
 type RazorpayOrder = {
   id: string;
@@ -145,10 +155,10 @@ function checkoutPage(options: Record<string, unknown>, id: ProductId): string {
 
 export function registerYobabyPayRoutes(app: Express): void {
   app.get("/api/yb/checkout", async (req: Request, res: Response) => {
-    const phone = String(req.query.phone ?? "");
+    const phone = indianMobile(req.query.phone); // optional: prefilled when yobaby.in already has it
     const uid = String(req.query.uid ?? "");
     const id = productId(req.query.product);
-    if (!id || !/^[6-9]\d{9}$/.test(phone)) return res.redirect(303, backUrl("failed", id ?? undefined));
+    if (!id) return res.redirect(303, backUrl("failed"));
     const product = PRODUCTS[id];
     try {
       yobabyDb(); // don't take money that can't be recorded
@@ -157,7 +167,7 @@ export function registerYobabyPayRoutes(app: Express): void {
         amount: product.rupees * 100,
         currency: "INR",
         receipt: `YB_${Date.now().toString(36).toUpperCase()}`,
-        notes: { site: "yobaby.in", product: id, phone, ...(UUID.test(uid) ? { uid } : {}) },
+        notes: { site: "yobaby.in", product: id, ...(phone ? { phone } : {}), ...(UUID.test(uid) ? { uid } : {}) },
       });
       const proto = String(req.get("x-forwarded-proto") || req.protocol).split(",")[0];
       res.set("Cache-Control", "no-store");
@@ -171,7 +181,7 @@ export function registerYobabyPayRoutes(app: Express): void {
             name: "Little Bites",
             description: product.label,
             image: `${yobabyUrl()}/icons/icon-192.png`,
-            prefill: { contact: `+91${phone}` },
+            ...(phone ? { prefill: { contact: `+91${phone}` } } : {}),
             callback_url: `${proto}://${req.get("host")}/api/yb/callback`,
             redirect: true,
             theme: { color: "#FF6B57" },
@@ -206,17 +216,20 @@ export function registerYobabyPayRoutes(app: Express): void {
     }
 
     try {
-      // The phone and uid come from the order we created, not from the browser.
+      // Product and uid come from the order we created, the number from the payment Razorpay took — not the browser.
       const order = await razorpay<RazorpayOrder>("GET", `/orders/${encodeURIComponent(orderId)}`);
       const notes = Array.isArray(order.notes) ? {} : order.notes;
-      if (notes.site !== "yobaby.in" || !notes.phone) {
+      if (notes.site !== "yobaby.in") {
         console.warn(`[yobaby-pay] order ${orderId} is not a yobaby.in order`);
         return res.redirect(303, backUrl("failed"));
       }
+      const payment = await razorpay<RazorpayPayment>("GET", `/payments/${encodeURIComponent(paymentId)}`);
+      const phone = indianMobile(payment.contact) ?? indianMobile(notes.phone);
+      if (!phone) throw new Error(`no Indian mobile number on payment (contact=${payment.contact ?? "none"})`);
       const { data, error } = await yobabyDb().rpc("record_payment", {
         p_payment_id: paymentId,
         p_order_id: orderId,
-        p_phone: notes.phone,
+        p_phone: phone,
         p_user_id: notes.uid || null,
         p_product: notes.product || "pro_1m",
         p_amount: order.amount / 100,
