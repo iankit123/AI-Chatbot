@@ -5,8 +5,9 @@
  *
  *   GET  /api/yb/checkout?product=pro_1m|recipe_book[&phone=98xxxxxxxx]&uid=<yobaby user id>
  *        yobaby.in's "Buy" (Pro ₹29 / recipe book PDF ₹99) sends the buyer here: creates the Razorpay order and opens
- *        Checkout. No product = pro_1m. The phone is optional: when yobaby.in knows it, it's prefilled; otherwise the
- *        buyer types it into Razorpay Checkout.
+ *        Checkout, UPI only (no cards / netbanking / wallets: one simple choice). No product = pro_1m. The phone is
+ *        optional: yobaby.in asks for it before Buy and sends it, so it's prefilled and hidden and Checkout opens on the
+ *        UPI apps; without it the buyer types it into Razorpay Checkout first.
  *   POST /api/yb/callback
  *        Razorpay's redirect after paying (callback_url). Verifies the signature, takes the buyer's number from the
  *        payment (the contact entered in Checkout; else the order's notes) and the uid from the order's notes, records
@@ -181,7 +182,14 @@ export function registerYobabyPayRoutes(app: Express): void {
             name: "Little Bites",
             description: product.label,
             image: `${yobabyUrl()}/icons/icon-192.png`,
-            ...(phone ? { prefill: { contact: `+91${phone}` } } : {}),
+            ...(phone ? { prefill: { contact: `+91${phone}` }, hidden: { contact: true } } : {}),
+            config: {
+              display: {
+                blocks: { upi: { name: "Pay with UPI", instruments: [{ method: "upi" }] } },
+                sequence: ["block.upi"],
+                preferences: { show_default_blocks: false },
+              },
+            },
             callback_url: `${proto}://${req.get("host")}/api/yb/callback`,
             redirect: true,
             theme: { color: "#FF6B57" },
