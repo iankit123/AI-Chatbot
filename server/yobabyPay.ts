@@ -5,9 +5,11 @@
  *
  *   GET  /api/yb/checkout?product=pro_1m|recipe_book[&phone=98xxxxxxxx]&uid=<yobaby user id>
  *        yobaby.in's "Buy" (Pro ₹29 / recipe book PDF ₹99) sends the buyer here: creates the Razorpay order and opens
- *        Checkout, UPI only (no cards / netbanking / wallets: one simple choice). No product = pro_1m. The phone is
- *        optional: yobaby.in asks for it before Buy and sends it, so it's prefilled and hidden and Checkout opens on the
- *        UPI apps; without it the buyer types it into Razorpay Checkout first.
+ *        Checkout, UPI only (cards / netbanking / wallets / EMI hidden: one simple choice). No product = pro_1m. The
+ *        phone is optional: yobaby.in asks for it before Buy and sends it, so Checkout skips its "Enter mobile number"
+ *        page and opens on one-tap "Pay ₹29 · Google Pay" ("More Options" = the other UPI apps and UPI ID); without it
+ *        the buyer types it into Razorpay Checkout first. Razorpay drops dummy numbers (9876543210, 9999999999…), so
+ *        test with a real one.
  *   POST /api/yb/callback
  *        Razorpay's redirect after paying (callback_url). Verifies the signature, takes the buyer's number from the
  *        payment (the contact entered in Checkout; else the order's notes) and the uid from the order's notes, records
@@ -182,12 +184,12 @@ export function registerYobabyPayRoutes(app: Express): void {
             name: "Little Bites",
             description: product.label,
             image: `${yobabyUrl()}/icons/icon-192.png`,
-            ...(phone ? { prefill: { contact: `+91${phone}` }, hidden: { contact: true } } : {}),
+            ...(phone ? { prefill: { contact: `+91${phone}` } } : {}),
+            // Hiding the other methods (rather than a UPI-only block) keeps Checkout's one-tap UPI sheet.
             config: {
               display: {
-                blocks: { upi: { name: "Pay with UPI", instruments: [{ method: "upi" }] } },
-                sequence: ["block.upi"],
-                preferences: { show_default_blocks: false },
+                hide: ["card", "netbanking", "wallet", "emi", "cardless_emi", "paylater"].map((method) => ({ method })),
+                preferences: { show_default_blocks: true },
               },
             },
             callback_url: `${proto}://${req.get("host")}/api/yb/callback`,
