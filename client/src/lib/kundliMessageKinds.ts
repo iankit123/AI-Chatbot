@@ -1,3 +1,5 @@
-/** Stored on Message.contextInfo for Kundli onboarding bubbles */
-export const KUNDLI_CONTEXT_DETAILS = "kundli_details";
-export const KUNDLI_CONTEXT_AUTOMATED = "kundli_automated";
+/** Stored on Message.contextInfo for Kundli onboarding bubbles — see shared/kundliMessageKinds.ts */
+export {
+  KUNDLI_CONTEXT_AUTOMATED,
+  KUNDLI_CONTEXT_DETAILS,
+} from "@shared/kundliMessageKinds";

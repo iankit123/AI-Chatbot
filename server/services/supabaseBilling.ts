@@ -440,6 +440,14 @@ export const completePaymentSuccess = async (input: {
     unlocked_photo_packs: synced.unlocked_photo_packs,
     phone_number: synced.phone_number,
     name: synced.name,
+    /** Set only when this call completed the payment (not on a repeat verify). */
+    purchase: {
+      device_id: deviceId,
+      phone_digits: phoneDigits || null,
+      amount_rupees: Number(payment.amount_rupees),
+      product_type: productType,
+      companion_id: companionId,
+    },
   };
 };
 
@@ -802,9 +810,11 @@ export type DeductChatMessageResult =
 export const deductChatMessageCredit = async (input: {
   deviceId: string;
   phoneHint?: string | null;
-  messageCountFromClient: number;
+  companionId: string;
+  /** 1-based index of this message among the person's typed messages to the companion. */
+  messageIndex: number;
 }): Promise<DeductChatMessageResult> => {
-  if (!serverShouldChargeForMessage(input.messageCountFromClient)) {
+  if (!serverShouldChargeForMessage(input.messageIndex, input.companionId)) {
     const state = await getBillingState(input.deviceId, input.phoneHint);
     return { ok: true, wallet_credits: state.wallet_credits, charged: false };
   }

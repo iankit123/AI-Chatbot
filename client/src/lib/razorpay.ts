@@ -13,6 +13,8 @@ import {
   receiptPrefixForProduct,
 } from "@shared/razorpayProductCodes";
 import { trackPaymentAttempted, trackPurchase } from "@/lib/metaPixel";
+import { getMetaBrowserContext } from "@/lib/metaClickIds";
+import type { MetaBrowserContext } from "@shared/metaEvents";
 
 type RazorpayCreateOrderRequest = {
   amount_rupees: number;
@@ -36,6 +38,8 @@ type RazorpayVerifyRequest = {
   razorpay_payment_id: string;
   razorpay_signature: string;
   payment_id?: string;
+  /** Lets the server send the Purchase to Meta's Conversions API. */
+  meta?: MetaBrowserContext;
 };
 
 export type RazorpayCheckoutResult = {
@@ -207,6 +211,7 @@ export async function runRazorpayCheckout(
             razorpay_payment_id,
             razorpay_signature,
             ...(paymentRowId ? { payment_id: paymentRowId } : {}),
+            meta: getMetaBrowserContext(),
           });
           syncWalletCreditsToLocal(billing.wallet_credits);
           if (billing.photo_packs?.length) {

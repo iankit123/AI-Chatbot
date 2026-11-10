@@ -11,6 +11,7 @@ import path from "path";
 import {
   getChatConversationsFromSupabase,
   getChatMessagesFromSupabase,
+  resolveBillableMessageIndex,
   saveChatMessageToSupabase,
   updateChatMessageContentInSupabase,
 } from "./services/supabaseChat";
@@ -36,6 +37,14 @@ import {
 } from "./services/kundliProfile";
 import { insertAppEventRow } from "./services/appEvents";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
+import { metaPurchaseEventId } from "@shared/metaEvents";
+import {
+  META_CAPI_FORWARDED_EVENTS,
+  metaBrowserContextSchema,
+  metaContextFromRequest,
+  metaCustomDataFromProperties,
+  sendMetaConversionEvent,
+} from "./services/metaConversions";
 
 const kundliBirthSchema = z.object({
   name: z.string().min(1).max(120),
@@ -366,6 +375,7 @@ export async function registerRoutes(
         user_id: z.string().optional().nullable(),
         phone_number: z.string().optional().nullable(),
         properties: z.record(z.unknown()).optional(),
+        meta: metaBrowserContextSchema.optional(),
       });
       const data = bodySchema.parse(req.body);
       const row = await insertAppEventRow({
@@ -375,6 +385,19 @@ export async function registerRoutes(
         phoneNumber: data.phone_number,
         properties: data.properties,
       });
+
+      // Also send to Meta from the server, so the ad gets credit when the Pixel is blocked.
+      // Only when the Pixel tagged the same event_id, so Meta counts it once.
+      if (META_CAPI_FORWARDED_EVENTS.has(data.event_name) && data.meta?.event_id) {
+        await sendMetaConversionEvent({
+          eventName: data.event_name,
+          eventId: data.meta.event_id,
+          context: metaContextFromRequest(req, data.meta),
+          deviceId: data.device_id,
+          phoneDigits: data.phone_number,
+          customData: metaCustomDataFromProperties(data.properties),
+        });
+      }
       res.status(201).json(row);
     } catch (error) {
       console.error("Error logging app event:", error);
@@ -601,6 +624,7 @@ export async function registerRoutes(
         razorpay_payment_id: z.string().min(1),
         razorpay_signature: z.string().min(1),
         payment_id: z.string().uuid().optional(),
+        meta: metaBrowserContextSchema.optional(),
       });
       const body = schema.parse(req.body);
       const { keySecret } = getRazorpayCredentials();
@@ -646,8 +670,29 @@ export async function registerRoutes(
         gatewayOrderId: body.razorpay_order_id,
         gatewayPaymentId: body.razorpay_payment_id,
       });
+      const { purchase, ...billing } = "purchase" in result ? result : { ...result, purchase: null };
 
-      return res.json({ success: true, ...result });
+      // Server-side Purchase for Meta, sent once when the payment is completed. Same event id
+      // as the Pixel's Purchase (from clients that send `meta`), so Meta counts it once.
+      if (purchase && body.meta) {
+        await sendMetaConversionEvent({
+          eventName: "Purchase",
+          eventId: metaPurchaseEventId(body.razorpay_order_id),
+          context: metaContextFromRequest(req, body.meta),
+          deviceId: purchase.device_id,
+          phoneDigits: purchase.phone_digits,
+          customData: {
+            value: purchase.amount_rupees,
+            currency: "INR",
+            content_ids: [body.razorpay_order_id],
+            content_type: "product",
+            product_type: purchase.product_type,
+            ...(purchase.companion_id ? { companion_id: purchase.companion_id } : {}),
+          },
+        });
+      }
+
+      return res.json({ success: true, ...billing });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid payload", errors: error.errors });
@@ -687,16 +732,10 @@ export async function registerRoutes(
     }
   });
 
-  // Get messages - can filter by companion ID
-  app.get('/api/messages', async (req, res) => {
-    try {
-      const companionId = req.query.companionId as string | undefined;
-      const messages = await storage.getMessages(companionId);
-      res.json(messages);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      res.status(500).json({ message: 'Failed to fetch messages' });
-    }
+  // Legacy endpoint. MemStorage holds every user's messages on this server instance,
+  // so it must not be returned. Chat history is served by /api/chat/messages per owner.
+  app.get('/api/messages', (_req, res) => {
+    res.json([]);
   });
 
   // Send a message
@@ -730,6 +769,13 @@ export async function registerRoutes(
         messageCount: z.number().optional(), // Add message count to schema
         deviceId: z.string().optional(),
         phoneNumber: z.string().optional(),
+        /** Same owner the client uses to save chat history (for counting free messages). */
+        chatOwner: z
+          .object({
+            userId: z.string().nullable().optional(),
+            anonymousUserId: z.string().nullable().optional(),
+          })
+          .optional(),
         isAuthenticated: z.boolean().optional(), // Add auth state to schema
         /** Prior turns from the client (required on serverless — seeded UI messages are not in MemStorage). */
         conversationHistory: z.array(conversationTurnSchema).max(40).optional(),
@@ -800,25 +846,11 @@ export async function registerRoutes(
       // Check if this is a photo message (premium or regular)
       const isPhotoMessage = !!validatedData.photoUrl;
       
-      // Normal message flow (non-photo message) - Check if this is first user message BEFORE saving
-      // Get conversation history for this specific companion BEFORE saving the new message
-      const allMessages = await storage.getMessages();
-      console.log('[DEBUG] All messages in storage:', allMessages.length);
-      console.log('[DEBUG] All messages:', allMessages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })));
-      
-      // Filter messages for this companion
-      const companionMessages = allMessages.filter(
-        msg => !msg.companionId || msg.companionId === validatedData.companionId
-      );
-      console.log('[DEBUG] Companion messages (filtered):', companionMessages.length);
-      console.log('[DEBUG] Companion messages:', companionMessages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })));
-      
-      // Check if this is the first user message (no previous user messages)
-      const userMessages = companionMessages.filter(msg => msg.role === 'user');
-      const isFirstUserMessage = userMessages.length === 0;
-      console.log('[DEBUG] User messages count:', userMessages.length);
-      console.log('[DEBUG] Is first user message:', isFirstUserMessage);
-      
+      // History comes only from this person's client. MemStorage is shared by every
+      // user on the server instance, so reading it back leaked other people's chats.
+      const fromClient = validatedData.conversationHistory ?? [];
+      const isFirstUserMessage = !fromClient.some((turn) => turn.role === 'user');
+
       // Only create a user message if not explicitly skipped
       let userMessage;
       if (!validatedData.skipUserMessage) {
@@ -865,40 +897,30 @@ export async function registerRoutes(
       try {
         
         // Filter out welcome messages (simple "Hi" or "Hello" from assistant) if this is the first user message
-        let filteredMessages = companionMessages;
+        let conversationHistory = fromClient.slice(-40);
         if (isFirstUserMessage) {
-          console.log('[DEBUG] First user message detected. Filtering welcome messages...');
-          console.log('[DEBUG] Companion messages before filter:', companionMessages.map(m => ({ role: m.role, content: m.content })));
-          filteredMessages = filterWelcomeMessagesFromHistory(companionMessages);
-          console.log('[DEBUG] Companion messages after filter:', filteredMessages.map(m => ({ role: m.role, content: m.content })));
-        }
-        
-        const historyFromStorage = filteredMessages.map((msg) => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        }));
-        const fromClient = validatedData.conversationHistory;
-        let conversationHistory =
-          fromClient && fromClient.length > 0 ? fromClient.slice(-40) : historyFromStorage;
-        if (isFirstUserMessage && fromClient && fromClient.length > 0) {
           conversationHistory = filterWelcomeMessagesFromHistory(conversationHistory);
         }
-        
+
         console.log('[DEBUG] Conversation history being sent to LLM:', conversationHistory);
-        console.log(
-          '[DEBUG] History source:',
-          fromClient && fromClient.length > 0 ? 'client' : 'storage',
-        );
         console.log('[DEBUG] Is first user message:', isFirstUserMessage);
 
         let walletCreditsAfter: number | undefined;
         if (validatedData.deviceId) {
           const phoneDigits =
             validatedData.phoneNumber?.replace(/\D/g, "").slice(-10) || "";
+
+          const messageIndex = await resolveBillableMessageIndex({
+            companionId: validatedData.companionId,
+            clientIndex: messageCount,
+            owner: validatedData.chatOwner ?? { anonymousUserId: validatedData.deviceId },
+            currentContent: validatedData.content,
+          });
           const deduct = await deductChatMessageCredit({
             deviceId: validatedData.deviceId,
             phoneHint: phoneDigits || null,
-            messageCountFromClient: messageCount,
+            companionId: validatedData.companionId,
+            messageIndex,
           });
           if (!deduct.ok) {
             return res.status(402).json({
@@ -952,7 +974,7 @@ export async function registerRoutes(
           });
           return res.status(201).json({ userMessage, botMessage });
         }
-        
+
         // For other errors, throw to be caught by outer catch block
         throw error;
       }

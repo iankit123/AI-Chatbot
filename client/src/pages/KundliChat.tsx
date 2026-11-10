@@ -28,10 +28,13 @@ export default function KundliChat() {
     seedConversation,
     setUserProfile,
     currentLanguage,
+    historyLoadedFor,
   } = useChat();
 
   const [, setLocation] = useLocation();
   const [showBirthForm, setShowBirthForm] = useState(true);
+  /** Birth details waiting for chat history to load before the intro bubbles are added. */
+  const [pendingIntro, setPendingIntro] = useState<StoredKundliBirthDetails | null>(null);
   const introSeededRef = useRef(false);
   const hydratedRef = useRef(false);
 
@@ -47,17 +50,25 @@ export default function KundliChat() {
       setShowBirthForm(false);
 
       if (options?.seedIntroIfEmpty === false) return;
-
-      const kundliMsgs = messages.filter(
-        (m) => !m.companionId || m.companionId === KUNDLI_ID,
-      );
-      if (kundliMsgs.length === 0 && !introSeededRef.current) {
-        seedConversation(buildKundliIntroMessages(data, currentLanguage));
-        introSeededRef.current = true;
-      }
+      if (!introSeededRef.current) setPendingIntro(data);
     },
-    [currentLanguage, messages, seedConversation, setUserProfile],
+    [setUserProfile],
   );
+
+  // Add the intro only once saved history has loaded and is empty. Seeding earlier
+  // raced the history load and re-saved the intro mid-conversation on every reload.
+  useEffect(() => {
+    if (!pendingIntro || historyLoadedFor !== KUNDLI_ID || introSeededRef.current) return;
+    introSeededRef.current = true;
+    setPendingIntro(null);
+
+    const hasKundliMessages = messages.some(
+      (m) => !m.companionId || m.companionId === KUNDLI_ID,
+    );
+    if (!hasKundliMessages) {
+      seedConversation(buildKundliIntroMessages(pendingIntro, currentLanguage));
+    }
+  }, [pendingIntro, historyLoadedFor, messages, seedConversation, currentLanguage]);
 
   const hydrateBirthDetails = useCallback(async () => {
     migrateKundliBirthAcrossAuthKeys();

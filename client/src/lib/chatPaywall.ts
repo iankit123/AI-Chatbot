@@ -5,4 +5,6 @@ export {
   canAffordChatMessage,
   chatMessagesRemaining,
   clientShouldBlockForPaywall,
+  countsTowardFreeMessages,
+  freeMessageAllowance,
 } from "@shared/chatBilling";

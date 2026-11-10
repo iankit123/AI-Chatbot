@@ -1,4 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  countsTowardFreeMessages,
+  serverShouldChargeForMessage,
+} from "@shared/chatBilling";
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -169,6 +173,76 @@ export const getChatMessagesFromSupabase = async (
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
+};
+
+/**
+ * Messages the person typed to this companion, counting the one being sent now.
+ * The client saves the new message in parallel with /api/messages, so it may not be stored yet.
+ */
+const countTypedUserMessages = async (input: {
+  companionId: string;
+  userId?: string | null;
+  anonymousUserId?: string | null;
+  currentContent: string;
+}): Promise<number> => {
+  const supabase = getSupabaseAdmin();
+  const owner = resolveOwner(input.userId, input.anonymousUserId);
+
+  // Anything past the largest free allowance is billable, so 100 rows is plenty.
+  let query = supabase
+    .from("chat_messages")
+    .select("content, context_info, created_at")
+    .eq("companion_id", input.companionId)
+    .eq("role", "user")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  query = owner.user_id
+    ? query.eq("user_id", owner.user_id)
+    : query.eq("anonymous_user_id", owner.anonymous_user_id);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const typed = (data || []).filter((row) =>
+    countsTowardFreeMessages({ role: "user", contextInfo: row.context_info }),
+  );
+  const current = input.currentContent.trim();
+  const recentCutoff = Date.now() - 2 * 60 * 1000;
+  const currentAlreadySaved = typed.some(
+    (row) =>
+      String(row.content ?? "").trim() === current &&
+      new Date(row.created_at).getTime() >= recentCutoff,
+  );
+  return typed.length + (currentAlreadySaved ? 0 : 1);
+};
+
+/**
+ * 1-based index of this message for free-allowance billing. The client's counter lives in
+ * localStorage and can reset (new chat, re-seeded Kundli intro), so it is raised to the
+ * number of typed messages saved for this person.
+ */
+export const resolveBillableMessageIndex = async (input: {
+  companionId: string;
+  clientIndex: number;
+  owner: { userId?: string | null; anonymousUserId?: string | null };
+  currentContent: string;
+}): Promise<number> => {
+  if (serverShouldChargeForMessage(input.clientIndex, input.companionId)) {
+    return input.clientIndex;
+  }
+  try {
+    const typedSoFar = await countTypedUserMessages({
+      companionId: input.companionId,
+      userId: input.owner.userId,
+      anonymousUserId: input.owner.anonymousUserId,
+      currentContent: input.currentContent,
+    });
+    return Math.max(input.clientIndex, typedSoFar);
+  } catch (error) {
+    console.error("[billing] Could not count saved messages; using client count:", error);
+    return input.clientIndex;
+  }
 };
 
 export const getChatConversationsFromSupabase = async (

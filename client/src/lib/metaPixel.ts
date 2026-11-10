@@ -1,8 +1,9 @@
 import type { AppEventName } from "@shared/appEvents";
+import { metaPurchaseEventId } from "@shared/metaEvents";
 import { logAppEventToServer } from "@/lib/logAppEvent";
+import { newMetaEventId } from "@/lib/metaClickIds";
 
-/** Meta Pixel ID — base script lives in client/index.html */
-export const META_PIXEL_ID = "1838700220429198";
+export { META_PIXEL_ID } from "@shared/metaEvents";
 
 type FbqCommand = "init" | "track" | "trackCustom";
 
@@ -12,6 +13,7 @@ declare global {
       command: FbqCommand,
       eventName: string,
       params?: Record<string, unknown>,
+      options?: { eventID?: string },
     ) => void;
   }
 }
@@ -20,18 +22,23 @@ function fbqReady(): boolean {
   return typeof window !== "undefined" && typeof window.fbq === "function";
 }
 
+/**
+ * `eventId` is set for events the server also sends to Meta's Conversions API, so
+ * Meta can match the two copies and count the event once.
+ */
 function trackCustom(
   eventName: AppEventName,
   params?: Record<string, unknown>,
+  eventId?: string,
 ): void {
   try {
     if (fbqReady()) {
-      window.fbq!("trackCustom", eventName, params);
+      window.fbq!("trackCustom", eventName, params, eventId ? { eventID: eventId } : undefined);
     }
   } catch {
     /* Meta Pixel must not block checkout */
   }
-  logAppEventToServer(eventName, params);
+  logAppEventToServer(eventName, params, eventId);
 }
 
 /** Guest or signed-in user completed name/age (or phone) profile setup. */
@@ -77,10 +84,15 @@ export function trackPaymentAttempted(params: {
   product_type?: string;
   companion_id?: string;
 }): void {
-  trackCustom("payment_attempted", {
-    currency: "INR",
-    ...params,
-  });
+  // The ad sets optimize for this event, so the server also sends it (same event id).
+  trackCustom(
+    "payment_attempted",
+    {
+      currency: "INR",
+      ...params,
+    },
+    newMetaEventId(),
+  );
 }
 
 /** Payment verified successfully. */
@@ -101,10 +113,16 @@ export function trackPurchase(params: {
     ...rest,
   });
   if (!fbqReady()) return;
-  window.fbq!("track", "Purchase", {
-    value,
-    currency,
-    content_ids: order_id ? [order_id] : undefined,
-    ...rest,
-  });
+  // The server sends the same Purchase on payment verify; the shared id stops double counting.
+  window.fbq!(
+    "track",
+    "Purchase",
+    {
+      value,
+      currency,
+      content_ids: order_id ? [order_id] : undefined,
+      ...rest,
+    },
+    order_id ? { eventID: metaPurchaseEventId(order_id) } : undefined,
+  );
 }

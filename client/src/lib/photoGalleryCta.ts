@@ -1,4 +1,4 @@
-import { FREE_USER_MESSAGE_ALLOWANCE } from "@/lib/chatPaywall";
+import { freeMessageAllowance } from "@/lib/chatPaywall";
 import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
 
 /** Stored on Message.contextInfo — renders as photo/video tab CTA card. */
@@ -19,14 +19,14 @@ export function clearPhotoGalleryCtaShown(companionId: string): void {
   localStorage.removeItem(GALLERY_CTA_SHOWN_KEY(companionId));
 }
 
-/** User message index before send; last free reply is on the 5th user message. */
+/** User message index before send; offered on the last free user message. */
 export function shouldOfferPhotoGalleryCta(
   companionId: string,
   messageCountBeforeSend: number,
 ): boolean {
   if (!isRelationshipCompanion(companionId)) return false;
   if (hasShownPhotoGalleryCta(companionId)) return false;
-  return messageCountBeforeSend + 1 === FREE_USER_MESSAGE_ALLOWANCE;
+  return messageCountBeforeSend + 1 === freeMessageAllowance(companionId);
 }
 
 export function photoGalleryIntroReply(language: "hindi" | "english"): string {

@@ -30,6 +30,8 @@ import {
 import {
   canAffordChatMessage,
   clientShouldBlockForPaywall,
+  countsTowardFreeMessages,
+  freeMessageAllowance,
 } from "@/lib/chatPaywall";
 import { trackChatStarted, trackPaywallTriggered } from "@/lib/metaPixel";
 import {
@@ -190,6 +192,8 @@ interface ChatContextType {
   startFreshChat: () => void;
   /** Replace the conversation (e.g. Kundli birth form seed). Marks welcome as sent and persists messages. */
   seedConversation: (msgs: Message[]) => void;
+  /** Companion whose saved chat history has finished loading (null while loading). */
+  historyLoadedFor: string | null;
   toggleLanguage: () => void;
   setLanguage: (language: "hindi" | "english") => void;
   userProfile: { name: string; age: string } | null;
@@ -468,8 +472,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           // Mark that welcome message has been added for this companion (since it's in history)
           welcomeMessageAddedRef.current.add(companionId);
           
-          // Update message count based on history
-          const count = convertedMessages.filter(msg => msg.role === "user").length;
+          // Update message count based on history (only messages the person typed)
+          const count = convertedMessages.filter(countsTowardFreeMessages).length;
           setMessageCount(count);
           localStorage.setItem(`messageCount_${companionId}`, count.toString());
           console.log("[ChatContext] Updated message count to", count, "based on chat history");
@@ -692,7 +696,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       }
 
       // 3. Paywall: free messages, then ₹0.20/message from wallet after recharge
-      if (clientShouldBlockForPaywall(messageCount)) {
+      if (clientShouldBlockForPaywall(messageCount, companionId)) {
         const walletBalance = readLocalWalletCredits();
         if (!canAffordChatMessage(walletBalance)) {
           console.log("[ChatContext] Paywall — free messages used, wallet insufficient");
@@ -1028,6 +1032,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         userName: firstNameOnly(userProfile?.name) || undefined,
         deviceId: getDeviceId(),
         phoneNumber: getStoredBillingPhoneDigits() || undefined,
+        // Server counts free messages from saved chat history for this owner.
+        chatOwner: getChatPersistenceOwner(),
         conversationHistory,
         messageCount: messageCount + 1,
         isAuthenticated: isAuthenticated(),
@@ -1053,6 +1059,13 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
             /* ignore */
           }
           syncWalletCreditsToLocal(wallet);
+          // Server says free messages are used up; keep the local gate in step with it.
+          const allowance = freeMessageAllowance(companionId);
+          setMessageCount((c) => {
+            const synced = Math.max(c, allowance);
+            localStorage.setItem(`messageCount_${companionId}`, synced.toString());
+            return synced;
+          });
           localStorage.removeItem("recharge_dialog_dismissed");
           setShowRechargeDialog(true);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -1281,9 +1294,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     if (!cid) return;
     welcomeMessageAddedRef.current.add(cid);
     setMessages(msgs);
-    const userCount = msgs.filter((m) => m.role === "user").length;
-    setMessageCount(userCount);
-    localStorage.setItem(`messageCount_${cid}`, String(userCount));
+    // Seeded bubbles are not typed by the person, so the free-message count stays as is.
     for (const m of msgs) {
       void saveChatMessage(m).catch((error) => {
         console.error("[ChatContext] Error saving seeded message:", error);
@@ -1369,6 +1380,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         clearChat,
         startFreshChat,
         seedConversation,
+        historyLoadedFor:
+          loadedHistoryKey === `${companionId}:${historySessionKey}` ? companionId : null,
         toggleLanguage,
         setLanguage,
         userProfile,

@@ -2,6 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { firstNameOnly } from "@shared/userName";
 import { generateResponse } from "../../server/services/llm";
 import { deductChatMessageCredit } from "../../server/services/supabaseBilling";
+import { resolveBillableMessageIndex } from "../../server/services/supabaseChat";
 import { z } from "zod";
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8" };
@@ -44,6 +45,13 @@ const handler: Handler = async (event) => {
       userName: z.string().optional(),
       deviceId: z.string().optional(),
       phoneNumber: z.string().optional(),
+      /** Same owner the client uses to save chat history (for counting free messages). */
+      chatOwner: z
+        .object({
+          userId: z.string().nullable().optional(),
+          anonymousUserId: z.string().nullable().optional(),
+        })
+        .optional(),
       photoUrl: z.string().optional(),
       isPremium: z.boolean().optional(),
       skipUserMessage: z.boolean().optional(),
@@ -63,10 +71,17 @@ const handler: Handler = async (event) => {
     if (validatedData.deviceId) {
       const phoneDigits =
         validatedData.phoneNumber?.replace(/\D/g, "").slice(-10) || "";
+      const messageIndex = await resolveBillableMessageIndex({
+        companionId: validatedData.companionId,
+        clientIndex: messageCount,
+        owner: validatedData.chatOwner ?? { anonymousUserId: validatedData.deviceId },
+        currentContent: validatedData.content,
+      });
       const deduct = await deductChatMessageCredit({
         deviceId: validatedData.deviceId,
         phoneHint: phoneDigits || null,
-        messageCountFromClient: messageCount,
+        companionId: validatedData.companionId,
+        messageIndex,
       });
       if (!deduct.ok) {
         return {

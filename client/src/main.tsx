@@ -7,6 +7,9 @@ import { ChatSettingsProvider } from "./context/ChatSettingsContext";
 import { AuthProvider } from "./context/AuthContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
+import { rememberMetaClickId } from "@/lib/metaClickIds";
+
+rememberMetaClickId();
 
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={queryClient}>
