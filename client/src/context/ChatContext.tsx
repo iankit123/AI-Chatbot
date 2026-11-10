@@ -34,6 +34,9 @@ import {
   freeMessageAllowance,
 } from "@/lib/chatPaywall";
 import { trackChatStarted, trackPaywallTriggered } from "@/lib/metaPixel";
+import { logAppEventToServer } from "@/lib/logAppEvent";
+import { isSupportBlocked, markSupportBlocked } from "@/lib/supportBlock";
+import { crisisSupportReply, isSelfHarmMessage } from "@shared/crisisSupport";
 import {
   fetchBillingWallet,
   readLocalWalletCredits,
@@ -194,6 +197,8 @@ interface ChatContextType {
   seedConversation: (msgs: Message[]) => void;
   /** Companion whose saved chat history has finished loading (null while loading). */
   historyLoadedFor: string | null;
+  /** Chat closed on this device after a self-harm message (input shows the helpline). */
+  supportBlocked: boolean;
   toggleLanguage: () => void;
   setLanguage: (language: "hindi" | "english") => void;
   userProfile: { name: string; age: string } | null;
@@ -228,6 +233,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
   const [messageCount, setMessageCount] = useState(0);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
+  const [supportBlocked, setSupportBlocked] = useState(isSupportBlocked);
   useEffect(() => {
     if (showRechargeDialog) {
       trackPaywallTriggered({ source: "chat_recharge" });
@@ -678,6 +684,44 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       }
       
       if (!trimmedContent) return;
+      if (supportBlocked) return;
+
+      // Self-harm: reply with the helpline and close the chat on this device. This runs
+      // before the name prompt and the paywall, so nobody in crisis is asked for either.
+      if (isSelfHarmMessage(trimmedContent)) {
+        const now = Date.now();
+        const userMsg: Message = {
+          id: -now,
+          content: trimmedContent,
+          role: "user",
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: null,
+        };
+        const supportMsg: Message = {
+          id: -now - 1,
+          content: crisisSupportReply(currentLanguage),
+          role: "assistant",
+          companionId,
+          timestamp: new Date(),
+          photoUrl: null,
+          isPremium: null,
+          contextInfo: null,
+        };
+        setMessages((prev) => [...prev, userMsg, supportMsg]);
+        for (const msg of [userMsg, supportMsg]) {
+          void saveChatMessage(msg).catch((error) => {
+            console.error("[ChatContext] Error saving support message:", error);
+          });
+        }
+        markSupportBlocked();
+        setSupportBlocked(true);
+        // Our own database only; this is never sent to Meta.
+        logAppEventToServer("crisis_detected", { companion_id: companionId, source: "client" });
+        return;
+      }
   
       // 1. Name/Age input on first message for non-signed-in users
       if (!isAuthenticated() && messageCount === 0 && !userProfile) {
@@ -1105,6 +1149,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       setIsRateLimited(false);
       
       const data = await res.json();
+      if (data.crisis) {
+        // Server caught a self-harm message: its reply is the helpline; close the chat here.
+        markSupportBlocked();
+        setSupportBlocked(true);
+      }
       if (typeof data.wallet_credits === "number") {
         syncWalletCreditsToLocal(data.wallet_credits);
       }
@@ -1382,6 +1431,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         seedConversation,
         historyLoadedFor:
           loadedHistoryKey === `${companionId}:${historySessionKey}` ? companionId : null,
+        supportBlocked,
         toggleLanguage,
         setLanguage,
         userProfile,

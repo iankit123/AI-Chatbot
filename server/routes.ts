@@ -38,6 +38,7 @@ import {
 import { insertAppEventRow } from "./services/appEvents";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
 import { metaPurchaseEventId } from "@shared/metaEvents";
+import { crisisSupportReply, isSelfHarmMessage } from "@shared/crisisSupport";
 import {
   META_CAPI_FORWARDED_EVENTS,
   metaBrowserContextSchema,
@@ -782,6 +783,24 @@ export async function registerRoutes(
       });
       
       const validatedData = messageSchema.parse(req.body);
+
+      // Self-harm: reply with the helpline instead of the AI, with no charge. The app then
+      // closes the chat on this device (`crisis: true`).
+      if (isSelfHarmMessage(validatedData.content)) {
+        if (validatedData.deviceId) {
+          await insertAppEventRow({
+            eventName: "crisis_detected",
+            deviceId: validatedData.deviceId,
+            properties: { companion_id: validatedData.companionId, source: "server" },
+          }).catch((error) => console.error("[crisis] could not log event:", error));
+        }
+        const botMessage = await storage.createMessage({
+          content: crisisSupportReply(validatedData.language),
+          role: 'assistant',
+          companionId: validatedData.companionId,
+        });
+        return res.status(201).json({ botMessage, crisis: true });
+      }
       
       // User name: request body first, then guest profile cookie
       let userName = validatedData.userName?.trim() || '';

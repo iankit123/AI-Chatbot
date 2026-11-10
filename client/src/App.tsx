@@ -18,6 +18,8 @@ import TermsAndConditions from "./pages/TermsAndConditions";
 import RefundPolicy from "./pages/RefundPolicy";
 import ContactUs from "./pages/ContactUs";
 import { ChatProvider } from "./context/ChatContext";
+import { SupportBlockedPage } from "@/components/SupportBlockedPage";
+import { isSupportBlocked } from "@/lib/supportBlock";
 
 function Router() {
   return (
@@ -45,6 +47,7 @@ function Router() {
 }
 
 function App() {
+  if (isSupportBlocked()) return <SupportBlockedPage />;
   return (
     <ChatProvider>
       <Router />

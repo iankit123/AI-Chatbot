@@ -3,6 +3,7 @@ import { firstNameOnly } from "@shared/userName";
 import { generateResponse } from "../../server/services/llm";
 import { deductChatMessageCredit } from "../../server/services/supabaseBilling";
 import { resolveBillableMessageIndex } from "../../server/services/supabaseChat";
+import { crisisSupportReply, isSelfHarmMessage } from "@shared/crisisSupport";
 import { z } from "zod";
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8" };
@@ -64,6 +65,15 @@ const handler: Handler = async (event) => {
     });
 
     const validatedData = messageSchema.parse(body);
+
+    // Self-harm: reply with the helpline instead of the AI, with no charge (see shared/crisisSupport).
+    if (isSelfHarmMessage(validatedData.content)) {
+      return {
+        statusCode: 200,
+        headers: jsonHeaders,
+        body: JSON.stringify({ content: crisisSupportReply(validatedData.language), crisis: true }),
+      };
+    }
 
     const history = validatedData.conversationHistory ?? [];
     const messageCount = validatedData.messageCount ?? 0;

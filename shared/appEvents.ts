@@ -5,6 +5,8 @@ export const APP_EVENT_NAMES = [
   "paywall_triggered",
   "payment_attempted",
   "purchase",
+  /** Self-harm message detected; logged to our DB only, never sent to Meta. */
+  "crisis_detected",
 ] as const;
 
 export type AppEventName = (typeof APP_EVENT_NAMES)[number];
