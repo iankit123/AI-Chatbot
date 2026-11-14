@@ -17,6 +17,8 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import RefundPolicy from "./pages/RefundPolicy";
 import ContactUs from "./pages/ContactUs";
+import ShaadiReportPage from "./pages/ShaadiReport";
+import MilanReportPage from "./pages/MilanReport";
 import { ChatProvider } from "./context/ChatContext";
 import { SupportBlockedPage } from "@/components/SupportBlockedPage";
 import { isSupportBlocked } from "@/lib/supportBlock";
@@ -36,6 +38,10 @@ function Router() {
       <Route path="/career" component={CareerChat} />
       <Route path="/krishna" component={KrishnaChat} />
       <Route path="/english" component={EnglishChat} />
+      <Route path="/shaadi" component={ShaadiReportPage} />
+      <Route path="/shaadi/r/:id" component={ShaadiReportPage} />
+      <Route path="/milan" component={MilanReportPage} />
+      <Route path="/milan/r/:id" component={MilanReportPage} />
       <Route path="/about" component={AboutUs} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/terms" component={TermsAndConditions} />

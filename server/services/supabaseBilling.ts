@@ -37,6 +37,8 @@ export type PaymentProductType =
   | "photo_pack"
   | "voice_chat"
   | "premium_photo"
+  | "shaadi_report"
+  | "milan_report"
   | "other";
 
 export interface UpsertProfileInput {
@@ -111,6 +113,8 @@ export function resolvePaymentProductType(row: PaymentRowLite): PaymentProductTy
   ) {
     return col as PaymentProductType;
   }
+  // One-off reports: never chat credits or companion packs.
+  if (col === "shaadi_report" || col === "milan_report") return "other";
   const meta = (row.metadata as Record<string, unknown>) ?? {};
   const source = String(meta.source ?? "").toLowerCase();
   if (source === "photo_pack_activation") return "photo_pack";

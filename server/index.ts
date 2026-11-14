@@ -35,7 +35,7 @@ app.options('*', (req, res) => {
   res.sendStatus(204); // Use 204 No Content for preflight responses
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 // Request logging middleware (after body parsers so req.body is populated)
