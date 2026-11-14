@@ -44,7 +44,6 @@ import {
 } from "@/lib/billing";
 import { ACCOUNT_SESSION_REFRESH_EVENT } from "@/lib/sessionRefresh";
 import { getDeviceId, getStoredBillingPhoneDigits } from "@/lib/supabase";
-import { loadStoredKundliBirth } from "@/lib/kundliBirthStorage";
 import { RechargeChatDialog } from "@/components/RechargeChatDialog";
 import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
 import {
@@ -61,34 +60,6 @@ import {
   shouldOfferPhotoGalleryCta,
   clearPhotoGalleryCtaShown,
 } from "@/lib/photoGalleryCta";
-
-/** Advice chats (not companions): no photo offers, and replies show as soon as they arrive. */
-const ADVICE_CHAT_IDS = new Set([
-  "doctor",
-  "kundli",
-  "parenting",
-  "finance",
-  "career",
-  "krishna",
-  "english",
-  "relationship-advice",
-]);
-
-/** Messages the app itself shows in the chat when something goes wrong. */
-function chatNotice(kind: "failed" | "tooFast", language: "hindi" | "english"): string {
-  if (kind === "failed") {
-    return language === "hindi"
-      ? "माफ़ कीजिए, अभी जवाब नहीं आ पाया। कृपया अपना सवाल दोबारा भेजें।"
-      : "Sorry, the reply did not come through. Please send your question again.";
-  }
-  return language === "hindi"
-    ? "आप बहुत जल्दी-जल्दी संदेश भेज रहे हैं। कृपया थोड़ा रुककर भेजें।"
-    : "You're sending messages too quickly. Please wait a moment.";
-}
-
-/** Matches `chatNotice` texts and the older English ones saved in past chats. */
-const APP_NOTICE_PATTERN =
-  /couldn't process your message|too many requests right now|sending too many messages|जवाब नहीं आ पाया|बहुत जल्दी-जल्दी संदेश|did not come through|sending messages too quickly/i;
 
 const AFFIRMATIVE_WORDS = [
   "yes", "haan", "ha", "haa", "dikhao", "dikhaao", "show", "ok", "okay"
@@ -222,7 +193,7 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   startFreshChat: () => void;
-  /** Add app-written messages to the chat (e.g. Kundli birth details and welcome). Marks welcome as sent and persists them. */
+  /** Replace the conversation (e.g. Kundli birth form seed). Marks welcome as sent and persists messages. */
   seedConversation: (msgs: Message[]) => void;
   /** Companion whose saved chat history has finished loading (null while loading). */
   historyLoadedFor: string | null;
@@ -686,12 +657,11 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       clearTimeout(processingTimeoutRef.current);
     }
     
-    // Safety net only: the lock is normally released when the reply arrives. (A 5-second
-    // release let a second message through mid-reply, and both got answered.)
+    // Set a timeout to release the lock after 5 seconds even if something goes wrong
     processingTimeoutRef.current = setTimeout(() => {
       console.log("[ChatContext] Releasing message processing lock after timeout");
       isProcessingRef.current = false;
-    }, 90000);
+    }, 5000);
     
     console.log("[ChatContext] sendMessage called", {
       content: trimmedContent,
@@ -706,8 +676,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Check for rate limiting first
       if (isRateLimited) {
         toast({
-          title: currentLanguage === "hindi" ? "कृपया रुकें" : "Please wait",
-          description: chatNotice("tooFast", currentLanguage),
+          title: "Please wait",
+          description: "You're sending messages too quickly. Please wait a moment.",
           variant: "destructive",
         });
         return;
@@ -803,11 +773,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       });
 
       // 5. Premium offers on every 10th message (10, 20, 30, etc.) for authenticated users
-      const shouldOfferPremium =
-        !ADVICE_CHAT_IDS.has(companionId) &&
-        isAuthenticated() &&
-        messageCount % 10 === 0 &&
-        messageCount >= 10;
+      const shouldOfferPremium = isAuthenticated() && (messageCount % 10 === 0) && messageCount >= 10;
       console.log("[ChatContext] Premium offer check:", { 
         isAuthenticated: isAuthenticated(),
         messageCount,
@@ -821,7 +787,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       console.log("[ChatContext] Is user asking for photo:", { content: trimmedContent, isUserAskingForPhoto });
   
       // 6. Handle photo requests - if user asks for photo and is authenticated, show premium photo immediately
-      if (!ADVICE_CHAT_IDS.has(companionId) && isAuthenticated() && isUserAskingForPhoto) {
+      if (isAuthenticated() && isUserAskingForPhoto) {
         console.log("[ChatContext] User asking for photo - showing premium photo");
         const photos = PREMIUM_PHOTOS[companionId] || PREMIUM_PHOTOS.priya;
         const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
@@ -883,7 +849,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       }
       
       // Detect affirmative response for premium photo if a previous offer was made
-      if (!ADVICE_CHAT_IDS.has(companionId) && isAuthenticated() && premiumOfferMadeRef.current && isAffirmativeResponse) {
+      if (isAuthenticated() && premiumOfferMadeRef.current && isAffirmativeResponse) {
         console.log("[ChatContext] User replied affirmatively to premium offer or asked for photo");
         const photos = PREMIUM_PHOTOS[companionId] || PREMIUM_PHOTOS.priya;
         const premiumPhotoUrl = photos[Math.floor(Math.random() * photos.length)];
@@ -1004,10 +970,8 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     } catch (error) {
       console.error("[ChatContext] Error in sendMessage:", error);
     } finally {
-      // Release the processing lock. Clearing the last message lets the person send the
-      // same question again (it used to be silently ignored).
+      // Release the processing lock
       isProcessingRef.current = false;
-      lastProcessedMessageRef.current = "";
       // Clear the timeout
       if (processingTimeoutRef.current) {
         clearTimeout(processingTimeoutRef.current);
@@ -1024,9 +988,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     
     // Track when typing started for minimum display duration
     const typingStartTime = Date.now();
-    // Companions "type" for a few seconds like a person would. Advice chats show the
-    // answer as soon as it is ready.
-    const MIN_TYPING_DURATION = ADVICE_CHAT_IDS.has(companionId) ? 1200 : 6000;
+    const MIN_TYPING_DURATION = 6000; // Minimum 2 seconds to show typing
     console.log("[ChatContext] Typing started at:", new Date(typingStartTime).toISOString());
     
     // Track message timestamps for rate limiting
@@ -1046,7 +1008,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Add a system message about rate limiting
       const errorMsg: Message = {
         id: -Math.floor(Math.random() * 1000000000),
-        content: chatNotice("tooFast", currentLanguage),
+        content: "Please slow down. You're sending too many messages too quickly.",
         role: "assistant",
         companionId,
         timestamp: new Date(),
@@ -1100,8 +1062,6 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         (m) => !companionId || !m.companionId || m.companionId === companionId,
       );
       const conversationHistory = threadMessages
-        // App-written notices are not part of the conversation the AI should read.
-        .filter((m) => !APP_NOTICE_PATTERN.test(m.content) && m.contextInfo !== "kundli_automated")
         .slice(-24)
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
@@ -1119,9 +1079,6 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
         // Server counts free messages from saved chat history for this owner.
         chatOwner: getChatPersistenceOwner(),
         conversationHistory,
-        // Kundli: birth details go with every message, so the AI never has to ask for them.
-        kundliBirthDetails:
-          companionId === "kundli" ? loadStoredKundliBirth() ?? undefined : undefined,
         messageCount: messageCount + 1,
         isAuthenticated: isAuthenticated(),
         recentPhotoContext: lastPhotoMessage
@@ -1165,7 +1122,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
           // Add a system message about rate limiting
           const errorMsg: Message = {
             id: tempId - 1,
-            content: chatNotice("tooFast", currentLanguage),
+            content: "I'm getting too many requests right now. Please wait a moment before sending more messages.",
             role: "assistant",
             companionId,
             timestamp: new Date(),
@@ -1272,7 +1229,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
       // Store error message to add after typing indicator disappears
       const errorMsg: Message = {
         id: tempId - 1,
-        content: chatNotice("failed", currentLanguage),
+        content: "Sorry, I couldn't process your message. Please try again later.",
         role: "assistant",
         companionId,
         timestamp: new Date(),
@@ -1384,7 +1341,7 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
     }
     if (!cid) return;
     welcomeMessageAddedRef.current.add(cid);
-    setMessages((prev) => [...prev, ...msgs]);
+    setMessages(msgs);
     // Seeded bubbles are not typed by the person, so the free-message count stays as is.
     for (const m of msgs) {
       void saveChatMessage(m).catch((error) => {

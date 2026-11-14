@@ -1,7 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
-import { parseKundliBirthDetails, type KundliBirthDetails } from "@shared/kundliBirth";
 
-export type { KundliBirthDetails };
+export type KundliBirthDetails = {
+  name: string;
+  gender: string;
+  dateOfBirth: string;
+  timeOfBirth: string;
+  cityOfBirth: string;
+};
 
 const getSupabaseAdmin = () => {
   const supabaseUrl = process.env.SUPABASE_URL?.trim();
@@ -21,6 +26,27 @@ function isMissingColumnError(error: unknown): boolean {
     lower.includes("column") &&
     (lower.includes("does not exist") || lower.includes("could not find"))
   );
+}
+
+export function parseKundliBirthDetails(raw: unknown): KundliBirthDetails | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (
+    typeof o.name === "string" &&
+    typeof o.gender === "string" &&
+    typeof o.dateOfBirth === "string" &&
+    typeof o.timeOfBirth === "string" &&
+    typeof o.cityOfBirth === "string"
+  ) {
+    return {
+      name: o.name.trim(),
+      gender: o.gender,
+      dateOfBirth: o.dateOfBirth,
+      timeOfBirth: o.timeOfBirth,
+      cityOfBirth: o.cityOfBirth.trim(),
+    };
+  }
+  return null;
 }
 
 export async function getKundliBirthForProfile(

@@ -3,14 +3,8 @@ import { ProfileDialog } from './ProfileDialog';
 import { useEffect, useState } from 'react';
 import { isUserRegisteredLocally } from '@/lib/supabase';
 import { useChat } from '@/context/ChatContext';
-import { useKeyboardOpen } from '@/components/ChatShell';
 
-/**
- * `inline`: part of the page's own column (chat pages) instead of floating over the
- * content. Hidden while the keyboard is open so the chat keeps the space.
- */
-export function BottomNav({ inline = false }: { inline?: boolean }) {
-  const keyboardOpen = useKeyboardOpen();
+export function BottomNav() {
   const [location, setLocation] = useLocation();
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [registered, setRegistered] = useState(isUserRegisteredLocally);
@@ -43,9 +37,7 @@ export function BottomNav({ inline = false }: { inline?: boolean }) {
 
   return (
     <>
-      <div
-        className={`${inline ? `shrink-0 ${keyboardOpen ? 'hidden' : ''}` : 'fixed bottom-0 left-0 right-0'} z-50 border-t border-gray-200 bg-white px-2 pt-2 shadow-lg pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
-      >
+      <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 px-2 py-2 z-50">
         <div className="grid grid-cols-3 gap-1">
           <button
             onClick={() => setLocation('/')}

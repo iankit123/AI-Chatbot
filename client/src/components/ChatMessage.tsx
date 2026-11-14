@@ -209,9 +209,7 @@ export function ChatMessage({ message, botAvatar }: ChatMessageProps) {
           <div className="relative min-w-0 pr-[3.25rem]">
             <div className="first-person-message">
               <p
-                className={`text-[15px] leading-[1.45] text-neutral-900 [&:last-child]:mb-0 ${
-                  /<[a-z][^>]*>/i.test(processedContent) ? "" : "whitespace-pre-line"
-                }`}
+                className="text-[15px] leading-snug text-neutral-900 [&:last-child]:mb-0"
                 dangerouslySetInnerHTML={{ __html: processedContent }}
               />
             </div>

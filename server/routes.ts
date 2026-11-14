@@ -35,7 +35,6 @@ import {
   saveKundliBirthForProfile,
   type KundliBirthDetails,
 } from "./services/kundliProfile";
-import { buildKundliReading } from "./services/kundliChart";
 import { insertAppEventRow } from "./services/appEvents";
 import { registerAstroRoutes } from "./astroRoutes";
 import { getReport as getAstroReport } from "./services/astro/store";
@@ -51,26 +50,12 @@ import {
   sendMetaConversionEvent,
 } from "./services/metaConversions";
 
-const ADVICE_CHAT_IDS = new Set([
-  "doctor",
-  "kundli",
-  "parenting",
-  "finance",
-  "career",
-  "krishna",
-  "english",
-  "relationship-advice",
-]);
-
 const kundliBirthSchema = z.object({
   name: z.string().min(1).max(120),
   gender: z.enum(["male", "female", "other"]),
   dateOfBirth: z.string().min(1),
-  /** Empty when the person does not know their birth time. */
-  timeOfBirth: z.string().max(5),
+  timeOfBirth: z.string().min(1),
   cityOfBirth: z.string().min(1).max(200),
-  lat: z.number().min(-90).max(90).optional(),
-  lon: z.number().min(-180).max(180).optional(),
 });
 
 async function synthesizeGoogleTts(text: string, voiceName: string): Promise<Buffer> {
@@ -349,25 +334,6 @@ export async function registerRoutes(
       }
       const msg = serializeSupabaseError(error);
       res.status(500).json({ message: "Failed to save kundli birth details", error: msg });
-    }
-  });
-
-  // Calculates the chart for the birth form: the app shows rashi/lagna in its welcome
-  // message and saves the found location so later messages skip the place lookup.
-  app.post("/api/kundli/chart", async (req, res) => {
-    try {
-      const data = z.object({ kundli_birth_details: kundliBirthSchema }).parse(req.body);
-      const reading = await buildKundliReading(data.kundli_birth_details);
-      if (!reading) {
-        return res.status(422).json({ message: "Birth date is not valid" });
-      }
-      res.json({ summary: reading.summary });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid payload", errors: error.errors });
-      }
-      console.error("[kundli] chart calculation failed:", error);
-      res.status(500).json({ message: "Failed to calculate kundli" });
     }
   });
 
@@ -833,8 +799,6 @@ export async function registerRoutes(
         isAuthenticated: z.boolean().optional(), // Add auth state to schema
         /** Prior turns from the client (required on serverless — seeded UI messages are not in MemStorage). */
         conversationHistory: z.array(conversationTurnSchema).max(40).optional(),
-        /** Kundli chat: birth form details, sent with every message so the AI always has them. */
-        kundliBirthDetails: kundliBirthSchema.optional(),
       });
       
       const validatedData = messageSchema.parse(req.body);
@@ -885,9 +849,7 @@ export async function registerRoutes(
         modulo: messageCount % 10
       });
       
-      // Companion chats only: an advice chat (Kundli, Doctor…) must never offer "my picture".
-      const isAdviceChat = ADVICE_CHAT_IDS.has(validatedData.companionId);
-      if (!isAdviceChat && isAuthenticated && messageCount >= 10 && messageCount % 10 === 0) {
+      if (isAuthenticated && messageCount >= 10 && messageCount % 10 === 0) {
         console.log('Premium photo offer triggered!');
         // This is a premium photo offer message
         const photoOfferMessage = `${userName ? userName + ", " : ""}Kya aap meri picture dekhna chahte ho jo maine kal click kari thi?`;
@@ -1008,17 +970,6 @@ export async function registerRoutes(
           walletCreditsAfter = deduct.wallet_credits;
         }
         
-        // Kundli: calculate the real chart so the AI reads from it instead of inventing one.
-        let kundliContext: string | undefined;
-        if (validatedData.companionId === 'kundli' && validatedData.kundliBirthDetails) {
-          try {
-            const reading = await buildKundliReading(validatedData.kundliBirthDetails);
-            kundliContext = reading?.promptContext;
-          } catch (error) {
-            console.error('[kundli] chart calculation failed:', error);
-          }
-        }
-
         // Generate AI response with additional context
         const responseContent = await generateResponse(
           validatedData.content,
@@ -1028,7 +979,6 @@ export async function registerRoutes(
             companionId: validatedData.companionId,
             companionName: companionName || undefined,
             userName: userName || undefined,
-            kundliContext,
           }
         );
         
@@ -1052,11 +1002,9 @@ export async function registerRoutes(
       } catch (error) {
         console.error('Error in message processing:', error);
         
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const lowerError = errorMessage.toLowerCase();
-
         // If it's a rate limit error, send a friendly message
-        if (lowerError.includes('rate limit')) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage.toLowerCase().includes('rate limit')) {
           const botMessage = await storage.createMessage({
             content: "I'm getting too many messages right now. Can you please wait a moment and try again?",
             role: 'assistant',
@@ -1065,21 +1013,6 @@ export async function registerRoutes(
           return res.status(201).json({ userMessage, botMessage });
         }
 
-        // OpenRouter account out of credits (dev/staging misconfiguration)
-        if (
-          lowerError.includes('402') ||
-          lowerError.includes('more credits') ||
-          lowerError.includes('insufficient credits')
-        ) {
-          const botMessage = await storage.createMessage({
-            content:
-              "Abhi main jawab nahi de pa raha — server par AI credits khatam ho gaye hain. Thodi der baad try karo.",
-            role: 'assistant',
-            companionId: validatedData.companionId,
-          });
-          return res.status(201).json({ userMessage, botMessage });
-        }
-        
         // For other errors, throw to be caught by outer catch block
         throw error;
       }

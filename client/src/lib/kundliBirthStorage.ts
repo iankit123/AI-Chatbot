@@ -4,20 +4,41 @@ import {
   getStoredBillingPhoneDigits,
   isSignedInLocally,
 } from "@/lib/supabase";
-import { parseKundliBirthDetails, type KundliBirthDetails } from "@shared/kundliBirth";
 
-/** Birth form fields, stored per phone / user / device. */
-export type StoredKundliBirthDetails = KundliBirthDetails;
+/** Matches submitted birth form fields (stored per phone / user / device). */
+export type StoredKundliBirthDetails = {
+  name: string;
+  gender: string;
+  dateOfBirth: string;
+  timeOfBirth: string;
+  cityOfBirth: string;
+};
 
 const STORAGE_NS = "kundliBirthV1";
 
 function parseStored(raw: string | null): StoredKundliBirthDetails | null {
   if (!raw) return null;
   try {
-    return parseKundliBirthDetails(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as Partial<StoredKundliBirthDetails>;
+    if (
+      typeof parsed.name === "string" &&
+      typeof parsed.gender === "string" &&
+      typeof parsed.dateOfBirth === "string" &&
+      typeof parsed.timeOfBirth === "string" &&
+      typeof parsed.cityOfBirth === "string"
+    ) {
+      return {
+        name: parsed.name,
+        gender: parsed.gender,
+        dateOfBirth: parsed.dateOfBirth,
+        timeOfBirth: parsed.timeOfBirth,
+        cityOfBirth: parsed.cityOfBirth,
+      };
+    }
   } catch {
-    return null;
+    /* ignore */
   }
+  return null;
 }
 
 /** All localStorage keys that may hold birth details for this session. */
@@ -78,8 +99,19 @@ export async function fetchServerKundliBirth(): Promise<StoredKundliBirthDetails
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { kundli_birth_details?: unknown };
-    return parseKundliBirthDetails(data.kundli_birth_details);
+    const data = (await res.json()) as { kundli_birth_details?: StoredKundliBirthDetails | null };
+    const d = data.kundli_birth_details;
+    if (
+      d &&
+      typeof d.name === "string" &&
+      typeof d.gender === "string" &&
+      typeof d.dateOfBirth === "string" &&
+      typeof d.timeOfBirth === "string" &&
+      typeof d.cityOfBirth === "string"
+    ) {
+      return d;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -101,32 +133,5 @@ export async function saveServerKundliBirth(
     });
   } catch {
     /* offline — local copy still saved */
-  }
-}
-
-export type KundliChartSummary = {
-  lagna: { roman: string; hindi: string; english: string } | null;
-  rashi: { roman: string; hindi: string; english: string };
-  nakshatra: { roman: string; hindi: string };
-  mahadasha: { roman: string; hindi: string; english: string } | null;
-  place: { lat: number; lon: number } | null;
-};
-
-/** Rashi, lagna and nakshatra for the welcome message. Null when the server cannot be reached. */
-export async function fetchKundliChartSummary(
-  details: StoredKundliBirthDetails,
-): Promise<KundliChartSummary | null> {
-  try {
-    const res = await fetch("/api/kundli/chart", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ kundli_birth_details: details }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { summary?: KundliChartSummary };
-    return data.summary ?? null;
-  } catch {
-    return null;
   }
 }
