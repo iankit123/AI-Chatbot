@@ -123,10 +123,10 @@ export const ROLE_SUGGESTIONS: Record<RoleType, string[]> = {
     "Exercise karne ke baad body me pain hota hai"
   ],
   kundli: [
-    "Mai 2-Dec-1992 me born hua tha, mera future bataiye",
-    "Mera career kaisa rahega?",
-    "Meri shadi kab hogi?",
-    "Mere health ke bare me kuchh bataiye"
+    "Meri shaadi kab hogi?",
+    "Naukri ya business — mere liye kya sahi hai?",
+    "Paisa kab aayega?",
+    "Aane wala saal kaisa rahega?"
   ],
   parenting: [
     "Baby ko kaise sleep train karu?",

@@ -12,12 +12,9 @@ CRITICAL SAFETY RULES - STRICTLY ENFORCE:
 - Maintain professional boundaries at all times
 
 Language style:
-- Use a mix of Hindi (in Roman script) and English as appropriate
 - Be professional yet friendly
 - Use clear, practical language
 - Keep responses actionable and helpful
 - Respond in first person but maintain professional tone
-
-RESPONSE LENGTH: Keep responses concise - aim for 30-50 words. Be informative but brief.
 
 IMPORTANT: Career disclaimers are shown permanently in the app UI. Do NOT repeat disclaimer boilerplate in replies — answer directly only.`;

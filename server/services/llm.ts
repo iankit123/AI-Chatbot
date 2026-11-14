@@ -6,6 +6,9 @@ import {
   ROLE_SYSTEM_PROMPTS,
   buildRelationshipSystemPrompt,
   companionDisplayName,
+  adviceReplyReminder,
+  detectReplyLanguage,
+  replyLanguageInstruction,
   type RolePromptId,
 } from "../prompts/chatbots";
 import { firstNameOnly } from "@shared/userName";
@@ -27,6 +30,100 @@ type CompanionRoleId =
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const getOpenRouterApiKey = () => process.env.OPENROUTER_API_KEY?.trim();
+
+function parseAffordableMaxTokens(errorText: string): number | null {
+  const match = errorText.match(/can only afford (\d+)/i);
+  if (!match) return null;
+  const tokens = parseInt(match[1], 10);
+  return Number.isFinite(tokens) && tokens > 0 ? tokens : null;
+}
+
+/** Sampling settings. Companion chats keep high penalties so short flirty lines vary. */
+type Sampling = { temperature: number; frequencyPenalty: number; presencePenalty: number };
+const COMPANION_SAMPLING: Sampling = { temperature: 0.6, frequencyPenalty: 0.9, presencePenalty: 0.6 };
+/**
+ * Advice chats: a high frequency penalty on a longer reply pushes the model off common
+ * Hindi words and into other scripts (saved replies had Chinese and Vietnamese words in them).
+ */
+const ADVICE_SAMPLING: Sampling = { temperature: 0.5, frequencyPenalty: 0.3, presencePenalty: 0.2 };
+
+const REQUEST_TIMEOUT_MS = 25_000;
+
+/** Chinese/Japanese/Korean, Cyrillic, Thai, Arabic, Vietnamese-only letters: never expected here. */
+const UNEXPECTED_SCRIPT =
+  /[\u0400-\u04FF\u0600-\u06FF\u0E00-\u0E7F\u1EA0-\u1EFF\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]/;
+const UNEXPECTED_SCRIPT_ALL = new RegExp(UNEXPECTED_SCRIPT.source, "g");
+
+/** Tidy an advice-chat reply for a plain chat bubble. */
+function cleanAdviceReply(text: string, wasCutOff: boolean): string {
+  let out = text
+    .replace(UNEXPECTED_SCRIPT_ALL, "")
+    // Years and dates in ordinary digits (2027, not २०२७): easier to read for most people.
+    .replace(/[\u0966-\u096F]/g, (d) => String(d.charCodeAt(0) - 0x0966))
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^\s*[*-]\s+/gm, "• ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/ {2,}/g, " ")
+    .trim();
+
+  // Reply hit the token limit: end at the last complete sentence, not mid-word.
+  if (wasCutOff) {
+    const lastEnd = Math.max(
+      out.lastIndexOf("।"),
+      out.lastIndexOf("."),
+      out.lastIndexOf("?"),
+      out.lastIndexOf("!"),
+    );
+    if (lastEnd > out.length * 0.5) out = out.slice(0, lastEnd + 1);
+  }
+  return out;
+}
+
+async function requestOpenRouterCompletion(
+  model: string,
+  messages: ChatMessage[],
+  maxTokens: number,
+  openRouterApiKey: string,
+  sampling: Sampling,
+): Promise<ChatCompletionResponse> {
+  const requestBody: ChatCompletionRequest = {
+    model,
+    messages,
+    temperature: sampling.temperature,
+    max_tokens: maxTokens,
+    frequency_penalty: sampling.frequencyPenalty,
+    presence_penalty: sampling.presencePenalty,
+    provider: {
+      order: ["Nebius", "Novita", "Fireworks"],
+      allow_fallbacks: true,
+    },
+  };
+
+  console.log(`[LLM] Attempting OpenRouter model: ${model} (max_tokens: ${maxTokens})`);
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openRouterApiKey}`,
+      "HTTP-Referer": "https://ai-chatbot.app",
+      "X-Title": "Puchlo.in",
+    },
+    body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    const err = new Error(`OpenRouter API Error: ${response.status} - ${errorData}`);
+    (err as Error & { status?: number }).status = response.status;
+    throw err;
+  }
+
+  return (await response.json()) as ChatCompletionResponse;
+}
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -70,6 +167,8 @@ interface ContextOptions {
   companionId?: string;
   companionName?: string;
   userName?: string;
+  /** Kundli chat: the calculated birth chart, as text the model must stick to. */
+  kundliContext?: string;
 }
 
 export async function generateResponse(
@@ -174,6 +273,8 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
       llmContext.companionId && roleTypes.includes(llmContext.companionId as CompanionRoleId);
     
     let systemPromptContent = "";
+    /** Advice chats: reply rules repeated after the person's message, where the model follows them best. */
+    let userMessageSuffix = "";
     
     if (isRoleBased && llmContext.companionId !== 'relationship') {
       // Use role-specific prompt
@@ -188,7 +289,24 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
       const roleUserContext = userFirstName
         ? `The user's first name is ${userFirstName}. Address them by first name only, occasionally.`
         : "";
-      systemPromptContent = `${rolePrompt}\n${roleUserContext}\n${firstConversationContext}${englishUiAppendix}`;
+      // The English tutor has its own language rules; every other advice chat answers in
+      // the language and script the person is writing in.
+      let replyLanguage = "";
+      if (roleId !== "english") {
+        const detected = detectReplyLanguage(
+          userMessage,
+          conversationHistory.filter((m) => m.role === "user").map((m) => m.content),
+        );
+        replyLanguage = replyLanguageInstruction(detected);
+        userMessageSuffix = `\n\n${adviceReplyReminder(detected)}`;
+      }
+      const kundliFacts =
+        roleId === "kundli" && llmContext.kundliContext
+          ? `KUNDLI FACTS (calculated by software — use exactly these, never change them):\n${llmContext.kundliContext}`
+          : "";
+      systemPromptContent = [rolePrompt, roleUserContext, englishUiAppendix, kundliFacts, replyLanguage]
+        .filter(Boolean)
+        .join("\n\n");
     } else {
       const companionPersonality =
         COMPANION_PERSONALITY_PROMPTS[llmContext.companionId || ""] ||
@@ -215,7 +333,9 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
       .map(m => `- ${m.content}`)
       .join("\n");
 
-    const antiRepeatGuard: ChatMessage | null = recentAssistantUtterances
+    // Companion chats only: advice replies are long, and pasting them back in with
+    // "do not say anything similar" made the model avoid the plain answer.
+    const antiRepeatGuard: ChatMessage | null = recentAssistantUtterances && !isRoleBased
       ? {
           role: "system",
           content:
@@ -242,7 +362,7 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
       ...(antiRepeatGuard ? [antiRepeatGuard] : []),
       ...(contextGroundingGuard ? [contextGroundingGuard] : []),
       ...conversationHistory,
-      { role: "user", content: userMessage },
+      { role: "user", content: `${userMessage}${userMessageSuffix}` },
     ];
 
     // Model selection with fallback options
@@ -257,95 +377,105 @@ Respond as if you are a female chatting with a man — still follow feminine Hin
 
     let lastError: Error | null = null;
 
-    // Determine max_tokens based on chat type
-    // Role-based chats need longer responses for detailed guidance
-    // Relationship chats should be short and concise
-    const maxTokens = isRoleBased ? 600 : 150;
+    // Advice replies are short by prompt (40-80 words). The limit is only a ceiling: Hindi in
+    // Devanagari takes 3-4 tokens a word, so a lower one cuts replies off mid-sentence.
+    // The English tutor writes longer lessons.
+    const maxTokens = !isRoleBased ? 150 : llmContext.companionId === "english" ? 600 : 450;
+    const isAdviceChat = !!isRoleBased && llmContext.companionId !== "english";
+    const sampling = isAdviceChat ? ADVICE_SAMPLING : COMPANION_SAMPLING;
+
+    const finishSuccessfulResponse = (
+      data: ChatCompletionResponse,
+      model: string,
+      tokensUsed: number,
+    ): string => {
+      console.log(`[LLM] Successfully used OpenRouter model: ${model}`);
+
+      const responseContent = data.choices[0].message.content ?? "";
+      const wordCount = responseContent.split(/\s+/).length;
+      const finishReason = data.choices[0].finish_reason;
+      console.log(
+        `[LLM] Response word count: ${wordCount}, finish_reason: ${finishReason}, tokens used: ${data.usage?.total_tokens || "N/A"}`,
+      );
+
+      if (finishReason === "length") {
+        console.warn(
+          `[LLM] WARNING: Response was truncated due to max_tokens limit (${tokensUsed}). Consider increasing max_tokens.`,
+        );
+      }
+
+      let raw = replaceLlmExplicitContentRefusal(responseContent);
+      if (isAdviceChat) {
+        raw = cleanAdviceReply(raw, finishReason === "length");
+      }
+      if (isRelationshipChat && isCallOrNumberRequest(userMessage)) {
+        raw = "Ok.. 😊";
+      } else if (isRelationshipChat) {
+        raw = sanitizeRelationshipReply(raw);
+      }
+      return raw;
+    };
 
     // Try each model in order until one works
+    let retriedForScript = false;
     for (const model of models) {
-      try {
-        // Prepare the request body
-        const requestBody: ChatCompletionRequest = {
-          model,
-          messages,
-          temperature: 0.6, // focused, concise responses
-          max_tokens: maxTokens, // Longer for role-based, shorter for relationship chats
-          frequency_penalty: 0.9, // discourage repeating tokens/phrases
-          presence_penalty: 0.6, // encourage introducing new ideas
-          provider: {
-            order: ["Nebius", "Novita", "Fireworks"],
-            allow_fallbacks: true,
-          },
-        };
+      let tokensForAttempt = maxTokens;
 
-        console.log(`[LLM] Attempting to use OpenRouter model: ${model}`);
-
-        // Make request to OpenRouter API
-        const response = await fetch(OPENROUTER_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${openRouterApiKey}`,
-            "HTTP-Referer": "https://ai-chatbot.app",
-            "X-Title": "Puchlo.in",
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        // Check if response is successful
-        if (!response.ok) {
-          const errorData = await response.text();
-          let errorJson;
-          try {
-            errorJson = JSON.parse(errorData);
-          } catch {
-            errorJson = { error: { message: errorData } };
+      for (let creditRetry = 0; creditRetry < 2; creditRetry++) {
+        try {
+          const data = await requestOpenRouterCompletion(
+            model,
+            messages,
+            tokensForAttempt,
+            openRouterApiKey,
+            sampling,
+          );
+          const content = data.choices?.[0]?.message?.content ?? "";
+          if (!content.trim()) {
+            throw new Error(`Empty reply from ${model}`);
+          }
+          // Reply drifted into another script: ask once more before settling for a cleaned copy.
+          if (isAdviceChat && !retriedForScript && UNEXPECTED_SCRIPT.test(content)) {
+            retriedForScript = true;
+            console.warn(`[LLM] Reply from ${model} had unexpected script, retrying once`);
+            creditRetry--;
+            continue;
+          }
+          return finishSuccessfulResponse(data, model, tokensForAttempt);
+        } catch (error) {
+          if (!(error instanceof Error)) {
+            throw error;
           }
 
-          // If rate limit error, try next model
-          if (response.status === 429) {
+          const status = (error as Error & { status?: number }).status;
+          const isRateLimit = status === 429 || error.message.includes("429");
+          const isInsufficientCredits = status === 402 || error.message.includes("402");
+
+          if (isInsufficientCredits && creditRetry === 0) {
+            const affordable = parseAffordableMaxTokens(error.message);
+            if (affordable && affordable >= 16 && affordable < tokensForAttempt) {
+              console.warn(
+                `[LLM] Insufficient credits for ${tokensForAttempt} tokens on ${model}, retrying with ${affordable}`,
+              );
+              tokensForAttempt = affordable;
+              continue;
+            }
+            console.warn(`[LLM] Insufficient OpenRouter credits for ${model}, trying fallback...`);
+            lastError = error;
+            break;
+          }
+
+          if (isRateLimit) {
             console.warn(`[LLM] Rate limit hit for model ${model}, trying fallback...`);
-            lastError = new Error(`OpenRouter API Error: ${response.status} - ${errorData}`);
-            continue; // Try next model
+            lastError = error;
+            break;
           }
 
-          // For other errors, throw immediately
-          throw new Error(`OpenRouter API Error: ${response.status} - ${errorData}`);
-        }
-
-        // Parse the response
-        const data = (await response.json()) as ChatCompletionResponse;
-        console.log(`[LLM] Successfully used OpenRouter model: ${model}`);
-        
-        // Log response details for debugging
-        const responseContent = data.choices[0].message.content ?? "";
-        const wordCount = responseContent.split(/\s+/).length;
-        const finishReason = data.choices[0].finish_reason;
-        console.log(`[LLM] Response word count: ${wordCount}, finish_reason: ${finishReason}, tokens used: ${data.usage?.total_tokens || 'N/A'}`);
-        
-        // Warn if response was truncated due to max_tokens
-        if (finishReason === 'length') {
-          console.warn(`[LLM] WARNING: Response was truncated due to max_tokens limit (${maxTokens}). Consider increasing max_tokens.`);
-        }
-
-        // Extract and return the generated text (swap generic explicit refusals for in-character reply)
-        let raw = replaceLlmExplicitContentRefusal(responseContent);
-        if (isRelationshipChat && isCallOrNumberRequest(userMessage)) {
-          raw = "Ok.. 😊";
-        } else if (isRelationshipChat) {
-          raw = sanitizeRelationshipReply(raw);
-        }
-        return raw;
-      } catch (error) {
-        // If it's a rate limit error, continue to next model
-        if (error instanceof Error && error.message.includes("429")) {
-          console.warn(`[LLM] Rate limit error for model ${model}, trying fallback...`);
+          // Timeout, provider outage, empty reply: the next model usually answers.
+          console.warn(`[LLM] ${model} failed (${error.message.slice(0, 200)}), trying fallback...`);
           lastError = error;
-          continue;
+          break;
         }
-        // For other errors, throw immediately
-        throw error;
       }
     }
 

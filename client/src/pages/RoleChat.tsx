@@ -6,6 +6,7 @@ import { UserProfileDialog } from '@/components/UserProfileDialog';
 import { BottomNav } from '@/components/BottomNav';
 import { useChat } from '@/context/ChatContext';
 import type { RoleType } from '@/lib/constants';
+import { ChatShell } from '@/components/ChatShell';
 
 interface RoleChatProps {
   role: RoleType;
@@ -43,19 +44,17 @@ export default function RoleChat({ role, roleName, roleIcon }: RoleChatProps) {
   }, [role, roleName, roleIcon]);
 
   return (
-    <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-[#e5ddd5] chat-page">
+    <ChatShell>
       <Header />
-      
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-hidden relative">
-          <ChatArea />
-        </div>
-        <div className="shrink-0 fixed bottom-[60px] left-0 right-0 z-10">
-          <ChatInput />
-        </div>
+
+      <div className="relative min-h-0 flex-1">
+        <ChatArea />
       </div>
-      
-      <BottomNav />
+      <div className="shrink-0">
+        <ChatInput />
+      </div>
+
+      <BottomNav inline />
 
       <UserProfileDialog
         open={showProfileDialog}
@@ -63,6 +62,6 @@ export default function RoleChat({ role, roleName, roleIcon }: RoleChatProps) {
         onProfileComplete={handleProfileComplete}
         companionName={roleName}
       />
-    </div>
+    </ChatShell>
   );
 }

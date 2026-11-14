@@ -35,7 +35,6 @@ function readCompanionSelection(): { companionId: string; currentRole: RoleType 
 export function ChatArea() {
   const { messages, isTyping, botAvatar, setComposerDraft, composerInputRef } = useChat();
   const chatAreaRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const [previousMessagesLength, setPreviousMessagesLength] = useState(0);
   
   const [{ companionId, currentRole }, setCompanionSelection] = useState(readCompanionSelection);
@@ -64,18 +63,23 @@ export function ChatArea() {
     window.setTimeout(focusComposer, 80);
   };
   
-  // Force scroll on both message changes and typing indicator changes
+  // Scroll only the message list. `scrollIntoView` also scrolls the page itself, which
+  // on phones dragged the header off the top of the screen.
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (bottomRef.current) {
-      // Use the bottom anchor element for scrolling
-      bottomRef.current.scrollIntoView({ behavior, block: 'end' });
-      
-      // Fallback direct scrolling for older browsers
-      if (chatAreaRef.current) {
-        chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
-      }
-    }
+    const area = chatAreaRef.current;
+    if (!area) return;
+    area.scrollTo({ top: area.scrollHeight, behavior });
   };
+
+  // Keyboard opened or closed: keep the latest message in view.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    // Next frame: the page frame resizes first, then the list can scroll to its new end.
+    const onResize = () => requestAnimationFrame(() => scrollToBottom('auto'));
+    viewport.addEventListener('resize', onResize);
+    return () => viewport.removeEventListener('resize', onResize);
+  }, []);
 
   // Auto-scroll whenever messages change
   useEffect(() => {
@@ -102,8 +106,7 @@ export function ChatArea() {
   return (
     <div 
       ref={chatAreaRef}
-      className="chat-area wa-chat-pattern absolute inset-0 w-full overflow-y-auto px-3 pb-24 pt-2 space-y-2"
-      style={{ maxHeight: 'calc(100vh - 160px)' }}
+      className="chat-area wa-chat-pattern absolute inset-0 w-full overflow-y-auto overscroll-contain px-3 pb-3 pt-2 space-y-2"
     >
       {/* Date display */}
       <div className="my-3 flex justify-center">
@@ -158,8 +161,6 @@ export function ChatArea() {
       {/* Typing indicator */}
       {isTyping && <TypingIndicator botAvatar={botAvatar} />}
       
-      {/* Invisible element at the bottom for scrolling reference */}
-      <div ref={bottomRef} className="h-1" />
     </div>
   );
 }

@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import type { KundliBirthFormPayload } from "@/components/KundliBirthDetailsDialog";
 import { Header } from "@/components/Header";
 import { ChatArea } from "@/components/ChatArea";
 import { ChatInput } from "@/components/ChatInput";
+import { ChatShell } from "@/components/ChatShell";
 import { BottomNav } from "@/components/BottomNav";
-import { KundliBirthDetailsDialog } from "@/components/KundliBirthDetailsDialog";
+import {
+  KundliBirthDetailsDialog,
+  type KundliBirthFormPayload,
+} from "@/components/KundliBirthDetailsDialog";
 import { useChat } from "@/context/ChatContext";
 import { buildKundliIntroMessages } from "@/lib/buildKundliIntroMessages";
+import { formatKundliDob, formatKundliTob } from "@/lib/kundliBirthFormat";
 import {
+  fetchKundliChartSummary,
   fetchServerKundliBirth,
   loadStoredKundliBirth,
   migrateKundliBirthAcrossAuthKeys,
@@ -32,14 +37,15 @@ export default function KundliChat() {
   } = useChat();
 
   const [, setLocation] = useLocation();
-  const [showBirthForm, setShowBirthForm] = useState(true);
-  /** Birth details waiting for chat history to load before the intro bubbles are added. */
-  const [pendingIntro, setPendingIntro] = useState<StoredKundliBirthDetails | null>(null);
-  const introSeededRef = useRef(false);
+  const [details, setDetails] = useState<StoredKundliBirthDetails | null>(null);
+  const [showBirthForm, setShowBirthForm] = useState(false);
+  /** Set when the form was just submitted: the details and welcome are shown even mid-chat. */
+  const announceDetailsRef = useRef(false);
+  const introBusyRef = useRef(false);
   const hydratedRef = useRef(false);
 
   const applyBirthDetails = useCallback(
-    (data: StoredKundliBirthDetails, options?: { seedIntroIfEmpty?: boolean }) => {
+    (data: StoredKundliBirthDetails) => {
       saveStoredKundliBirth(data);
       void saveServerKundliBirth(data);
 
@@ -47,28 +53,38 @@ export default function KundliChat() {
       setUserProfile(profile);
       localStorage.setItem("guestProfile", JSON.stringify(profile));
 
+      setDetails(data);
       setShowBirthForm(false);
-
-      if (options?.seedIntroIfEmpty === false) return;
-      if (!introSeededRef.current) setPendingIntro(data);
     },
     [setUserProfile],
   );
 
-  // Add the intro only once saved history has loaded and is empty. Seeding earlier
-  // raced the history load and re-saved the intro mid-conversation on every reload.
+  // Show the birth details and the astrologer's welcome: right after the form is
+  // submitted, or when the chat is empty. Waits for saved history to load first, so an
+  // existing conversation is never mistaken for an empty one.
   useEffect(() => {
-    if (!pendingIntro || historyLoadedFor !== KUNDLI_ID || introSeededRef.current) return;
-    introSeededRef.current = true;
-    setPendingIntro(null);
-
+    if (!details || historyLoadedFor !== KUNDLI_ID || introBusyRef.current) return;
     const hasKundliMessages = messages.some(
       (m) => !m.companionId || m.companionId === KUNDLI_ID,
     );
-    if (!hasKundliMessages) {
-      seedConversation(buildKundliIntroMessages(pendingIntro, currentLanguage));
-    }
-  }, [pendingIntro, historyLoadedFor, messages, seedConversation, currentLanguage]);
+    if (!announceDetailsRef.current && hasKundliMessages) return;
+
+    announceDetailsRef.current = false;
+    introBusyRef.current = true;
+    void (async () => {
+      const summary = await fetchKundliChartSummary(details);
+      let saved = details;
+      // Keep the found location, so the server need not look the place up on every message.
+      if (summary?.place && (details.lat !== summary.place.lat || details.lon !== summary.place.lon)) {
+        saved = { ...details, lat: summary.place.lat, lon: summary.place.lon };
+        saveStoredKundliBirth(saved);
+        void saveServerKundliBirth(saved);
+        setDetails(saved);
+      }
+      seedConversation(buildKundliIntroMessages(saved, summary, currentLanguage));
+      introBusyRef.current = false;
+    })();
+  }, [details, historyLoadedFor, messages, seedConversation, currentLanguage]);
 
   const hydrateBirthDetails = useCallback(async () => {
     migrateKundliBirthAcrossAuthKeys();
@@ -83,7 +99,7 @@ export default function KundliChat() {
     }
 
     if (saved) {
-      applyBirthDetails(saved, { seedIntroIfEmpty: true });
+      applyBirthDetails(saved);
     } else {
       setShowBirthForm(true);
       if (!hydratedRef.current) {
@@ -116,31 +132,58 @@ export default function KundliChat() {
   }, [hydrateBirthDetails]);
 
   const handleBirthSubmit = (data: KundliBirthFormPayload) => {
-    introSeededRef.current = true;
-    applyBirthDetails(data, { seedIntroIfEmpty: true });
+    announceDetailsRef.current = true;
+    applyBirthDetails(data);
   };
 
+  const handleFormCancel = () => {
+    // Changing existing details: just close. First visit: nothing to chat with, go home.
+    if (details) setShowBirthForm(false);
+    else setLocation("/");
+  };
+
+  const hindi = currentLanguage === "hindi";
+
   return (
-    <div className="flex min-h-0 h-screen max-h-screen flex-col overflow-hidden chat-page bg-[#e5ddd5]">
+    <ChatShell>
       <Header />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#e5ddd5]">
-        <div className="relative min-h-0 flex-1 overflow-hidden">
-          <ChatArea />
-        </div>
-        <div className="fixed bottom-[60px] left-0 right-0 z-10 shrink-0">
-          <ChatInput />
-        </div>
+      {details && (
+        <button
+          type="button"
+          onClick={() => setShowBirthForm(true)}
+          className="flex w-full shrink-0 items-center gap-2 border-b border-black/10 bg-white px-3 py-2 text-left"
+          aria-label={hindi ? "जन्म की जानकारी बदलें" : "Change birth details"}
+        >
+          <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-700">
+            <span className="font-semibold text-neutral-900">{details.name}</span>
+            {" · "}
+            {formatKundliDob(details.dateOfBirth, currentLanguage)}
+            {details.timeOfBirth ? ` · ${formatKundliTob(details.timeOfBirth, currentLanguage)}` : ""}
+            {" · "}
+            {details.cityOfBirth}
+          </span>
+          <span className="shrink-0 rounded-full border border-violet-600 px-3 py-1 text-[13px] font-medium text-violet-700">
+            {hindi ? "बदलें" : "Change"}
+          </span>
+        </button>
+      )}
+
+      <div className="relative min-h-0 flex-1">
+        <ChatArea />
+      </div>
+      <div className="shrink-0">
+        <ChatInput />
       </div>
 
-      <BottomNav />
+      <BottomNav inline />
 
       <KundliBirthDetailsDialog
         open={showBirthForm}
         onSubmit={handleBirthSubmit}
-        onCancel={() => setLocation("/")}
-        initialValues={loadStoredKundliBirth()}
+        onCancel={handleFormCancel}
+        initialValues={details}
       />
-    </div>
+    </ChatShell>
   );
 }

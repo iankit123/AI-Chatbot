@@ -12,6 +12,7 @@ import { PremiumPhotoDialog } from '@/components/PremiumPhotoDialog';
 import { CompanionPhotosTab } from "@/components/CompanionPhotosTab";
 import { isRelationshipCompanion } from "@/lib/relationshipPhotoGallery";
 import { RelationshipVoiceChat } from "@/components/chat/RelationshipVoiceChat";
+import { ChatShell } from "@/components/ChatShell";
 
 export default function Chat() {
   const { 
@@ -36,7 +37,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-[#e5ddd5] chat-page">
+    <ChatShell>
       <Header />
       <DevToolsResetButton />
       
@@ -76,10 +77,10 @@ export default function Chat() {
         </TabsList>
         
         <TabsContent value="text" className="mt-0 flex min-h-0 flex-1 basis-0 flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden relative">
+          <div className="relative min-h-0 flex-1">
             <ChatArea />
           </div>
-          <div className="shrink-0 fixed bottom-[60px] left-0 right-0 z-10">
+          <div className="shrink-0">
             <ChatInput />
           </div>
         </TabsContent>
@@ -98,7 +99,7 @@ export default function Chat() {
         ) : null}
       </Tabs>
       
-      <BottomNav />
+      <BottomNav inline />
       
       <UserProfileDialog
         open={showProfileDialog}
@@ -118,6 +119,6 @@ export default function Chat() {
         companionName={botName}
         blurredImageUrl={currentPhoto || '/images/companions/priya1.jpg'}
       />
-    </div>
+    </ChatShell>
   );
 }

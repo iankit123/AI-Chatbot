@@ -47,7 +47,7 @@ export function Header() {
       : "Language — Hindi";
 
   return (
-    <header className="z-10 shrink-0 bg-[#075E54] px-3 py-2 text-white shadow-md">
+    <header className="z-10 shrink-0 bg-[#075E54] px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-white shadow-md">
       <div className="flex min-h-[52px] items-center gap-1">
         <button
           onClick={handleBackToHome}
