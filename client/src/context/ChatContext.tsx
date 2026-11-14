@@ -1089,11 +1089,10 @@ export const ChatProvider = ({ children }: ChatProviderProps) => {
               timeElapsed: Math.floor((Date.now() - lastPhotoMessage.timestamp.getTime()) / 1000),
             }
           : null,
-      });
-      
-      // Check for rate limiting or error responses
+      }, { handleStatuses: [402, 429] });
+
       if (!res.ok) {
-        // If we get a 429 Too Many Requests
+        // 402: free messages used up, so open the paywall instead of showing an error.
         if (res.status === 402) {
           let wallet = 0;
           try {

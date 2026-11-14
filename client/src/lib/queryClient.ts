@@ -24,10 +24,15 @@ function getApiBaseUrl() {
   return '';
 }
 
+/**
+ * Throws on error responses, except for statuses listed in `handleStatuses`:
+ * those are returned so the caller can react (e.g. 402 opens the paywall).
+ */
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: { handleStatuses?: number[] },
 ): Promise<Response> {
   // Construct the full URL with appropriate base
   const fullUrl = `${getApiBaseUrl()}${url}`;
@@ -59,6 +64,7 @@ export async function apiRequest(
 
     console.log(`[apiRequest] Response status: ${res.status} ${res.statusText}`);
 
+    if (options?.handleStatuses?.includes(res.status)) return res;
     await throwIfResNotOk(res);
     return res;
   } catch (error) {
