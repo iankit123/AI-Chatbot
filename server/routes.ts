@@ -36,9 +36,6 @@ import {
   type KundliBirthDetails,
 } from "./services/kundliProfile";
 import { insertAppEventRow } from "./services/appEvents";
-import { registerAstroRoutes } from "./astroRoutes";
-import { getReport as getAstroReport } from "./services/astro/store";
-import { ASTRO_PRICES, astroTypeFromProduct } from "@shared/astroProducts";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
 import { metaPurchaseEventId } from "@shared/metaEvents";
 import { crisisSupportReply, isSelfHarmMessage } from "@shared/crisisSupport";
@@ -506,15 +503,12 @@ export async function registerRoutes(
     try {
       const billingSchema = z.object({
         device_id: z.string().min(1),
-        // Astro reports check out without a phone step; every other product needs one.
-        phone_number: z.string(),
+        phone_number: z.string().min(10),
         product_type: z.enum([
           "chat_recharge",
           "photo_pack",
           "voice_chat",
           "premium_photo",
-          "shaadi_report",
-          "milan_report",
           "other",
         ]),
         companion_id: z.string().optional().nullable(),
@@ -528,19 +522,6 @@ export async function registerRoutes(
         billing: billingSchema,
       });
       const body = schema.parse(req.body);
-      const astroType = astroTypeFromProduct(body.billing.product_type);
-      if (astroType) {
-        // Price and report come from the server, never from the browser.
-        const reportId = z.string().uuid().safeParse(body.billing.metadata?.astro_report_id);
-        const report = reportId.success ? await getAstroReport(reportId.data) : null;
-        if (!report || report.report_type !== astroType) {
-          return res.status(400).json({ error: "Report not found for this payment" });
-        }
-        body.amount_rupees = ASTRO_PRICES[astroType].rupees;
-        body.billing.companion_id = null;
-      } else if (body.billing.phone_number.replace(/\D/g, "").length < 10) {
-        return res.status(400).json({ message: "Invalid payload", error: "phone_number is required" });
-      }
       const { keyId, keySecret } = getRazorpayCredentials();
       const amountPaise = Math.round(body.amount_rupees * 100);
       if (!Number.isFinite(amountPaise) || amountPaise < 100) {
@@ -1052,9 +1033,6 @@ export async function registerRoutes(
   if (opts?.createHttpServer !== true) {
     return undefined;
   }
-
-  registerAstroRoutes(app);
-
 
   const httpServer = createServer(app);
   return httpServer;

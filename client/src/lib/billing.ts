@@ -9,8 +9,6 @@ export type PaymentProductType =
   | "photo_pack"
   | "voice_chat"
   | "premium_photo"
-  | "shaadi_report"
-  | "milan_report"
   | "other";
 
 export type RazorpayBillingContext = {

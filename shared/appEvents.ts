@@ -5,11 +5,6 @@ export const APP_EVENT_NAMES = [
   "paywall_triggered",
   "payment_attempted",
   "purchase",
-  /** /shaadi and /milan report funnel (properties.report = "shaadi" | "milan"). */
-  "astro_landing",
-  "astro_form_submitted",
-  "astro_preview_viewed",
-  "astro_report_viewed",
   /** Self-harm message detected; logged to our DB only, never sent to Meta. */
   "crisis_detected",
 ] as const;
