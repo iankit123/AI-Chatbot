@@ -64,7 +64,7 @@ export async function generateJson(
           temperature: 0.7,
           max_tokens: maxTokens,
         },
-        22000,
+        14000,
       );
       const parsed = extractJson(String(data?.choices?.[0]?.message?.content ?? ""));
       if (parsed) return parsed;

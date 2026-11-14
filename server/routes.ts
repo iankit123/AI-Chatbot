@@ -1047,13 +1047,14 @@ export async function registerRoutes(
     }
   });
 
+  // Shaadi and Milan report routes. Must stay above the early return below, which Vercel takes.
+  registerAstroRoutes(app);
+
   // Never attach http.Server unless explicitly requested (`tsx server/index.ts`).
   // Vercel bundle (`api/index.js` from `server/vercel-express.ts`) passes `{ createHttpServer: false }`.
   if (opts?.createHttpServer !== true) {
     return undefined;
   }
-
-  registerAstroRoutes(app);
 
 
   const httpServer = createServer(app);
