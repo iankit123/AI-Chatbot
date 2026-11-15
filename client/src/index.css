@@ -390,3 +390,65 @@
 @keyframes astro-beat { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.18); } }
 .astro .beat { animation: astro-beat 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
 @media (prefers-reduced-motion: reduce) { .astro .beat { animation: none; } }
+
+/* ------------------------------------------------------------------
+   Editorial look for /wapas and /milan (components/astro/editorial.tsx):
+   photographs, flat surfaces, one accent colour, no glow or gold foil.
+   Scoped by .ed, so /shaadi and /business are unchanged.
+------------------------------------------------------------------- */
+.astro.ed {
+  --ed-bg: #100a14;
+  --ed-surface: #1a1220;
+  --ed-line: rgba(255, 255, 255, 0.09);
+  --ed-accent: #f2a7ba;
+  --ed-accent-ink: #2a1020;
+  --ed-text: #f6eee9;
+  --ed-muted: #b9a8b5;
+  --paper: #fbf7f3;
+  --paper-2: #fbf7f3;
+  --ink: #25141e;
+  --ink-soft: #6f5b67;
+  background: var(--ed-bg);
+  background-attachment: scroll;
+  color: var(--ed-text);
+}
+.astro.ed.ed-milan {
+  --ed-bg: #130b0b;
+  --ed-surface: #1e1312;
+  --ed-accent: #e9b96a;
+  --ed-accent-ink: #2b1a08;
+  --ed-muted: #c0ab9b;
+  --ink: #2a1610;
+  --ink-soft: #745e51;
+}
+.astro.ed .stars { display: none; }
+.astro.ed .paper {
+  background: var(--paper);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px -34px rgba(0, 0, 0, 0.9);
+}
+.astro.ed .paper::before { display: none; }
+.astro.ed .glass {
+  background: var(--ed-surface);
+  border: 1px solid var(--ed-line);
+  border-radius: 18px;
+  backdrop-filter: none;
+}
+.astro.ed .btn-gold {
+  background: var(--ed-accent);
+  color: var(--ed-accent-ink);
+  box-shadow: 0 14px 32px -16px rgba(242, 167, 186, 0.75);
+}
+.astro.ed.ed-milan .btn-gold { box-shadow: 0 14px 32px -16px rgba(233, 185, 106, 0.75); }
+.astro.ed .btn-ghost { color: var(--ed-text); border-color: var(--ed-line); background: var(--ed-surface); }
+.astro.ed .chip { color: var(--ed-text); border-color: var(--ed-line); background: rgba(255, 255, 255, 0.06); }
+.astro.ed .gold-text { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--ed-text); }
+.astro.ed .gold-rule { background: var(--ed-line); }
+.astro.ed .paybar { background: rgba(16, 10, 20, 0.97); }
+.astro.ed.ed-milan .paybar { background: rgba(19, 11, 11, 0.97); }
+.astro.ed .field { border-color: #e4d8cf; background: #fff; }
+.astro.ed .field:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(37, 20, 30, 0.12); }
+.astro.ed .label { color: var(--ink-soft); }
+.astro.ed .seg button { border-color: #e4d8cf; background: #fff; color: var(--ink); }
+.astro.ed .seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; box-shadow: none; }
+.astro.ed h2, .astro.ed h3 { font-family: "Marcellus", "Tiro Devanagari Hindi", serif; }

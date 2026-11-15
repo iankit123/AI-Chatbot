@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useRoute } from "wouter";
-import { CalendarHeart, HeartHandshake, Lock, MessageCircleHeart, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Lock, MessageCircleHeart } from "lucide-react";
 import {
-  Analysing, AstroFooter, AstroShell, Bullets, ErrorNote, Faq, LevelMeter, LockedRow, PaperCard, PayBar,
-  ScoreRing, Segmented, Steps, ZodiacWheel,
+  Analysing, AstroFooter, Bullets, ErrorNote, Faq, LevelMeter, LockedRow, PaperCard, PayBar,
+  ScoreRing, ZodiacWheel,
 } from "@/components/astro/ui";
+import {
+  EditorialShell, FactorList, NumberedList, PhotoChoice, PhotoHero, ReflectionCard, ReportBanner, SectionHead, StepHead, TrustLine,
+} from "@/components/astro/editorial";
 import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
@@ -19,54 +22,34 @@ export default function WapasReportPage() {
     document.title = "Kya woh wapas aayenge? | puchlo.in";
   }, []);
   return (
-    <AstroShell tagline="Prem Jyotish" theme="wapas">
+    <EditorialShell theme="wapas">
       {params?.id ? <ReportView key={params.id} id={params.id} /> : <Landing />}
-    </AstroShell>
+    </EditorialShell>
   );
 }
 
-const STATUSES: { value: WapasStatus; label: string }[] = [
-  { value: "no_contact", label: "Baat-cheet band hai" },
-  { value: "breakup", label: "Breakup ho gaya hai" },
-  { value: "fight", label: "Jhagda / narazgi chal rahi hai" },
-  { value: "separated", label: "Shaadi ke baad alag rah rahe hain" },
+const HERO = "/astro/wapas-hero.webp";
+
+const STATUSES: { value: WapasStatus; label: string; img: string }[] = [
+  { value: "no_contact", label: "Baat-cheet band hai", img: "/astro/wapas-nocontact.webp" },
+  { value: "breakup", label: "Breakup ho gaya hai", img: "/astro/wapas-breakup.webp" },
+  { value: "fight", label: "Jhagda ya narazgi", img: "/astro/wapas-fight.webp" },
+  { value: "separated", label: "Shaadi ke baad alag", img: "/astro/wapas-separated.webp" },
 ];
 
-/** Two people under a crescent moon, joined by a thread with a heartbeat in the middle. */
-function HeroArt({ a = "", b = "" }: { a?: string; b?: string }) {
-  return (
-    <svg viewBox="0 0 320 170" className="mx-auto w-full max-w-[330px]" aria-hidden>
-      <defs>
-        <linearGradient id="wp-rose" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffe6ee" />
-          <stop offset="1" stopColor="#e58ea9" />
-        </linearGradient>
-        <radialGradient id="wp-orb" cx="0.35" cy="0.3" r="0.9">
-          <stop offset="0" stopColor="#6d43a0" />
-          <stop offset="1" stopColor="#2c1640" />
-        </radialGradient>
-      </defs>
-      {/* crescent moon */}
-      <path d="M252 20a26 26 0 1 0 26 34 21 21 0 1 1-26-34z" fill="url(#wp-rose)" opacity="0.9" />
-      <circle cx="60" cy="24" r="1.6" fill="#ffe6ee" className="pulse" />
-      <circle cx="150" cy="12" r="1.2" fill="#fff" />
-      <circle cx="205" cy="40" r="1.4" fill="#ffe6ee" className="pulse" />
-      {/* thread between the two */}
-      <path d="M92 108 C 130 60, 190 60, 228 108" fill="none" stroke="url(#wp-rose)" strokeWidth="1.6" strokeDasharray="3 7" strokeLinecap="round" />
-      <g className="beat">
-        <path d="M160 82c-4-7-15-6-15 3 0 7 9 12 15 17 6-5 15-10 15-17 0-9-11-10-15-3z" fill="url(#wp-rose)" />
-      </g>
-      {[[72, a], [248, b]].map(([x, l]) => (
-        <g key={x as number}>
-          <circle cx={x as number} cy="118" r="38" fill="url(#wp-orb)" stroke="url(#wp-rose)" strokeWidth="1.4" />
-          <text x={x as number} y="120" textAnchor="middle" dominantBaseline="central" fontFamily="Marcellus, serif" fontSize="34" fill="#ffe6ee">
-            {(l as string) || "?"}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
-}
+/** What the report actually reads from the two charts (see buildWapasFacts / loveWindows). */
+const FACTORS = [
+  { img: "/astro/k-moon.webp", name: "Chandra rashi", en: "Moon", text: "Mann ka mel. Dono ki Chandra rashi aur nakshatra se dikhta hai ki dil aur soch kitni milti hai." },
+  { img: "/astro/k-venus.webp", name: "Shukra aur prem bhaav", en: "Venus, 5th & 7th house", text: "Pyaar ka samay. Inki dasha me baat dobara banne ke yog sabse majboot hote hain." },
+  { img: "/astro/k-door.webp", name: "36 gun milan", en: "Ashtakoot", text: "Rishte ki neev. Gana, Bhakoot aur Nadi batate hain ki takrav kahan hai." },
+  { img: "/astro/k-saturn.webp", name: "Dasha ka daur", en: "Vimshottari", text: "Samay ka chakra. Abhi ki mahadasha batati hai ki yeh mushkil daur kab badlega." },
+];
+
+const REFLECT = [
+  "Aap unhe yaad karte hain, ya unke saath ki aadat ko?",
+  "Yeh sach me unki kami hai, ya akele rehne ka darr?",
+  "Is rishte me khushi zyada thi, ya takleef?",
+];
 
 function Landing() {
   const [, navigate] = useLocation();
@@ -76,6 +59,7 @@ function Landing() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const pickRef = useRef<HTMLElement>(null);
   const last = useRef(lastReportId("wapas")).current;
 
   useEffect(() => {
@@ -114,74 +98,90 @@ function Landing() {
 
   return (
     <>
-      <PaidReportBanner type="wapas" />
-      <section className="rise pt-1 text-center">
-        <HeroArt a={self.name.trim().charAt(0).toUpperCase()} b={partner.name.trim().charAt(0).toUpperCase()} />
-        <h1 className="font-hindi gold-text mt-3 text-[2.35rem] leading-[1.25]">
-          क्या वो
-          <br />
-          वापस आएंगे?
-        </h1>
-        <p className="mx-auto mt-4 max-w-[330px] text-[15px] leading-relaxed text-[#eadff5]">
-          Dono ki kundli se jaaniye: unke mann me kya hai, doori kyon aayi, aur baat dobara kab ban sakti hai.
-        </p>
-        <button type="button" className="btn-gold mt-7" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-          <Sparkles className="h-4 w-4" /> Apna jawab dekhein
+      <PhotoHero
+        src={HERO}
+        alt="Raat ko phone ki roshni me kisi ke sandesh ka intezaar karti ek ladki"
+        kicker="Prem Jyotish · Kundli milan"
+        title={<>क्या वो<br />वापस आएंगे?</>}
+        sub="Dono ki kundli se jaaniye unke mann me kya hai, doori kyon aayi, aur baat dobara kab ban sakti hai."
+        position="50% 100%"
+      >
+        <button type="button" className="btn-gold mt-6" onClick={() => pickRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+          Apna jawab dekhein <ArrowRight className="h-4 w-4" />
         </button>
+        <TrustLine items={["Unhe pata nahi chalega", "Sirf naam se bhi", "Koi vashikaran nahi"]} />
         {last && (
-          <Link href={`/wapas/r/${last}`} className="mt-3 inline-block text-[13px] text-[#f8bccd] underline underline-offset-4">
+          <Link href={`/wapas/r/${last}`} className="mt-3 inline-block text-[13px] text-[var(--ed-accent)] underline underline-offset-4">
             Pichhli report dobara kholein
           </Link>
         )}
-        <div className="mt-6 grid grid-cols-3 gap-2 text-[11px] leading-snug text-[#d9cbe6]">
-          {(
-            [
-              [ShieldCheck, "Poori tarah gopniya, unhe pata nahi chalega"],
-              [HeartHandshake, "Sirf naam se bhi dekha ja sakta hai"],
-              [CalendarHeart, "Samay ke saath, sirf haan-na nahi"],
-            ] as const
-          ).map(([Icon, text]) => (
-            <div key={text} className="glass px-2 py-3">
-              <Icon className="mx-auto mb-1.5 h-4 w-4 text-[#f8bccd]" />
-              {text}
-            </div>
-          ))}
-        </div>
+      </PhotoHero>
+
+      <div className="mt-8"><PaidReportBanner type="wapas" /></div>
+
+      <section ref={pickRef} className="scroll-mt-4 pt-6">
+        <SectionHead kicker="Pehla kadam" title="Abhi aapke beech kya chal raha hai?" />
+        <PhotoChoice
+          value={status}
+          options={STATUSES}
+          onChange={(v) => {
+            setStatus(v);
+            window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+          }}
+        />
       </section>
 
-      <div ref={formRef} className="scroll-mt-4 pt-9">
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <PaperCard eyebrow="Abhi kya sthiti hai">
-            <Segmented cols={1} value={status} onChange={setStatus} options={STATUSES} />
-          </PaperCard>
-          <PaperCard eyebrow="Aapki kundli" title="Aapka vivaran">
+      <div ref={formRef} className="scroll-mt-4 pt-8">
+        <form onSubmit={submit} noValidate className="paper rise space-y-6 p-5">
+          <div>
+            <StepHead n={2} title="Aapki kundli" sub="Janm ki jaankari, jitni pata ho" />
             <SelfFields form={self} id="wp" />
-          </PaperCard>
-          <PaperCard eyebrow="Unki kundli" title="Jinke baare me jaanna hai">
+          </div>
+          <div className="border-t border-[#ece2da] pt-6">
+            <StepHead n={3} title="Unki kundli" sub="Janm tithi na pata ho to sirf naam bhi chalega" />
             <PartnerFields form={partner} id="wp" />
-          </PaperCard>
+          </div>
           <ErrorNote message={error} />
-          <button type="submit" className="btn-gold">
-            <MessageCircleHeart className="h-4 w-4" /> Dekhein, woh wapas aayenge ya nahi
-          </button>
-          <p className="text-center text-[11px] text-[#d9cbe6]">Dono ka judaav (36 me se gun) turant dikhega.</p>
+          <div>
+            <button type="submit" className="btn-gold">
+              <MessageCircleHeart className="h-4 w-4" /> Mera jawab dekhein
+            </button>
+            <p className="ink-soft mt-2 text-center text-[12px]">Dono ka judaav (36 me se gun) turant dikhega.</p>
+          </div>
         </form>
       </div>
 
-      <section className="pt-10">
-        <h2 className="gold-text mb-4 text-center text-2xl">Report me kya milega</h2>
-        <Steps
+      <section className="pt-14">
+        <SectionHead
+          kicker="Kundli me kya dekha jaata hai"
+          title="Jawab andaaze se nahi, dono kundliyon se"
+          sub="Aapki aur unki janm kundli ko saath rakhkar yeh chaar baatein dekhi jaati hain."
+        />
+        <FactorList items={FACTORS} />
+      </section>
+
+      <section className="pt-14">
+        <SectionHead kicker="Poori report" title="Report me kya milega" />
+        <NumberedList
           items={[
             { title: "Wapsi ke sanket", text: "Prabal, madhyam ya kam. Seedha aur imaandar jawab." },
             { title: "Unke mann me kya hai", text: "Kya woh bhi yaad karte hain, ya aage badh chuke hain." },
             { title: "Doori ki asli wajah", text: "Dono ki kundli me kahan takrav hai, taaki wahi galti dobara na ho." },
-            { title: "Pehal karein ya intezaar", text: "Baat kab banne ke yog hain, aur pehla sandesh kaise bhejein." },
+            { title: "Pehal karein ya intezaar", text: "Baat kab banne ke yog hain, aur abhi kya karein, kya na karein." },
           ]}
         />
       </section>
 
-      <section className="pt-10">
-        <h2 className="gold-text mb-4 text-center text-2xl">Aksar puche jaane wale sawal</h2>
+      <section className="pt-14">
+        <ReflectionCard
+          title="Faisla lene se pehle, khud se poochhiye"
+          questions={REFLECT}
+          footer="Jawab jo bhi ho, yeh report aapko tay karne me madad karti hai ki intezaar karein ya aage badhein."
+        />
+      </section>
+
+      <section className="pt-14">
+        <SectionHead title="Aksar puche jaane wale sawal" />
         <Faq
           items={[
             { q: "Kya unhe pata chalega?", a: "Nahi. Yeh report sirf aap dekhte hain. Unhe koi sandesh ya soochna nahi jaati." },
@@ -217,15 +217,7 @@ function ReportView({ id }: { id: string }) {
   }
 
   const a = report.selfName, b = report.partnerName;
-  const header = (
-    <section className="rise pt-1 text-center">
-      <p className="chip mx-auto">{report.paid ? "Aapka poora jawab" : "Kundli milan taiyaar hai"}</p>
-      <div className="mt-3">
-        <HeroArt a={a.charAt(0)} b={b.charAt(0)} />
-      </div>
-      <h1 className="gold-text mt-2 text-[1.7rem] leading-tight">{a} aur {b}</h1>
-    </section>
-  );
+  const header = <ReportBanner src={HERO} kicker={report.paid ? "Aapka poora jawab" : "Kundli milan taiyaar hai"} title={`${a} aur ${b}`} position="50% 78%" />;
 
   if (!report.paid) {
     return (
@@ -328,6 +320,12 @@ function ReportView({ id }: { id: string }) {
           <p className="text-[14px] leading-relaxed text-[#eadff5]">{s.care}</p>
         </section>
         <p className="px-1 text-center text-[12px] leading-relaxed text-[#d9cbe6]">{s.basisNote}</p>
+
+        <ReflectionCard
+          title="Intezaar karein ya aage badhein?"
+          questions={REFLECT}
+          footer="Kundli samay aur sanket batati hai. Aakhri faisla aapka hai, aur aapki khushi sabse pehle hai."
+        />
 
         <section className="glass p-5 text-center">
           <h2 className="gold-text text-[1.4rem] leading-snug">Aapki shaadi kab aur kisse hogi?</h2>

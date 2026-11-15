@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useRoute } from "wouter";
-import { AlertTriangle, CheckCircle2, Heart, Lock, MessageCircle, Sparkles, Star } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Heart, Lock, MessageCircle, Star } from "lucide-react";
 import {
-  Analysing, AstroFooter, AstroShell, CITY_HINTS, DateSelect, ErrorNote, Faq, LockedRow, PaperCard, PayBar,
-  ScoreRing, Segmented, Steps, TimeSelect, ZodiacWheel,
+  Analysing, AstroFooter, CITY_HINTS, DateSelect, ErrorNote, Faq, LockedRow, PaperCard, PayBar,
+  ScoreRing, Segmented, TimeSelect, ZodiacWheel,
 } from "@/components/astro/ui";
+import { EditorialShell, NumberedList, PhotoHero, ReportBanner, SectionHead, StepHead, TrustLine } from "@/components/astro/editorial";
 import {
   cacheReport, createMilanPreview, lastReportId, loadSelf, logAstro, rememberReport,
   saveSelf, shareOnWhatsApp, trackAstro, wait,
@@ -19,9 +20,9 @@ export default function MilanReportPage() {
     document.title = "Kundli Milan: kya inse shaadi hogi? | puchlo.in";
   }, []);
   return (
-    <AstroShell tagline="Kundli Milan">
+    <EditorialShell theme="milan">
       {params?.id ? <ReportView key={params.id} id={params.id} /> : <Landing />}
-    </AstroShell>
+    </EditorialShell>
   );
 }
 
@@ -31,16 +32,40 @@ const QUESTIONS: { value: MilanReport["question"]; label: string }[] = [
   { value: "rishta", label: "Rishta kaisa rahega?" },
 ];
 
-function HeroPair() {
+const HERO = "/astro/milan-hero.webp";
+
+/** The eight koots and their points: 36 in total, 18 or more is the traditional pass mark. */
+const KOOT_GUIDE = [
+  { name: "Nadi", hi: "नाड़ी", text: "Sehat aur santaan sukh", max: 8 },
+  { name: "Bhakoot", hi: "भकूट", text: "Parivar, dhan aur pyaar ka pravah", max: 7 },
+  { name: "Gana", hi: "गण", text: "Swabhav aur gussa", max: 6 },
+  { name: "Graha Maitri", hi: "ग्रह मैत्री", text: "Mann ka mel, dosti", max: 5 },
+  { name: "Yoni", hi: "योनि", text: "Swabhav aur sharirik anukoolta", max: 4 },
+  { name: "Tara", hi: "तारा", text: "Bhagya aur sehat ka saath", max: 3 },
+  { name: "Vashya", hi: "वश्य", text: "Ek dusre par prabhav, aakarshan", max: 2 },
+  { name: "Varna", hi: "वर्ण", text: "Soch aur ahankaar ka taalmel", max: 1 },
+];
+
+function KootGuide() {
   return (
-    <div className="relative mx-auto flex h-[120px] w-[250px] items-center justify-between">
-      {["A", "P"].map((l, i) => (
-        <div key={l} className={`letter-tile h-[96px] w-[96px] !rounded-full !text-[2.4rem] ${i ? "" : ""}`}>{l}</div>
+    <ul className="divide-y divide-[var(--ed-line)] border-y border-[var(--ed-line)]">
+      {KOOT_GUIDE.map((k) => (
+        <li key={k.name} className="flex items-center gap-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-medium text-[var(--ed-text)]">
+              {k.name} <span className="font-hindi text-[13px] font-normal text-[var(--ed-muted)]">{k.hi}</span>
+            </p>
+            <p className="text-[12.5px] text-[var(--ed-muted)]">{k.text}</p>
+          </div>
+          <div className="flex w-[104px] shrink-0 items-center gap-2">
+            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--ed-line)]">
+              <span className="block h-full rounded-full bg-[var(--ed-accent)]" style={{ width: `${(k.max / 8) * 100}%` }} />
+            </span>
+            <span className="font-display w-9 text-right text-[14px] text-[var(--ed-text)]">{k.max}</span>
+          </div>
+        </li>
       ))}
-      <span className="absolute left-1/2 top-1/2 grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-gradient-to-b from-[#f8e3ae] to-[#c9973f] text-[#3a1420] shadow-[0_8px_24px_-6px_rgba(201,151,63,0.9)]">
-        <span className="font-display text-[1.05rem] leading-none">28<span className="text-[0.6rem]">/36</span></span>
-      </span>
-    </div>
+    </ul>
   );
 }
 
@@ -111,34 +136,36 @@ function Landing() {
 
   return (
     <>
-      <PaidReportBanner type="milan" />
-      <section className="rise pt-3 text-center">
-        <HeroPair />
-        <h1 className="font-hindi gold-text mt-5 text-[2.35rem] leading-[1.25]">
-          क्या इनसे
-          <br />
-          शादी होगी?
-        </h1>
-        <p className="mx-auto mt-4 max-w-[330px] text-[15px] leading-relaxed text-[#e9d9bb]">
-          36 gun milan, Mangal dosh aur rishte ka bhavishya. Sirf naam se bhi milan ho sakta hai.
-        </p>
-        <button type="button" className="btn-gold mt-7" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-          <Sparkles className="h-4 w-4" /> Gun milan dekhein
+      <PhotoHero
+        src={HERO}
+        alt="Diyon ki roshni me mehendi lage haathon se haath thaame dulha aur dulhan"
+        kicker="Kundli Milan · 36 gun"
+        title={<>क्या इनसे<br />शादी होगी?</>}
+        sub="Ashtakoot gun milan, Mangal dosh aur rishte ka seedha nishkarsh. Sirf naam se bhi milan ho sakta hai."
+        position="50% 100%"
+      >
+        <button type="button" className="btn-gold mt-6" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+          Gun milan dekhein <ArrowRight className="h-4 w-4" />
         </button>
+        <TrustLine items={["Sirf naam se bhi", "Turant nateeja", "Poori tarah gopniya"]} />
         {last && (
-          <Link href={`/milan/r/${last}`} className="mt-3 inline-block text-[13px] text-[#ecc97f] underline underline-offset-4">
+          <Link href={`/milan/r/${last}`} className="mt-3 inline-block text-[13px] text-[var(--ed-accent)] underline underline-offset-4">
             Pichhla milan dobara kholein
           </Link>
         )}
-      </section>
+      </PhotoHero>
 
-      <div ref={formRef} className="scroll-mt-4 pt-9">
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <PaperCard eyebrow="Aapka sawal">
+      <div className="mt-8"><PaidReportBanner type="milan" /></div>
+
+      <div ref={formRef} className="scroll-mt-4 pt-4">
+        <form onSubmit={submit} className="paper rise space-y-6 p-5" noValidate>
+          <div>
+            <StepHead n={1} title="Aapka sawal" />
             <Segmented cols={1} value={question} onChange={setQuestion} options={QUESTIONS} />
-          </PaperCard>
+          </div>
 
-          <PaperCard eyebrow="Pehli kundli" title="Aapka vivaran">
+          <div className="border-t border-[#ece2da] pt-6">
+            <StepHead n={2} title="Aapki kundli" sub="Janm ki jaankari, jitni pata ho" />
             <div className="space-y-4">
               <div>
                 <label className="label" htmlFor="ml-name">Aapka naam</label>
@@ -162,9 +189,10 @@ function Landing() {
                 <datalist id="astro-cities">{CITY_HINTS.map((c) => <option key={c} value={c} />)}</datalist>
               </div>
             </div>
-          </PaperCard>
+          </div>
 
-          <PaperCard eyebrow="Doosri kundli" title="Unka vivaran">
+          <div className="border-t border-[#ece2da] pt-6">
+            <StepHead n={3} title="Unki kundli" sub="Janm tithi na pata ho to sirf naam bhi chalega" />
             <div className="space-y-4">
               <div>
                 <label className="label" htmlFor="ml-pname">Unka naam</label>
@@ -195,19 +223,26 @@ function Landing() {
                 </p>
               )}
             </div>
-          </PaperCard>
+          </div>
 
           <ErrorNote message={error} />
-          <button type="submit" className="btn-gold">
-            <Heart className="h-4 w-4" /> Gun milan karein
-          </button>
-          <p className="text-center text-[11px] text-[#d9c7a3]">36 me se kitne gun mile, yeh turant dikhega.</p>
+          <div>
+            <button type="submit" className="btn-gold">
+              <Heart className="h-4 w-4" /> Gun milan karein
+            </button>
+            <p className="ink-soft mt-2 text-center text-[12px]">36 me se kitne gun mile, yeh turant dikhega.</p>
+          </div>
         </form>
       </div>
 
-      <section className="pt-10">
-        <h2 className="gold-text mb-4 text-center text-2xl">Milan report me kya milega</h2>
-        <Steps
+      <section className="pt-14">
+        <SectionHead kicker="Ashtakoot" title="36 gun kaise milte hain" sub="Dono ki Chandra rashi aur nakshatra se aath koot milaye jaate hain. 18 ya usse zyada gun vivah ke liye sweekarya maane jaate hain." />
+        <KootGuide />
+      </section>
+
+      <section className="pt-14">
+        <SectionHead kicker="Poori report" title="Milan report me kya milega" />
+        <NumberedList
           items={[
             { title: "36 gun ka poora hisaab", text: "Varna se Nadi tak aathon koot, har ek ka matlab aasan bhasha me." },
             { title: "Nadi, Bhakoot aur Mangal dosh", text: "Kaun sa dosh hai, kitna gambhir hai, aur kya woh kat raha hai." },
@@ -217,8 +252,8 @@ function Landing() {
         />
       </section>
 
-      <section className="pt-10">
-        <h2 className="gold-text mb-4 text-center text-2xl">Aksar puche jaane wale sawal</h2>
+      <section className="pt-14">
+        <SectionHead title="Aksar puche jaane wale sawal" />
         <Faq
           items={[
             { q: "Gun milan kya hota hai?", a: "Ashtakoot milan me dono ke janm nakshatra aur Chandra rashi se 8 koot milaye jaate hain, kul 36 gun. 18 ya usse zyada gun vivah ke liye sweekarya maane jaate hain." },
@@ -287,17 +322,14 @@ function ReportView({ id }: { id: string }) {
   const b = cap(report.partnerName);
 
   const header = (
-    <section className="rise pt-2 text-center">
-      <p className="chip mx-auto">{report.paid ? "Sampoorn milan report" : "Gun milan taiyaar hai"}</p>
-      <h1 className="gold-text mt-4 text-[1.8rem] leading-tight">
-        {a} <span className="text-[#ecc97f]">♥</span> {b}
-      </h1>
-      <div className="mt-6">
+    <section>
+      <ReportBanner src={HERO} kicker={report.paid ? "Sampoorn milan report" : "Gun milan taiyaar hai"} title={`${a} aur ${b}`} position="50% 70%" />
+      <div className="glass mt-6 p-5 text-center">
         <ScoreRing score={report.total} />
+        <p className="font-display mt-4 text-[1.35rem] text-[var(--ed-text)]">{report.band.label}</p>
+        <p className="mx-auto mt-1 max-w-[320px] text-[14px] leading-relaxed text-[var(--ed-muted)]">{report.band.line}</p>
       </div>
-      <p className="font-display mt-4 text-[1.35rem] text-[#fbefd3]">{report.band.label}</p>
-      <p className="mx-auto mt-1 max-w-[320px] text-[14px] leading-relaxed text-[#e9d9bb]">{report.band.line}</p>
-      <div className="mt-5 grid grid-cols-2 gap-2 text-left text-[12px]">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-left text-[12px]">
         {[
           [a, report.self],
           [b, report.partner],
