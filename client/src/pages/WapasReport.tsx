@@ -28,7 +28,7 @@ export default function WapasReportPage() {
   );
 }
 
-const HERO = "/astro/wapas-hero.webp";
+const HERO = "/astro/wapas-hero-couple.webp";
 
 const STATUSES: { value: WapasStatus; label: string; img: string }[] = [
   { value: "no_contact", label: "Baat-cheet band hai", img: "/astro/wapas-nocontact.webp" },
@@ -100,7 +100,8 @@ function Landing() {
     <>
       <PhotoHero
         src={HERO}
-        alt="Raat ko phone ki roshni me kisi ke sandesh ka intezaar karti ek ladki"
+        alt="Shaam ki roshni me terrace par muskurate hue ek yuva jode ki tasveer"
+        ornament={<ZodiacWheel size={250} className="absolute -right-16 top-10 opacity-[0.32]" />}
         kicker="Prem Jyotish · Kundli milan"
         title={<>क्या वो<br />वापस आएंगे?</>}
         sub="Dono ki kundli se jaaniye unke mann me kya hai, doori kyon aayi, aur baat dobara kab ban sakti hai."
@@ -217,7 +218,7 @@ function ReportView({ id }: { id: string }) {
   }
 
   const a = report.selfName, b = report.partnerName;
-  const header = <ReportBanner src={HERO} kicker={report.paid ? "Aapka poora jawab" : "Kundli milan taiyaar hai"} title={`${a} aur ${b}`} position="50% 78%" />;
+  const header = <ReportBanner src={HERO} kicker={report.paid ? "Aapka poora jawab" : "Kundli milan taiyaar hai"} title={`${a} aur ${b}`} position="50% 63%" />;
 
   if (!report.paid) {
     return (
