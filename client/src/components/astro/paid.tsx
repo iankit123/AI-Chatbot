@@ -39,33 +39,80 @@ export function PaidReportBanner({ type }: { type: AstroReport["type"] }) {
   );
 }
 
-/** End of a paid report: an open question box, so we learn what buyers want next. */
+/** End of a paid report: the buyer asks a question and gets an answer from their own chart, right here. */
 export function AskMoreCard({ type, reportId }: { type: AstroReport["type"]; reportId: string }) {
+  type Item = { id: string; question: string; answer: string | null };
+  const [items, setItems] = useState<Item[]>([]);
+  const [remaining, setRemaining] = useState(5);
   const [text, setText] = useState("");
-  const [sent, setSent] = useState(0);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const submit = (e: React.FormEvent) => {
+  useEffect(() => {
+    // Earlier questions with their answers; ones asked before answering existed get answered now.
+    let alive = true;
+    fetch(`/api/astro/report/${reportId}/questions`, { headers: { Accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return;
+        setItems(d.items ?? []);
+        setRemaining(typeof d.remaining === "number" ? d.remaining : 5);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [reportId]);
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const question = text.trim();
     if (question.length < 3) return setError("Kripya apna sawal likhein.");
-    logAstro("astro_question", type, { report_id: reportId, question: question.slice(0, 500) });
-    setText("");
+    setBusy(true);
     setError(null);
-    setSent((n) => n + 1);
+    logAstro("astro_report_action", type, { report_id: reportId, action: "question_asked" });
+    try {
+      const res = await fetch(`/api/astro/report/${reportId}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.item) {
+        setItems((list) => [...list, d.item]);
+        setText("");
+      }
+      if (typeof d.remaining === "number") setRemaining(d.remaining);
+      if (!res.ok) setError(d.message || "Abhi jawab nahi ban paya. Kripya dobara koshish karein.");
+    } catch {
+      setError("Abhi jawab nahi ban paya. Kripya dobara koshish karein.");
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <PaperCard eyebrow="Aapka sawal" title="Bataiye, aapko aur kya jaanna hai?">
-      {sent > 0 ? (
-        <div className="text-center">
-          <CheckCircle2 className="mx-auto h-8 w-8 text-[#4f8a35]" />
-          <p className="ink mt-2 text-[15px] font-semibold">Shukriya! Aapka sawal hum tak pahunch gaya.</p>
-          <button type="button" className="ink-soft mt-2 text-[13px] underline underline-offset-4" onClick={() => setSent(0)}>
-            Ek aur sawal likhein
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={submit} className="space-y-3" noValidate>
-          <p className="ink-soft text-[13px] leading-relaxed">Jo bhi mann me ho, likhiye. Aapke sawal padhkar hum nayi reports banate hain.</p>
+      <p className="ink-soft text-[13px] leading-relaxed">Apni kundli se juda koi bhi sawal poochiye. Jawab aapki kundli dekhkar yahin milega.</p>
+      {items.length > 0 && (
+        <ul className="mt-4 space-y-3">
+          {items.map((it) => (
+            <li key={it.id} className="space-y-2">
+              <p className="ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-[var(--wine-700)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[#fbefd3]">
+                {it.question}
+              </p>
+              <div className="rounded-2xl rounded-bl-md bg-[#fffaf0] px-3.5 py-3 ring-1 ring-[#e6d6b6]">
+                {it.answer ? (
+                  <p className="ink whitespace-pre-line text-[14px] leading-relaxed">{it.answer}</p>
+                ) : (
+                  <p className="ink-soft text-[13px]">
+                    {remaining > 0 ? "Jawab taiyaar ho raha hai. Report dobara kholne par yahin milega." : "Is sawal ko hum nayi reports banane me use karenge."}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {remaining > 0 ? (
+        <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
           <label htmlFor={`ask-${reportId}`} className="sr-only">Aapka sawal</label>
           <textarea
             id={`ask-${reportId}`}
@@ -74,12 +121,22 @@ export function AskMoreCard({ type, reportId }: { type: AstroReport["type"]; rep
             maxLength={500}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            disabled={busy}
           />
           {error && <p role="alert" className="text-[13px] text-[#8e2b20]">{error}</p>}
-          <button type="submit" className="btn-gold">
-            <Send className="h-4 w-4" /> Sawal bhejein
+          <button type="submit" className="btn-gold" disabled={busy}>
+            {busy ? (
+              "Aapki kundli dekh kar jawab likh rahe hain…"
+            ) : (
+              <>
+                <Send className="h-4 w-4" /> Sawal poochein
+              </>
+            )}
           </button>
+          <p className="ink-soft text-center text-[12px]">Is report par aap {remaining} aur sawal pooch sakte hain.</p>
         </form>
+      ) : (
+        <p className="ink-soft mt-4 text-center text-[13px]">Is report par 5 sawalon ke jawab de diye gaye hain.</p>
       )}
     </PaperCard>
   );

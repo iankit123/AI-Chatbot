@@ -38,6 +38,7 @@ import {
 import { buildKundliReading } from "./services/kundliChart";
 import { insertAppEventRow } from "./services/appEvents";
 import { razorpayBuyerPhone, registerAstroRoutes, rememberBuyerPhone, reportAlreadyPaid } from "./astroRoutes";
+import { registerAstroAskRoutes } from "./astroAsk";
 import { findReportPaymentStatuses, getReport as getAstroReport } from "./services/astro/store";
 import { ASTRO_PRICES, ASTRO_PRODUCT_TYPES, astroTypeFromProduct } from "@shared/astroProducts";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
@@ -1135,6 +1136,7 @@ export async function registerRoutes(
 
   // Shaadi and Milan report routes. Must stay above the early return below, which Vercel takes.
   registerAstroRoutes(app);
+  registerAstroAskRoutes(app);
 
   // Never attach http.Server unless explicitly requested (`tsx server/index.ts`).
   // Vercel bundle (`api/index.js` from `server/vercel-express.ts`) passes `{ createHttpServer: false }`.
