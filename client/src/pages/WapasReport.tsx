@@ -3,10 +3,10 @@ import { Link, useLocation, useRoute } from "wouter";
 import { ArrowRight, Lock, MessageCircleHeart } from "lucide-react";
 import {
   Analysing, AstroFooter, Bullets, ErrorNote, Faq, LevelMeter, LockedRow, PaperCard, PayBar,
-  ScoreRing, ZodiacWheel,
+  ScoreRing, Segmented, ZodiacWheel,
 } from "@/components/astro/ui";
 import {
-  EditorialShell, FactorList, NumberedList, PhotoChoice, PhotoHero, ReflectionCard, ReportBanner, SectionHead, StepHead, TrustLine,
+  EditorialShell, FactorList, NumberedList, PhotoHero, ReflectionCard, ReportBanner, SectionHead, StepHead, TrustLine,
 } from "@/components/astro/editorial";
 import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
@@ -30,11 +30,11 @@ export default function WapasReportPage() {
 
 const HERO = "/astro/wapas-hero-couple.webp";
 
-const STATUSES: { value: WapasStatus; label: string; img: string }[] = [
-  { value: "no_contact", label: "Baat-cheet band hai", img: "/astro/wapas-nocontact.webp" },
-  { value: "breakup", label: "Breakup ho gaya hai", img: "/astro/wapas-breakup.webp" },
-  { value: "fight", label: "Jhagda ya narazgi", img: "/astro/wapas-fight.webp" },
-  { value: "separated", label: "Shaadi ke baad alag", img: "/astro/wapas-separated.webp" },
+const STATUSES: { value: WapasStatus; label: string }[] = [
+  { value: "no_contact", label: "Baat-cheet band hai" },
+  { value: "breakup", label: "Breakup ho gaya hai" },
+  { value: "fight", label: "Jhagda ya narazgi chal rahi hai" },
+  { value: "separated", label: "Shaadi ke baad alag rah rahe hain" },
 ];
 
 /** What the report actually reads from the two charts (see buildWapasFacts / loveWindows). */
@@ -59,7 +59,6 @@ function Landing() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
-  const pickRef = useRef<HTMLElement>(null);
   const last = useRef(lastReportId("wapas")).current;
 
   useEffect(() => {
@@ -107,7 +106,7 @@ function Landing() {
         sub="Dono ki kundli se jaaniye unke mann me kya hai, doori kyon aayi, aur baat dobara kab ban sakti hai."
         position="50% 100%"
       >
-        <button type="button" className="btn-gold mt-6" onClick={() => pickRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+        <button type="button" className="btn-gold mt-6" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
           Apna jawab dekhein <ArrowRight className="h-4 w-4" />
         </button>
         <TrustLine items={["Unhe pata nahi chalega", "Sirf naam se bhi", "Koi vashikaran nahi"]} />
@@ -120,21 +119,13 @@ function Landing() {
 
       <div className="mt-8"><PaidReportBanner type="wapas" /></div>
 
-      <section ref={pickRef} className="scroll-mt-4 pt-6">
-        <SectionHead kicker="Pehla kadam" title="Abhi aapke beech kya chal raha hai?" />
-        <PhotoChoice
-          value={status}
-          options={STATUSES}
-          onChange={(v) => {
-            setStatus(v);
-            window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
-          }}
-        />
-      </section>
-
-      <div ref={formRef} className="scroll-mt-4 pt-8">
+      <div ref={formRef} className="scroll-mt-4 pt-10">
         <form onSubmit={submit} noValidate className="paper rise space-y-6 p-5">
           <div>
+            <StepHead n={1} title="Abhi kya sthiti hai?" />
+            <Segmented cols={1} value={status} onChange={setStatus} options={STATUSES} />
+          </div>
+          <div className="border-t border-[#ece2da] pt-6">
             <StepHead n={2} title="Aapki kundli" sub="Janm ki jaankari, jitni pata ho" />
             <SelfFields form={self} id="wp" />
           </div>
