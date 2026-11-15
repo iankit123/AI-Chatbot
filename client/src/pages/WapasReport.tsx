@@ -19,7 +19,7 @@ import {
 export default function WapasReportPage() {
   const [, params] = useRoute("/wapas/r/:id");
   useEffect(() => {
-    document.title = "Kya woh wapas aayenge? | puchlo.in";
+    document.title = "Kya aapka Ex wapas aayega? | puchlo.in";
   }, []);
   return (
     <EditorialShell theme="wapas">
@@ -36,6 +36,51 @@ const STATUSES: { value: WapasStatus; label: string }[] = [
   { value: "fight", label: "Jhagda ya narazgi chal rahi hai" },
   { value: "separated", label: "Shaadi ke baad alag rah rahe hain" },
 ];
+
+/**
+ * Hero copy variants, picked with ?h=a|b|c|d|e so different ads can land on different
+ * headlines. The variant is sent with the landing and form events for comparison.
+ * a (default): the owner's line, as Astrotalk titles its posts ("Will my ex come back?",
+ *   "How to know when will my ex come back"); sub-line covers "when" and "clarity, move forward".
+ * b: Astrotalk's love-page banner, "what is on their mind" + "will they return".
+ * c: timing, for people in no-contact or blocked ("kab contact hoga" in our chats).
+ * d: names the behaviour first (the "you keep checking your phone" opener).
+ * e: the original single question.
+ */
+type HeroVariant = { pre?: string; title: [string, string]; sub: string };
+const HERO_VARIANTS: Record<string, HeroVariant> = {
+  a: {
+    title: ["क्या आपका Ex", "वापस आएगा?"],
+    sub: "Kab aayega, aur unke mann me abhi kya hai, dono ki kundli se jaaniye. Saath me saaf jawab: intezaar karein ya aage badhein.",
+  },
+  b: {
+    pre: "उनके मन में क्या चल रहा है?",
+    title: ["क्या वो", "वापस आएंगे?"],
+    sub: "Dono ki kundli milakar jaaniye unka mann, doori ki asli wajah, aur baat dobara kab ban sakti hai.",
+  },
+  c: {
+    title: ["बात फिर से", "कब शुरू होगी?"],
+    sub: "Baat-cheet band ho, block kiya ho, ya unhone 'thoda space' maanga ho. Dono ki kundli se jaaniye sahi samay, aur tab tak kya karein.",
+  },
+  d: {
+    pre: "बार-बार उनका मैसेज देखते हैं?",
+    title: ["क्या वो", "वापस आएंगे?"],
+    sub: "Mann ka ek hissa intezaar karta hai, ek hissa thak chuka hai. Dono ki kundli se seedha jawab, aur aage ka raasta.",
+  },
+  e: {
+    title: ["क्या वो", "वापस आएंगे?"],
+    sub: "Dono ki kundli se jaaniye unke mann me kya hai, doori kyon aayi, aur baat dobara kab ban sakti hai.",
+  },
+};
+
+function heroVariantKey(): string {
+  try {
+    const h = new URLSearchParams(window.location.search).get("h")?.toLowerCase() ?? "";
+    return h in HERO_VARIANTS ? h : "a";
+  } catch {
+    return "a";
+  }
+}
 
 /** What the report actually reads from the two charts (see buildWapasFacts / loveWindows). */
 const FACTORS = [
@@ -60,9 +105,11 @@ function Landing() {
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const last = useRef(lastReportId("wapas")).current;
+  const heroKey = useRef(heroVariantKey()).current;
+  const hero = HERO_VARIANTS[heroKey];
 
   useEffect(() => {
-    trackAstro("astro_landing", "wapas");
+    trackAstro("astro_landing", "wapas", { h: heroKey });
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -73,7 +120,7 @@ function Landing() {
     setBusy(true);
     window.scrollTo({ top: 0 });
     const me = self.value();
-    trackAstro("astro_form_submitted", "wapas", { status, partner_dob: partner.knows === "yes" });
+    trackAstro("astro_form_submitted", "wapas", { status, partner_dob: partner.knows === "yes", h: heroKey });
     try {
       const [report] = await Promise.all([createWapasPreview({ self: me, partner: partner.value(), status }), wait(5200)]);
       saveSelf(me);
@@ -102,8 +149,15 @@ function Landing() {
         alt="Shaam ki roshni me terrace par muskurate hue ek yuva jode ki tasveer"
         ornament={<ZodiacWheel size={250} className="absolute -right-16 top-10 opacity-[0.32]" />}
         kicker="Prem Jyotish · Kundli milan"
-        title={<>क्या वो<br />वापस आएंगे?</>}
-        sub="Dono ki kundli se jaaniye unke mann me kya hai, doori kyon aayi, aur baat dobara kab ban sakti hai."
+        title={
+          <>
+            {hero.pre && <span className="mb-2 block text-[1.4rem] leading-snug text-[var(--ed-accent)]">{hero.pre}</span>}
+            {hero.title[0]}
+            <br />
+            {hero.title[1]}
+          </>
+        }
+        sub={hero.sub}
         position="50% 100%"
       >
         <button type="button" className="btn-gold mt-6" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
