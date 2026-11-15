@@ -291,12 +291,15 @@ export function registerAstroRoutes(app: Express) {
         .extend({
           device_id: z.string().min(1).max(120),
           situation: z.enum(["naukri", "business", "berozgar", "student"]),
-          budget: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+          budget: z.number().int().min(1).max(6),
+          /** 2 = six budget steps. Pages built before this change send no scale and four steps. */
+          budget_scale: z.literal(2).optional(),
         })
         .parse(req.body);
       const input: BusinessInput = {
         name: body.name, gender: body.gender, dob: body.dob, tob: body.tob ?? null, place: body.place,
         situation: body.situation, budget: body.budget,
+        ...(body.budget_scale ? { budget_scale: body.budget_scale } : {}),
       };
       const facts = buildBusinessFacts(input);
       const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("business", body.device_id) });

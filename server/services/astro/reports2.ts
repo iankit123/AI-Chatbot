@@ -166,8 +166,20 @@ export function wapasView(row: { id: string; paid: boolean; input: WapasInput; f
 // ---------------------------------------------------------------- Business
 
 export type BusinessSituation = "naukri" | "business" | "berozgar" | "student";
-export type BusinessBudget = 1 | 2 | 3 | 4;
-export type BusinessInput = BirthInput & { situation: BusinessSituation; budget: BusinessBudget };
+/** 1 no money, 2 up to ₹25k, 3 ₹25–50k, 4 ₹50k–2 lakh, 5 ₹2–5 lakh, 6 above ₹5 lakh. */
+export type BusinessBudget = 1 | 2 | 3 | 4 | 5 | 6;
+export type BusinessInput = BirthInput & {
+  situation: BusinessSituation;
+  budget: number;
+  /** 2 for the six-step budget. Reports made before 2026-11-15 evening used four steps and have no scale. */
+  budget_scale?: number;
+};
+
+/** Old four-step answers (≤50k, 50k–2L, 2–10L, 10L+) mapped onto today's six steps. */
+function budgetOf(input: BusinessInput): BusinessBudget {
+  if (input.budget_scale === 2) return Math.min(6, Math.max(1, input.budget)) as BusinessBudget;
+  return (({ 1: 3, 2: 4, 3: 5, 4: 6 } as Record<number, BusinessBudget>)[input.budget] ?? 4);
+}
 export type BizFacts = { kind: "business"; chart: ReturnType<typeof chartSummary>; biz: BusinessFacts };
 
 export function buildBusinessFacts(input: BusinessInput): BizFacts {
@@ -175,16 +187,76 @@ export function buildBusinessFacts(input: BusinessInput): BizFacts {
   return { kind: "business", chart: chartSummary(chart), biz: analyseBusiness(chart) };
 }
 
-/** Traditional significations (karakatva) per planet, as businesses by starting capital tier. */
+/**
+ * Traditional significations (karakatva) per planet, as businesses by starting capital.
+ * Every planet has two no-money ideas (step 1) and one or more for each higher step.
+ */
 const PLANET_BIZ: Record<string, { field: string; ideas: [BusinessBudget, string][] }> = {
-  Sun: { field: "Sarkari kaam, dawai aur sona-chandi", ideas: [[1, "Online form aur sarkari seva kendra (CSC) ka kaam"], [2, "Medical store ya generic dawai ki dukan"], [2, "Sarkari daftar/school me saman supply ka chhota theka"], [3, "Artificial ya chandi ki jewellery ki dukan"], [4, "Sarkari thekedari ya gas/petrol agency"]] },
-  Moon: { field: "Doodh, khana-peena aur rozmarra ka saman", ideas: [[1, "Doodh, dahi, paneer ki ghar-ghar supply"], [1, "Chai-nashta ya tiffin seva"], [2, "Kirana ya general store"], [3, "Dairy, dhaba ya chhota restaurant"], [4, "Packaged paani ya food processing unit"]] },
-  Mars: { field: "Zameen, nirman, hardware aur bijli ka kaam", ideas: [[1, "Bijli, plumbing ya repair ki seva"], [2, "Hardware ya bijli ke saman ki dukan"], [2, "Fast food ya tandoor ka thela/dukan"], [3, "Building material (cement, sariya) ki dukan"], [4, "Property dealing ya construction ka theka"]] },
-  Mercury: { field: "Kharid-bikri, hisaab-kitab aur mobile/online kaam", ideas: [[1, "Online reselling (WhatsApp, Meesho) ya commission agent"], [1, "Mobile recharge, online form aur photocopy-print"], [2, "Mobile accessories ya stationery ki dukan"], [3, "Thok vyapar ya kisi company ki distribution agency"], [4, "Trading firm, super-stockist ya apna online brand"]] },
-  Jupiter: { field: "Shiksha, salah aur dhan se juda kaam", ideas: [[1, "Ghar se tuition ya coaching"], [2, "Coaching centre ya computer class"], [2, "Bima, mutual fund ya loan ki agency"], [3, "Anaaj-dal ka thok kaam ya puja samagri ki dukan"], [4, "School, finance firm ya consultancy"]] },
-  Venus: { field: "Kapda, shringar, sajawat aur mithai", ideas: [[1, "Ghar se boutique-silai ya mehndi-makeup seva"], [2, "Readymade kapde ya cosmetic-gift ki dukan"], [2, "Beauty parlour ya salon"], [3, "Mithai, bakery ya shaadi decoration ka kaam"], [4, "Garment showroom, jewellery ya banquet/event ka kaam"]] },
-  Saturn: { field: "Loha, tel, transport aur kheti ke saman ka kaam", ideas: [[1, "Kabaad (scrap) ya purane saman ki kharid-bikri"], [2, "Auto parts, tyre ya lubricant ki dukan"], [2, "Khad-beej aur kheti ke auzaar ki dukan"], [3, "Loading gaadi (transport) ya labour contracting"], [4, "Loha/plastic ki factory, godown ya cold storage"]] },
-  Rahu: { field: "Online, electronics aur bahar ke maal ka kaam", ideas: [[1, "Social media, video ya online marketing ki seva"], [2, "Mobile-computer repair aur purane phone ki kharid-bikri"], [2, "CCTV, solar ya electronics ki dukan"], [3, "Import ka maal (khilone, gadgets) ya travel agency"], [4, "Import-export ya technology ka vyapar"]] },
+  Sun: { field: "Sarkari kaam, dawai aur sona-chandi", ideas: [
+    [1, "Sarkari form aur yojanaon me logon ki madad, commission par"],
+    [1, "Dawa companies ke liye medical representative ka kaam"],
+    [2, "Online form, Aadhaar-PAN aur photocopy ki chhoti dukan"],
+    [3, "Jan Seva Kendra (CSC) ya e-mitra centre"],
+    [4, "Medical store ya generic dawai ki dukan"],
+    [4, "Sarkari daftar/school me saman supply ka chhota theka"],
+    [5, "Artificial ya chandi ki jewellery ki dukan"],
+    [6, "Sarkari thekedari ya gas/petrol agency"]] },
+  Moon: { field: "Doodh, khana-peena aur rozmarra ka saman", ideas: [
+    [1, "Ghar ka bana khana, achaar ya papad WhatsApp par bechna"],
+    [1, "Dairy ke liye ghar-ghar doodh pahunchana, commission par"],
+    [2, "Chai-nashta ka thela"],
+    [3, "Tiffin seva ya juice-lassi corner"],
+    [4, "Kirana ya general store"],
+    [5, "Dairy booth, dhaba ya chhota restaurant"],
+    [6, "Packaged paani ya food processing unit"]] },
+  Mars: { field: "Zameen, nirman, hardware aur bijli ka kaam", ideas: [
+    [1, "Kisi thekedar ke saath bijli ya plumbing ka kaam seekhkar karna"],
+    [1, "Property dealer ke saath commission par kaam"],
+    [2, "Bijli-plumbing repair ki seva, apne auzaar lekar"],
+    [3, "Fast food ya tandoor ka thela"],
+    [4, "Hardware ya bijli ke saman ki dukan"],
+    [5, "Building material (cement, sariya) ki dukan"],
+    [6, "Property dealing ya construction ka theka"]] },
+  Mercury: { field: "Kharid-bikri, hisaab-kitab aur mobile/online kaam", ideas: [
+    [1, "Online reselling (WhatsApp, Meesho), bina maal khareede"],
+    [1, "Kisi dukan ya company ke liye commission agent"],
+    [2, "Mobile recharge, online form aur print-photocopy"],
+    [3, "Mobile accessories ki chhoti dukan"],
+    [4, "Stationery ya mobile accessories ki badi dukan"],
+    [5, "Kisi company ki distribution agency"],
+    [6, "Thok vyapar, super-stockist ya apna online brand"]] },
+  Jupiter: { field: "Shiksha, salah aur dhan se juda kaam", ideas: [
+    [1, "Ghar se tuition padhana"],
+    [1, "Bima (LIC) ya mutual fund ka agent banna"],
+    [2, "Online tuition ya ghar par chhoti coaching"],
+    [3, "Puja samagri ya dharmik kitabon ki chhoti dukan"],
+    [4, "Coaching centre ya computer class"],
+    [5, "Anaaj-dal ka thok kaam"],
+    [6, "School, finance firm ya consultancy"]] },
+  Venus: { field: "Kapda, shringar, sajawat aur mithai", ideas: [
+    [1, "Ghar se mehndi, makeup ya silai ka kaam"],
+    [1, "Shaadi-party decoration team ke saath kaam"],
+    [2, "Ghar se boutique ya silai centre"],
+    [3, "Cosmetic aur artificial jewellery ki chhoti dukan"],
+    [4, "Readymade kapde ki dukan ya beauty parlour"],
+    [5, "Mithai, bakery ya shaadi decoration ka kaam"],
+    [6, "Garment showroom, jewellery ya banquet/event ka kaam"]] },
+  Saturn: { field: "Loha, tel, transport aur kheti ke saman ka kaam", ideas: [
+    [1, "Kabaad (scrap) ikattha karke bechna"],
+    [1, "Thekedar ke liye labour jutane ka kaam"],
+    [2, "Purane saman aur scrap ki kharid-bikri"],
+    [3, "Khad-beej ki chhoti dukan"],
+    [4, "Auto parts, tyre ya lubricant ki dukan"],
+    [5, "Loading gaadi (transport) ya labour contracting"],
+    [6, "Loha/plastic ki factory, godown ya cold storage"]] },
+  Rahu: { field: "Online, electronics aur bahar ke maal ka kaam", ideas: [
+    [1, "Social media, video editing ya online marketing ki seva"],
+    [1, "Online freelancing (data entry, design)"],
+    [2, "Mobile-computer repair ka kaam"],
+    [3, "Purane phone ki kharid-bikri"],
+    [4, "CCTV, solar ya electronics ki dukan"],
+    [5, "Import ka maal (khilone, gadgets) ya travel agency"],
+    [6, "Import-export ya technology ka vyapar"]] },
 };
 
 const PLANET_LUCK: Record<string, { day: string; colour: string; direction: string }> = {
@@ -204,7 +276,23 @@ const BIZ_LEVEL: Record<BusinessFacts["level"], { label: string; hi: string; lin
   seva: { label: "Seva kshetra zyada anukool", hi: "सेवा क्षेत्र अनुकूल", line: "Aapki kundli me naukri ya seva wale kaam ke yog zyada majboot hain. Vyapar karna ho to kam poonji aur sajhedari ke saath karein." },
 };
 
-const BUDGET_COPY: Record<BusinessBudget, string> = { 1: "₹50,000 tak", 2: "₹50,000 se ₹2 lakh", 3: "₹2 se ₹10 lakh", 4: "₹10 lakh se zyada" };
+const BUDGET_COPY: Record<BusinessBudget, string> = {
+  1: "Bina poonji",
+  2: "₹25,000 tak",
+  3: "₹25,000 – 50,000",
+  4: "₹50,000 – 2 lakh",
+  5: "₹2 – 5 lakh",
+  6: "₹5 lakh se zyada",
+};
+/** How each idea's starting cost is shown under it. */
+const IDEA_COST: Record<BusinessBudget, string> = {
+  1: "bina poonji ke shuru",
+  2: "₹25,000 tak me shuru",
+  3: "₹25,000 – 50,000 me shuru",
+  4: "₹50,000 – 2 lakh me shuru",
+  5: "₹2 – 5 lakh me shuru",
+  6: "₹5 lakh se upar",
+};
 const PARTNER_COPY: Record<BusinessFacts["partnership"], { title: string; text: string }> = {
   solo: { title: "Akele karna behtar", text: "Aapke saptam bhaav ki sthiti sajhedari me vivaad ke sanket deti hai. Malikana haq apne paas rakhein, madad ke liye karmchari rakhein." },
   partner: { title: "Sajhedari shubh hai", text: "Saptam bhaav majboot hai. Bharosemand partner ke saath kaam tezi se badhega. Hissedari aur zimmedari likhit me rakhein." },
@@ -219,16 +307,17 @@ const SITUATION_TIP: Record<BusinessSituation, string> = {
 
 function businessSections(input: BusinessInput, f: BizFacts) {
   const b = f.biz;
+  const budget = budgetOf(input);
   const rulers = b.rulers.filter((p) => PLANET_BIZ[p]);
   const top = rulers[0] ?? "Mercury";
   // Two ideas per ruling planet, closest to the person's budget first.
   const ideas: { text: string; planet: string; field: string; budget: string }[] = [];
   for (const p of rulers) {
     const fit = PLANET_BIZ[p].ideas
-      .filter(([tier]) => tier <= input.budget)
+      .filter(([tier]) => tier <= budget)
       .sort((x, y) => y[0] - x[0])
       .slice(0, 2);
-    for (const [tier, text] of fit) ideas.push({ text, planet: PLANET_HINGLISH[p as PlanetName], field: PLANET_BIZ[p].field, budget: BUDGET_COPY[tier] });
+    for (const [tier, text] of fit) ideas.push({ text, planet: PLANET_HINGLISH[p as PlanetName], field: PLANET_BIZ[p].field, budget: IDEA_COST[tier] });
   }
   const luck = PLANET_LUCK[top];
   return {
@@ -237,7 +326,7 @@ function businessSections(input: BusinessInput, f: BizFacts) {
     reasons: b.reasons,
     fields: rulers.map((p) => ({ planet: PLANET_HINGLISH[p as PlanetName], field: PLANET_BIZ[p].field })),
     ideas: ideas.slice(0, 6),
-    budget: BUDGET_COPY[input.budget],
+    budget: BUDGET_COPY[budget],
     partnership: PARTNER_COPY[b.partnership],
     timing: {
       start: `${monthYear(b.startWindow.start)} se ${monthYear(b.startWindow.end)}`,
@@ -247,7 +336,10 @@ function businessSections(input: BusinessInput, f: BizFacts) {
     name: { letters: b.nameLetters, note: "Dukan ya business ka naam in aksharon se rakhna shubh maana jaata hai." },
     luck,
     cautions: b.cautions,
-    tip: SITUATION_TIP[input.situation],
+    tip:
+      budget === 1
+        ? "Bina poonji ke shuruaat ka sabse achha tareeka: pehle kisi aur ke saath ya commission par kaam karein, aur pehli kamai se apna saman ya auzaar khareedein."
+        : SITUATION_TIP[input.situation],
     snapshot: [
       { label: "Lagna", value: f.chart.lagna ?? "Chandra lagna (janm samay nahi tha)" },
       { label: "Dasham bhaav (karm)", value: `${RASHI[b.tenthSign].en} rashi` },

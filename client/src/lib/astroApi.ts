@@ -100,10 +100,11 @@ export const createWapasPreview = (payload: { self: SelfDetails; partner: Partne
     body: JSON.stringify({ device_id: getDeviceId(), ...payload }),
   });
 
-export const createBusinessPreview = (payload: SelfDetails & { situation: BusinessSituation; budget: 1 | 2 | 3 | 4 }) =>
+export type BusinessBudget = 1 | 2 | 3 | 4 | 5 | 6;
+export const createBusinessPreview = (payload: SelfDetails & { situation: BusinessSituation; budget: BusinessBudget }) =>
   request<BusinessReport>("/api/astro/business/preview", {
     method: "POST",
-    body: JSON.stringify({ device_id: getDeviceId(), ...payload }),
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload, budget_scale: 2 }),
   });
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {

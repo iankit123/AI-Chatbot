@@ -10,7 +10,7 @@ import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
 import {
   cacheReport, createBusinessPreview, lastReportId, logAstro, rememberReport, saveSelf, shareOnWhatsApp, trackAstro, wait,
-  type BusinessReport, type BusinessSituation,
+  type BusinessBudget, type BusinessReport, type BusinessSituation,
 } from "@/lib/astroApi";
 
 export default function BusinessReportPage() {
@@ -31,11 +31,14 @@ const SITUATIONS: { value: BusinessSituation; label: string }[] = [
   { value: "berozgar", label: "Abhi kaam nahi hai" },
   { value: "student", label: "Padhai kar raha/rahi hun" },
 ];
-const BUDGETS: { value: "1" | "2" | "3" | "4"; label: string }[] = [
-  { value: "1", label: "₹50 hazaar tak" },
-  { value: "2", label: "₹50 hazaar – 2 lakh" },
-  { value: "3", label: "₹2 – 10 lakh" },
-  { value: "4", label: "₹10 lakh se zyada" },
+type BudgetValue = "1" | "2" | "3" | "4" | "5" | "6";
+const BUDGETS: { value: BudgetValue; label: string }[] = [
+  { value: "1", label: "Bina poonji" },
+  { value: "2", label: "₹25 hazaar tak" },
+  { value: "3", label: "₹25 – 50 hazaar" },
+  { value: "4", label: "₹50 hazaar – 2 lakh" },
+  { value: "5", label: "₹2 – 5 lakh" },
+  { value: "6", label: "₹5 lakh se zyada" },
 ];
 
 /** Shop shutter with shubh-labh and a rising line: the audience's own picture of a good start. */
@@ -75,7 +78,7 @@ function Landing() {
   const [, navigate] = useLocation();
   const self = useSelfForm();
   const [situation, setSituation] = useState<BusinessSituation | "">("");
-  const [budget, setBudget] = useState<"1" | "2" | "3" | "4" | "">("");
+  const [budget, setBudget] = useState<BudgetValue | "">("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -98,7 +101,7 @@ function Landing() {
     trackAstro("astro_form_submitted", "business", { situation, budget });
     try {
       const [report] = await Promise.all([
-        createBusinessPreview({ ...me, situation, budget: Number(budget) as 1 | 2 | 3 | 4 }),
+        createBusinessPreview({ ...me, situation, budget: Number(budget) as BusinessBudget }),
         wait(5200),
       ]);
       saveSelf(me);
@@ -195,7 +198,7 @@ function Landing() {
           items={[
             { q: "Yeh kaise pata chalta hai?", a: "Kundli ka dasham bhaav karm ka, saptam vyapar ka aur gyarahvan labh ka hota hai. In bhaavon ke swami aur unme baithe graha batate hain ki kaun sa kshetra aapke liye anukool hai." },
             { q: "Kya isse kamai ki guarantee hai?", a: "Nahi. Jyotish anukool disha aur samay batata hai. Mehnat, bazaar ki samajh aur hisaab-kitab utne hi zaroori hain." },
-            { q: "Mere paas kam paisa hai, to?", a: "Report me sujhaav aapki batayi poonji ke andar hi diye jaate hain, ₹50 hazaar se kam wale vikalp bhi." },
+            { q: "Mere paas kam paisa hai, to?", a: "Report me sujhaav aapki batayi poonji ke andar hi diye jaate hain. Bina poonji ke shuru hone wale kaam bhi milte hain." },
             { q: "Janm samay pata nahi ho to?", a: "Tab report Chandra kundli se banti hai. Kshetra aur samay phir bhi milte hain, bas lagna aadharit baatein thodi kam sateek hoti hain." },
           ]}
         />
@@ -329,7 +332,7 @@ function ReportView({ id }: { id: string }) {
             {s.ideas.map((idea, i) => (
               <li key={idea.text} className="rounded-xl bg-[#fffaf0] px-3.5 py-3 ring-1 ring-[#e6d6b6]">
                 <p className="ink text-[14.5px] font-semibold leading-snug">{i + 1}. {idea.text}</p>
-                <p className="ink-soft mt-1 text-[12px]">{idea.planet} · lagbhag {idea.budget} me</p>
+                <p className="ink-soft mt-1 text-[12px]">{idea.planet} · {idea.budget}</p>
               </li>
             ))}
           </ol>
