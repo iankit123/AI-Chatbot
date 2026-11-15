@@ -80,20 +80,29 @@ async function paidRazorpayPayment(orderId: string): Promise<string | null> {
   return paid?.id ?? null;
 }
 
+/** The phone the buyer typed on Razorpay's checkout, as 10 digits, or null. */
+export async function razorpayBuyerPhone(gatewayPaymentId: string): Promise<string | null> {
+  const payment = await razorpayGet<{ contact?: string }>(`payments/${encodeURIComponent(gatewayPaymentId)}`);
+  const digits = (payment?.contact ?? "").replace(/\D/g, "").slice(-10);
+  return digits.length === 10 ? digits : null;
+}
+
+/** Save the buyer's phone on the payment row and link it to the device's profile. */
+export async function rememberBuyerPhone(paymentRowId: string, deviceId: string, digits: string): Promise<void> {
+  await setPaymentPhone(paymentRowId, digits);
+  // Link this device's profile to the number, so the buyer is the same person across devices and products.
+  await upsertProfileRow({ deviceId, phoneNumber: digits });
+}
+
 /**
- * Report buyers enter their phone on Razorpay's own screen, not ours. Copy it onto the
- * payment row and the device's profile, so the owner can send the report link to a buyer
- * who loses the page.
+ * Fallback for payments completed before the phone was fetched at payment time: report buyers
+ * enter their phone on Razorpay's own screen, not ours, so copy it over when the report opens.
  */
 async function captureBuyerPhone(paymentRowId: string): Promise<void> {
   const row = await getPaymentForContact(paymentRowId);
   if (!row?.gateway_payment_id || (row.phone_number ?? "").replace(/\D/g, "").length === 10) return;
-  const payment = await razorpayGet<{ contact?: string }>(`payments/${encodeURIComponent(row.gateway_payment_id)}`);
-  const digits = (payment?.contact ?? "").replace(/\D/g, "").slice(-10);
-  if (digits.length !== 10) return;
-  await setPaymentPhone(paymentRowId, digits);
-  // Link this device's profile to the number, so the buyer is the same person across devices and products.
-  await upsertProfileRow({ deviceId: row.device_id, phoneNumber: digits });
+  const digits = await razorpayBuyerPhone(row.gateway_payment_id);
+  if (digits) await rememberBuyerPhone(paymentRowId, row.device_id, digits);
 }
 
 /** True when this report already has a completed payment (including one Razorpay has but we never heard about). */
@@ -122,14 +131,21 @@ async function reconcileWithRazorpay(row: AstroReportRow, req?: Request): Promis
   for (const p of open) {
     const gatewayPaymentId = await paidRazorpayPayment(p.gateway_order_id);
     if (!gatewayPaymentId) continue;
-    const result = await completePaymentSuccess({
-      paymentId: p.id,
-      paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
-      gatewayOrderId: p.gateway_order_id,
-      gatewayPaymentId,
-    });
+    const [result, buyerPhone] = await Promise.all([
+      completePaymentSuccess({
+        paymentId: p.id,
+        paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
+        gatewayOrderId: p.gateway_order_id,
+        gatewayPaymentId,
+      }),
+      razorpayBuyerPhone(gatewayPaymentId).catch(() => null),
+    ]);
     console.log(`[astro] reconciled payment ${p.id} order=${p.gateway_order_id} report=${row.id}`);
     const purchase = "purchase" in result ? result.purchase : null;
+    const phone = purchase?.phone_digits || buyerPhone;
+    if (purchase && !purchase.phone_digits && buyerPhone) {
+      await rememberBuyerPhone(p.id, purchase.device_id, buyerPhone).catch((err) => console.error("[astro] saving buyer phone failed:", err));
+    }
     if (purchase && req) {
       // The browser never sent its Purchase, so tell Meta from here (same event id as the Pixel would use).
       await sendMetaConversionEvent({
@@ -137,7 +153,8 @@ async function reconcileWithRazorpay(row: AstroReportRow, req?: Request): Promis
         eventId: metaPurchaseEventId(p.gateway_order_id),
         context: metaContextFromRequest(req, null),
         deviceId: purchase.device_id,
-        phoneDigits: purchase.phone_digits,
+        // Hashed by sendMetaConversionEvent; lets Meta match the buyer for Purchase audiences and lookalikes.
+        phoneDigits: phone,
         customData: {
           value: purchase.amount_rupees,
           currency: "INR",

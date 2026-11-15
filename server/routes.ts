@@ -37,7 +37,7 @@ import {
 } from "./services/kundliProfile";
 import { buildKundliReading } from "./services/kundliChart";
 import { insertAppEventRow } from "./services/appEvents";
-import { registerAstroRoutes, reportAlreadyPaid } from "./astroRoutes";
+import { razorpayBuyerPhone, registerAstroRoutes, rememberBuyerPhone, reportAlreadyPaid } from "./astroRoutes";
 import { findReportPaymentStatuses, getReport as getAstroReport } from "./services/astro/store";
 import { ASTRO_PRICES, ASTRO_PRODUCT_TYPES, astroTypeFromProduct } from "@shared/astroProducts";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
@@ -724,13 +724,25 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Payment record not found for this order" });
       }
 
-      const result = await completePaymentSuccess({
-        paymentId,
-        paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
-        gatewayOrderId: body.razorpay_order_id,
-        gatewayPaymentId: body.razorpay_payment_id,
-      });
+      const confirmedPaymentId = paymentId;
+      // Ask Razorpay for the phone the buyer typed on its checkout while the payment is being
+      // completed, so the buyer waits no longer. Report buyers give their number only there.
+      const [result, razorpayPhone] = await Promise.all([
+        completePaymentSuccess({
+          paymentId: confirmedPaymentId,
+          paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
+          gatewayOrderId: body.razorpay_order_id,
+          gatewayPaymentId: body.razorpay_payment_id,
+        }),
+        razorpayBuyerPhone(body.razorpay_payment_id).catch(() => null),
+      ]);
       const { purchase, ...billing } = "purchase" in result ? result : { ...result, purchase: null };
+      const buyerPhone = purchase?.phone_digits || razorpayPhone;
+      if (purchase && !purchase.phone_digits && razorpayPhone) {
+        await rememberBuyerPhone(confirmedPaymentId, purchase.device_id, razorpayPhone).catch((err) =>
+          console.error("[razorpay] saving buyer phone failed:", err),
+        );
+      }
 
       // Server-side Purchase for Meta, sent once when the payment is completed. Same event id
       // as the Pixel's Purchase (from clients that send `meta`), so Meta counts it once.
@@ -740,7 +752,8 @@ export async function registerRoutes(
           eventId: metaPurchaseEventId(body.razorpay_order_id),
           context: metaContextFromRequest(req, body.meta),
           deviceId: purchase.device_id,
-          phoneDigits: purchase.phone_digits,
+          // Hashed by sendMetaConversionEvent; lets Meta match the buyer for Purchase audiences and lookalikes.
+          phoneDigits: buyerPhone,
           customData: {
             value: purchase.amount_rupees,
             currency: "INR",
