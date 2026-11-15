@@ -1,6 +1,6 @@
 /** Product codes sent to Razorpay (checkout + order notes). Full labels stay in our DB only. */
 
-export type RazorpayProductCode = "CR" | "PP" | "VC" | "PM" | "SR" | "MR" | "WR" | "BR" | "QP" | "OT";
+export type RazorpayProductCode = "CR" | "PP" | "VC" | "PM" | "SR" | "MR" | "WR" | "BR" | "NR" | "QP" | "OT";
 
 export const RAZORPAY_MERCHANT_DISPLAY_NAME = "Puchlo.in";
 
@@ -13,6 +13,7 @@ const PRODUCT_TYPE_TO_CODE: Record<string, RazorpayProductCode> = {
   milan_report: "MR",
   wapas_report: "WR",
   business_report: "BR",
+  naukri_report: "NR",
   question_pack: "QP",
   other: "OT",
 };

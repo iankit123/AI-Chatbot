@@ -90,7 +90,38 @@ export type BusinessReport = {
   narrative?: { summary: string; why: string; how: string; caution: string } | null;
 };
 
-export type AstroReport = ShaadiReport | MilanReport | WapasReport | BusinessReport;
+export type NaukriStatus = "taiyari" | "result" | "private" | "attempts";
+export type NaukriTarget = "railway" | "ssc_bank" | "police_army" | "teacher" | "upsc_pcs" | "open";
+export type NaukriReport = {
+  id: string; type: "naukri"; paid: boolean; price: Price; name: string; status: NaukriStatus; target: NaukriTarget;
+  chart: ShaadiReport["chart"]; dasha: string; yogCount: number;
+  /** Free preview only. */
+  firstYog?: string | null; obstacleCount?: number; hasWindow?: boolean;
+  sections?: {
+    level: { label: string; hi: string; line: string }; meter: number;
+    yogas: { key: string; name: string; text: string }[];
+    timing: { first: string | null; best: string | null; bestYear: number | null; dasha: string; bestDasha: string | null; jupiter: string | null; now: string; others: string[] };
+    fields: { planet: string; field: string; exams: string }[];
+    target: { label: string; note: string; match: boolean | null };
+    competition: { label: string; text: string };
+    status: { title: string; text: string };
+    obstacles: string[];
+    shani: { title: string; text: string } | null;
+    doList: string[]; dontList: string[]; upay: string[];
+    luck: { day: string; colour: string };
+    snapshot: { label: string; value: string }[];
+    basisNote: string;
+  };
+  narrative?: { summary: string; timing: string; field: string; advice: string } | null;
+};
+
+export type AstroReport = ShaadiReport | MilanReport | WapasReport | BusinessReport | NaukriReport;
+
+export const createNaukriPreview = (payload: SelfDetails & { status: NaukriStatus; target: NaukriTarget }) =>
+  request<NaukriReport>("/api/astro/naukri/preview", {
+    method: "POST",
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload }),
+  });
 
 export type PartnerDetails = { name: string; dob: string | null; tob: string | null; place: string | null };
 

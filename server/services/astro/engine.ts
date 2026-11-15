@@ -754,3 +754,205 @@ export function analyseBusiness(chart: Chart, now = new Date()): BusinessFacts {
     reasons: reasons.slice(0, 4),
   };
 }
+
+// ---------------------------------------------------------------- Sarkari naukri (government job) analysis
+
+const ORDINAL = ["", "pehle", "doosre", "teesre", "chauthe", "paanchve", "chhathe", "saatve", "aathve", "naunve", "dasve", "gyarahve", "barahve"];
+/** House numbers as people say them: "pehle bhaav", "dasve bhaav". */
+export const bhaav = (n: number) => `${ORDINAL[n] ?? `${n}ve`} bhaav`;
+
+export type SarkariYog = { key: string; name: string; text: string };
+export type SarkariWindow = { start: string; end: string; md: PlanetName; ad: PlanetName; strength: number; jupiter: boolean };
+
+export type SarkariFacts = {
+  score: number;
+  level: "prabal" | "madhyam" | "sangharsh";
+  /** Classical government-service combinations found in the chart, strongest first. */
+  yogas: SarkariYog[];
+  /** What slows things down (weak Sun, 10th lord in 8/12, Saturn's transit over the Moon). */
+  obstacles: string[];
+  tenthSign: number;
+  tenthLord: PlanetName;
+  tenthLordHouse: number;
+  sixthLord: PlanetName;
+  sixthLordHouse: number;
+  sunHouse: number;
+  /** Planets that point to a kind of government work, strongest first. */
+  fields: PlanetName[];
+  competition: "prabal" | "madhyam" | "kam";
+  current: { md: PlanetName; ad: PlanetName; end: string; favourable: boolean };
+  /** Upcoming stretches when the dasha activates service and the 10th house, soonest first. */
+  windows: SarkariWindow[];
+  /** The strongest of those stretches. */
+  best: SarkariWindow | null;
+  shani: { kind: "sade_sati" | "dhaiya" | null; phase: 1 | 2 | 3 | null; until: string | null };
+};
+
+/** Saturn's sidereal sign on a date. */
+const saturnSign = (d: Date) => Math.floor(siderealLongitudes(d).Saturn / 30);
+const jupiterSign = (d: Date) => Math.floor(siderealLongitudes(d).Jupiter / 30);
+
+/** Sade sati (Saturn in the 12th, 1st or 2nd from the Moon) or dhaiya (4th or 8th), and when it ends. */
+function shaniTransit(moonSign: number, now: Date): SarkariFacts["shani"] {
+  const kindAt = (d: Date) => {
+    const h = houseOf(saturnSign(d), moonSign);
+    if (h === 12 || h === 1 || h === 2) return { kind: "sade_sati" as const, phase: (h === 12 ? 1 : h === 1 ? 2 : 3) as 1 | 2 | 3 };
+    if (h === 4 || h === 8) return { kind: "dhaiya" as const, phase: null };
+    return { kind: null, phase: null };
+  };
+  const cur = kindAt(now);
+  if (!cur.kind) return { kind: null, phase: null, until: null };
+  // Saturn spends about 2.5 years per sign; step by month for up to 8 years to find the end.
+  let d = addMonths(now, 1);
+  for (let i = 0; i < 96; i++, d = addMonths(d, 1)) {
+    if (kindAt(d).kind !== cur.kind) return { ...cur, until: iso(d) };
+  }
+  return { ...cur, until: null };
+}
+
+export function analyseSarkari(chart: Chart, now = new Date()): SarkariFacts {
+  const base = chart.baseSign;
+  const planets = Object.keys(chart.signOf) as PlanetName[];
+  const lordOf = (house: number) => RASHI[signOfHouse(house, base)].lord as PlanetName;
+  const H = (p: PlanetName) => houseOf(chart.signOf[p], base);
+  const strong = (p: PlanetName) => (OWN_OR_EXALTED[p] ?? []).includes(chart.signOf[p]);
+  const KENDRA = [1, 4, 7, 10];
+
+  const tenthSign = signOfHouse(10, base);
+  const tenthLord = lordOf(10), sixthLord = lordOf(6), eleventhLord = lordOf(11), fifthLord = lordOf(5);
+  const tenthLordHouse = H(tenthLord), sixthLordHouse = H(sixthLord);
+  const sunHouse = H("Sun");
+  const inTenth = planets.filter((p) => H(p) === 10);
+  const inSixth = planets.filter((p) => H(p) === 6);
+  const sunDebilitated = chart.signOf.Sun === 6; // Tula
+
+  let score = 30;
+  const yogas: (SarkariYog & { w: number })[] = [];
+  const add = (w: number, key: string, name: string, text: string) => { score += w; yogas.push({ key, name, text, w }); };
+
+  // The Sun is the karak of government and authority.
+  if (sunHouse === 10) add(18, "sun10", "Surya dasham bhaav me", "Sarkar ka karak Surya karm bhaav me baitha hai. Sarkari pad ka yeh sabse bada yog maana jaata hai.");
+  else if (sunHouse === 4) add(12, "sun4", "Surya ki dasham par drishti", "Surya chauthe bhaav se seedha karm bhaav (dasham) ko dekh raha hai. Sarkari kshetra se judaav ka yog.");
+  else if ([1, 9, 11].includes(sunHouse)) add(8, "sunGood", "Surya shubh bhaav me", `Surya ${bhaav(sunHouse)} me hai, jo maan-samman aur sarkar se laabh ka sanket hai.`);
+  else if (sunHouse === 6) add(8, "sun6", "Surya chhathe bhaav me", "Chhatha bhaav naukri aur pratiyogita ka hai. Yahan Surya virodhiyon par jeet aur seva kshetra me safalta deta hai.");
+  if (strong("Sun")) add(8, "sunStrong", "Bali Surya", `Surya apni uchch ya swa-rashi (${RASHI[chart.signOf.Sun].en}) me hai. Adhikaar aur pad ke yog majboot hain.`);
+  if (tenthLord === "Sun" || chart.signOf[tenthLord] === chart.signOf.Sun) {
+    add(8, "sunTenthLord", "Dashamesh aur Surya ka sambandh", "Karm bhaav ke swami ka Surya se seedha sambandh hai, jo kaam ko sarkari disha deta hai.");
+  }
+  // 10th lord (career) and its link with the 6th (service) and 11th (gains).
+  if ([1, 4, 5, 7, 9, 10, 11].includes(tenthLordHouse)) add(8, "tenthLordGood", "Dashamesh shubh bhaav me", `Karm bhaav ke swami ${PLANET_HINGLISH[tenthLord]} ${bhaav(tenthLordHouse)} me bal de rahe hain.`);
+  if (tenthLordHouse === 6 || sixthLordHouse === 10) add(8, "seva", "Seva yog", "Dasham (karm) aur chhathe (naukri) bhaav ka sambandh hai. Kundli apne kaam se zyada naukri ki taraf jhukti hai.");
+  if (tenthLordHouse === 11 || H(eleventhLord) === 10) add(6, "labh", "Dashamesh-labhesh yog", "Karm aur laabh bhaav ke swami ek doosre ke ghar me hain. Naukri se sthir aamdani ke yog.");
+  // Competition: malefics in the 6th beat rivals; Rahu in upachaya brings sudden selection.
+  const sixthMalefics = inSixth.filter((p) => ["Mars", "Saturn", "Rahu"].includes(p));
+  if (sixthMalefics.length) add(7, "shatru", "Shatruhanta yog", `${sixthMalefics.map((p) => PLANET_HINGLISH[p]).join(" aur ")} chhathe bhaav me pratiyogita me doosron se aage nikalne ki shakti dete hain.`);
+  if ([3, 6, 10, 11].includes(H("Rahu"))) add(5, "rahu", "Rahu upchay bhaav me", "Rahu pratiyogi pariksha me achanak safalta aur badi bheed me se chune jaane ka sanket deta hai.");
+  // Saturn is the karak of service and a permanent post.
+  if ([6, 10, 11].includes(H("Saturn")) || (strong("Saturn") && KENDRA.includes(H("Saturn")))) {
+    add(6, "shani", "Shani ka seva yog", `Naukri aur sthirta ke karak Shani ${bhaav(H("Saturn"))} me hain. Der se sahi, par pakki naukri ke sanket.`);
+  }
+  // Jupiter in a kendra from the Moon: Gaj Kesari, respect and protection from authority.
+  if (KENDRA.includes(houseOf(chart.signOf.Jupiter, chart.moonSign))) add(6, "gajkesari", "Gaj Kesari yog", "Guru Chandra se kendra me hain. Samaj aur sarkar dono se maan milne ka prasiddh yog.");
+  if (inTenth.includes("Mars") || (strong("Mars") && KENDRA.includes(H("Mars")))) add(5, "mangal", "Bali Mangal", "Mangal karm bhaav se juda aur bali hai. Vardi wali naukri (police, sena) ke yog.");
+  if ([1, 4, 5, 9, 10, 11].includes(H(fifthLord))) add(4, "vidya", "Vidya bhaav majboot", `Padhai aur buddhi ke swami ${PLANET_HINGLISH[fifthLord]} shubh bhaav me hain. Pariksha ki taiyari ka phal milta hai.`);
+
+  const obstacles: string[] = [];
+  if (sunDebilitated) { score -= 8; obstacles.push("Surya neech rashi (Tula) me hai: sarkari kaam me der aur adhikariyon se takrav ke sanket"); }
+  else if ([8, 12].includes(sunHouse)) { score -= 6; obstacles.push(`Surya ${bhaav(sunHouse)} me hai: sarkari kaam me baar baar rukavat ya der`); }
+  if ([8, 12].includes(tenthLordHouse)) { score -= 8; obstacles.push(`Karm bhaav ke swami ${PLANET_HINGLISH[tenthLord]} ${bhaav(tenthLordHouse)} me hain: mehnat ka phal der se`); }
+  if (inTenth.includes("Ketu")) { score -= 3; obstacles.push("Ketu karm bhaav me hai: kaam ko lekar uljhan, disha baar baar badalne ka mann"); }
+  if (H("Saturn") === 10) obstacles.push("Shani karm bhaav me hain: naukri pakki milti hai, par 2-3 koshishon ke baad");
+
+  const shani = shaniTransit(chart.moonSign, now);
+  if (shani.kind === "sade_sati") { score -= 4; obstacles.push(`Shani ki sade sati (${shani.phase === 1 ? "pehla" : shani.phase === 2 ? "beech ka" : "aakhri"} charan) chal rahi hai: mehnat zyada, phal dheere`); }
+  else if (shani.kind === "dhaiya") { score -= 2; obstacles.push("Shani ki dhaiya chal rahi hai: kaam me bojh aur der ke sanket"); }
+
+  score = Math.round(Math.max(22, Math.min(92, score)));
+  const level: SarkariFacts["level"] = score >= 60 ? "prabal" : score >= 41 ? "madhyam" : "sangharsh";
+
+  // Which kind of government work the chart leans to.
+  const weight = new Map<PlanetName, number>();
+  const bump = (p: PlanetName, w: number) => weight.set(p, (weight.get(p) ?? 0) + w);
+  inTenth.forEach((p) => bump(p, 3));
+  bump(tenthLord, 3);
+  planets.forEach((p) => { if (strong(p)) bump(p, 2); if (KENDRA.includes(H(p))) bump(p, 1); });
+  if ([3, 6, 11].includes(H("Mars"))) bump("Mars", 1);
+  if ([6, 11].includes(H("Saturn"))) bump("Saturn", 1);
+  if ([5, 9].includes(H("Jupiter"))) bump("Jupiter", 1);
+  bump("Sun", 0.5);
+  weight.delete("Ketu");
+  const fields = Array.from(weight.entries()).sort((a, b) => b[1] - a[1]).map(([p]) => p).slice(0, 3);
+
+  let comp = sixthMalefics.length * 2 + ([3, 6, 11].includes(H("Rahu")) ? 1 : 0) + ([3, 6, 10, 11].includes(H("Mars")) ? 1 : 0) + ([3, 6, 10, 11].includes(sixthLordHouse) ? 1 : 0);
+  if ([8, 12].includes(sixthLordHouse)) comp -= 1;
+  const competition: SarkariFacts["competition"] = comp >= 3 ? "prabal" : comp >= 1 ? "madhyam" : "kam";
+
+  // Timing: dasha periods of the 10th, 6th and 11th lords, the Sun, planets in the 10th, and a
+  // well-placed Saturn or Rahu. Jupiter's transit over the 10th (from lagna or Moon) adds weight.
+  const fav = new Set<PlanetName>([tenthLord, sixthLord, eleventhLord, "Sun", ...inTenth]);
+  if ([6, 10, 11].includes(H("Saturn"))) fav.add("Saturn");
+  if ([3, 6, 10, 11].includes(H("Rahu"))) fav.add("Rahu");
+  fav.delete("Ketu");
+  const tenthTargets = [tenthSign, signOfHouse(10, chart.moonSign)];
+  const jupiterOnTenth = (d: Date) => {
+    const j = jupiterSign(d);
+    const touched = [j, (j + 4) % 12, (j + 6) % 12, (j + 8) % 12];
+    return tenthTargets.some((t) => touched.includes(t));
+  };
+  const horizon = addMonths(now, 48);
+  const dashas = vimshottari(chart);
+  const curPeriod = dashas.filter((p) => p.end > now)[0];
+  const curSub = pratyantars(curPeriod).find((s) => s.end > now)!;
+  const subs = dashas
+    .filter((p) => p.end > now && p.start < horizon)
+    .flatMap(pratyantars)
+    .filter((s) => s.end > now && s.start < horizon)
+    .map((s) => {
+      const mid = new Date((Math.max(s.start.getTime(), now.getTime()) + s.end.getTime()) / 2);
+      const jup = jupiterOnTenth(mid);
+      const strength = (fav.has(s.ad) ? 2 : 0) + (fav.has(s.pd) ? 1 : 0) + (fav.has(s.md) ? 1 : 0) + (jup ? 1 : 0);
+      return { ...s, start: new Date(Math.max(s.start.getTime(), now.getTime())), strength, jup };
+    });
+  // A stretch counts when the antardasha or the pratyantar is a service planet and the total reaches
+  // `min`. Charts with no such stretch in four years fall back to the weaker ones (min 2).
+  type Open = { start: Date; end: Date; md: PlanetName; ad: PlanetName; strength: number; jupiter: boolean };
+  const toWindow = (w: Open): SarkariWindow => {
+    const end = new Date(Math.min(w.end.getTime(), addMonths(w.start, 7).getTime()));
+    return { start: iso(w.start), end: iso(end), md: w.md, ad: w.ad, strength: w.strength, jupiter: w.jupiter };
+  };
+  const stretches = (min: number): SarkariWindow[] => {
+    const merged: SarkariWindow[] = [];
+    let open: Open | null = null;
+    for (const s of subs) {
+      const good = (fav.has(s.ad) || fav.has(s.pd)) && s.strength >= min;
+      if (good && open && s.start.getTime() - open.end.getTime() < 86400000) {
+        open.end = s.end;
+        open.strength = Math.max(open.strength, s.strength);
+        open.jupiter = open.jupiter || s.jup;
+      } else if (good) {
+        if (open) merged.push(toWindow(open));
+        open = { start: s.start, end: s.end, md: s.md, ad: s.ad, strength: s.strength, jupiter: s.jup };
+      } else if (open) {
+        merged.push(toWindow(open));
+        open = null;
+      }
+    }
+    if (open) merged.push(toWindow(open));
+    return merged.filter((w) => new Date(w.end).getTime() - new Date(w.start).getTime() >= 30 * 86400000);
+  };
+  let windows = stretches(3);
+  if (!windows.length) windows = stretches(2);
+  windows = windows.slice(0, 4);
+  // Strongest first, then soonest.
+  const best = windows.slice().sort((a, b) => b.strength - a.strength || a.start.localeCompare(b.start))[0] ?? null;
+
+  return {
+    score, level,
+    yogas: yogas.sort((a, b) => b.w - a.w).map(({ w: _w, ...y }) => y),
+    obstacles: obstacles.slice(0, 4),
+    tenthSign, tenthLord, tenthLordHouse, sixthLord, sixthLordHouse, sunHouse,
+    fields, competition,
+    current: { md: curPeriod.md, ad: curPeriod.ad, end: iso(curPeriod.end), favourable: fav.has(curPeriod.ad) || fav.has(curSub.pd) },
+    windows, best, shani,
+  };
+}

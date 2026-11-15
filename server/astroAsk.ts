@@ -20,6 +20,7 @@ import {
 } from "./services/astro/engine";
 import { milanView, monthYear, shaadiView } from "./services/astro/reports";
 import { businessView, wapasView } from "./services/astro/reports2";
+import { naukriView } from "./services/astro/naukri";
 import { getReport, type AstroReportRow } from "./services/astro/store";
 
 
@@ -150,6 +151,7 @@ function reportFindings(row: AstroReportRow) {
     row.report_type === "shaadi" ? shaadiView(r)
     : row.report_type === "milan" ? milanView(r)
     : row.report_type === "wapas" ? wapasView(r)
+    : row.report_type === "naukri" ? naukriView(r)
     : businessView(r);
   return JSON.stringify({ report: row.report_type, nishkarsh: v.sections, saar: v.narrative?.summary }).slice(0, 3500);
 }

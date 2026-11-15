@@ -421,6 +421,16 @@
   --ink: #2a1610;
   --ink-soft: #745e51;
 }
+/* /naukri: dusk navy with marigold saffron, the Sun's colour (the karak of government). */
+.astro.ed.ed-naukri {
+  --ed-bg: #0d0e1a;
+  --ed-surface: #171a2a;
+  --ed-accent: #f4b250;
+  --ed-accent-ink: #2a1904;
+  --ed-muted: #b5adbf;
+  --ink: #1d1a2c;
+  --ink-soft: #625b73;
+}
 .astro.ed .stars { display: none; }
 .astro.ed .paper {
   background: var(--paper);
@@ -440,12 +450,14 @@
   box-shadow: 0 14px 32px -16px rgba(242, 167, 186, 0.75);
 }
 .astro.ed.ed-milan .btn-gold { box-shadow: 0 14px 32px -16px rgba(233, 185, 106, 0.75); }
+.astro.ed.ed-naukri .btn-gold { box-shadow: 0 14px 32px -16px rgba(244, 178, 80, 0.7); }
 .astro.ed .btn-ghost { color: var(--ed-text); border-color: var(--ed-line); background: var(--ed-surface); }
 .astro.ed .chip { color: var(--ed-text); border-color: var(--ed-line); background: rgba(255, 255, 255, 0.06); }
 .astro.ed .gold-text { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--ed-text); }
 .astro.ed .gold-rule { background: var(--ed-line); }
 .astro.ed .paybar { background: rgba(16, 10, 20, 0.97); }
 .astro.ed.ed-milan .paybar { background: rgba(19, 11, 11, 0.97); }
+.astro.ed.ed-naukri .paybar { background: rgba(13, 14, 26, 0.97); }
 .astro.ed .field { border-color: #e4d8cf; background: #fff; }
 .astro.ed .field:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(37, 20, 30, 0.12); }
 .astro.ed .label { color: var(--ink-soft); }

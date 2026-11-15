@@ -14,6 +14,7 @@ import {
   buildBusinessFacts, buildWapasFacts, businessNarrative, businessView, wapasNarrative, wapasView,
   type BusinessInput, type WapasInput,
 } from "./services/astro/reports2";
+import { buildNaukriFacts, naukriNarrative, naukriView, type NaukriInput } from "./services/astro/naukri";
 import {
   findOpenPayments,
   findReportPaymentStatuses,
@@ -48,6 +49,7 @@ function view(row: AstroReportRow) {
       case "milan": return milanView(r);
       case "wapas": return wapasView(r);
       case "business": return businessView(r);
+      case "naukri": return naukriView(r);
     }
   })();
   return { ...v, price: priceOfReport(row.report_type, row.price_rupees) };
@@ -176,6 +178,7 @@ function writeNarrative(row: AstroReportRow) {
     case "milan": return milanNarrative(input, facts);
     case "wapas": return wapasNarrative(input, facts);
     case "business": return businessNarrative(input, facts);
+    case "naukri": return naukriNarrative(input, facts);
   }
 }
 
@@ -324,6 +327,29 @@ export function registerAstroRoutes(app: Express) {
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
       console.error("[astro] business preview failed:", error);
+      res.status(500).json({ message: "Report nahi ban payi. Kripya dobara koshish karein." });
+    }
+  });
+
+  app.post("/api/astro/naukri/preview", async (req, res) => {
+    try {
+      const body = selfSchema
+        .extend({
+          device_id: z.string().min(1).max(120),
+          status: z.enum(["taiyari", "result", "private", "attempts"]),
+          target: z.enum(["railway", "ssc_bank", "police_army", "teacher", "upsc_pcs", "open"]),
+        })
+        .parse(req.body);
+      const input: NaukriInput = {
+        name: body.name, gender: body.gender, dob: body.dob, tob: body.tob ?? null, place: body.place,
+        status: body.status, target: body.target,
+      };
+      const facts = buildNaukriFacts(input);
+      const row = await insertReport({ report_type: "naukri", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("naukri", body.device_id) });
+      res.json(view(row));
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
+      console.error("[astro] naukri preview failed:", error);
       res.status(500).json({ message: "Report nahi ban payi. Kripya dobara koshish karein." });
     }
   });

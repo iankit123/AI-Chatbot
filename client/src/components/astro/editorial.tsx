@@ -3,11 +3,11 @@ import { Link } from "wouter";
 import { Check, Quote } from "lucide-react";
 
 /**
- * Photo-led "editorial" look for /wapas and /milan: full-bleed photographs, flat surfaces,
+ * Photo-led "editorial" look for /wapas, /milan and /naukri: full-bleed photographs, flat surfaces,
  * left-aligned type. Scoped by the `ed` class, so /shaadi and /business keep their look.
  * The root keeps the `astro` class so form fields, pay bar and loaders still get their styles.
  */
-export function EditorialShell({ theme, children }: { theme: "wapas" | "milan"; children: ReactNode }) {
+export function EditorialShell({ theme, children }: { theme: "wapas" | "milan" | "naukri"; children: ReactNode }) {
   return (
     <div className={`astro ed ed-${theme}`}>
       <div className="relative mx-auto w-full max-w-md px-4 pb-40">

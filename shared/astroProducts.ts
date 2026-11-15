@@ -1,6 +1,6 @@
 /** Paid astrology reports. Prices are enforced server-side. */
 
-export const ASTRO_REPORT_TYPES = ["shaadi", "milan", "wapas", "business"] as const;
+export const ASTRO_REPORT_TYPES = ["shaadi", "milan", "wapas", "business", "naukri"] as const;
 export type AstroReportType = (typeof ASTRO_REPORT_TYPES)[number];
 
 export type AstroProductType = `${AstroReportType}_report`;
@@ -10,6 +10,7 @@ export const ASTRO_PRODUCT_TYPE = {
   milan: "milan_report",
   wapas: "wapas_report",
   business: "business_report",
+  naukri: "naukri_report",
 } as const satisfies Record<AstroReportType, AstroProductType>;
 
 export const ASTRO_PRODUCT_TYPES = Object.values(ASTRO_PRODUCT_TYPE) as [AstroProductType, ...AstroProductType[]];
@@ -19,6 +20,7 @@ export const ASTRO_PRICES: Record<AstroReportType, { rupees: number; strike: num
   milan: { rupees: 99, strike: 299 },
   wapas: { rupees: 49, strike: 199 },
   business: { rupees: 49, strike: 199 },
+  naukri: { rupees: 49, strike: 199 },
 };
 
 export const ASTRO_ROUTES: Record<AstroReportType, string> = {
@@ -26,6 +28,7 @@ export const ASTRO_ROUTES: Record<AstroReportType, string> = {
   milan: "/milan",
   wapas: "/wapas",
   business: "/business",
+  naukri: "/naukri",
 };
 
 export function astroTypeFromProduct(v: string): AstroReportType | null {
@@ -45,7 +48,7 @@ export function isAstroProductType(v: string): v is AstroProductType {
  * the old 19 slot moves to 39. Keep the slot order when changing prices.
  */
 export const PRICE_TEST_ARMS = [39, 29, 49] as const;
-export const PRICE_TEST_REPORTS: readonly AstroReportType[] = ["shaadi", "wapas", "business"];
+export const PRICE_TEST_REPORTS: readonly AstroReportType[] = ["shaadi", "wapas", "business", "naukri"];
 const PRICE_TEST_SALT = "price-test-2";
 const STRIKE_FOR: Record<number, number> = { 19: 99, 29: 149, 39: 179, 49: 199, 99: 299 };
 

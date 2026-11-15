@@ -21,6 +21,7 @@ import ShaadiReportPage from "./pages/ShaadiReport";
 import MilanReportPage from "./pages/MilanReport";
 import WapasReportPage from "./pages/WapasReport";
 import BusinessReportPage from "./pages/BusinessReport";
+import NaukriReportPage from "./pages/NaukriReport";
 import { ChatProvider } from "./context/ChatContext";
 import { SupportBlockedPage } from "@/components/SupportBlockedPage";
 import { isSupportBlocked } from "@/lib/supportBlock";
@@ -50,7 +51,7 @@ function Router() {
   );
 }
 
-const REPORT_PAGES = ["/shaadi", "/milan", "/wapas", "/business"];
+const REPORT_PAGES = ["/shaadi", "/milan", "/wapas", "/business", "/naukri"];
 
 /** Paid report pages. They live outside ChatProvider, which would otherwise open an empty companion chat per visitor. */
 function ReportRouter() {
@@ -64,6 +65,8 @@ function ReportRouter() {
       <Route path="/wapas/r/:id" component={WapasReportPage} />
       <Route path="/business" component={BusinessReportPage} />
       <Route path="/business/r/:id" component={BusinessReportPage} />
+      <Route path="/naukri" component={NaukriReportPage} />
+      <Route path="/naukri/r/:id" component={NaukriReportPage} />
     </Switch>
   );
 }
