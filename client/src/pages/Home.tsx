@@ -148,7 +148,7 @@ export default function Home() {
   const supportHref =
     (typeof import.meta.env.VITE_SUPPORT_MAILTO === "string" &&
       import.meta.env.VITE_SUPPORT_MAILTO.trim()) ||
-    "mailto:support@example.com?subject=Help";
+    "mailto:ankitiitrpi@gmail.com?subject=Help";
 
   const handleRoleSelect = (route: string) => {
     setLocation(route);

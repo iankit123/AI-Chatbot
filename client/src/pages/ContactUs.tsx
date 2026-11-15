@@ -3,7 +3,9 @@ import { LegalPageShell } from "@/components/LegalPageShell";
 const supportMailto =
   (typeof import.meta.env.VITE_SUPPORT_MAILTO === "string" &&
     import.meta.env.VITE_SUPPORT_MAILTO.trim()) ||
-  "mailto:support@example.com?subject=Support";
+  "mailto:ankitiitrpi@gmail.com?subject=Support";
+
+const supportEmail = supportMailto.replace(/^mailto:/, "").split("?")[0];
 
 export default function ContactUs() {
   return (
@@ -17,7 +19,7 @@ export default function ContactUs() {
       <p>
         The fastest way to reach us is by email:{" "}
         <a href={supportMailto} className="font-semibold text-indigo-600 underline underline-offset-2">
-          Open support mail
+          {supportEmail}
         </a>
         .
       </p>
