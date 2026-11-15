@@ -47,10 +47,11 @@ const STATUSES: { value: WapasStatus; label: string }[] = [
  * d: names the behaviour first (the "you keep checking your phone" opener).
  * e: the original single question.
  */
-type HeroVariant = { pre?: string; title: [string, string]; sub: string };
+type HeroVariant = { pre?: string; title: [string, string]; tag?: string; sub: string };
 const HERO_VARIANTS: Record<string, HeroVariant> = {
   a: {
     title: ["क्या आपका Ex", "वापस आएगा?"],
+    tag: "Jaaniye jawab, aapki aur Ex ki date of birth se",
     sub: "Kab aayega, aur unke mann me abhi kya hai, dono ki kundli se jaaniye. Saath me saaf jawab: intezaar karein ya aage badhein.",
   },
   b: {
@@ -157,11 +158,12 @@ function Landing() {
             {hero.title[1]}
           </>
         }
+        tagline={hero.tag}
         sub={hero.sub}
-        position="50% 100%"
+        position="50% 0%"
       >
         <button type="button" className="btn-gold mt-6" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-          Apna jawab dekhein <ArrowRight className="h-4 w-4" />
+          Check kariye <ArrowRight className="h-4 w-4" />
         </button>
         <TrustLine items={["Unhe pata nahi chalega", "Sirf naam se bhi", "Koi vashikaran nahi"]} />
         {last && (

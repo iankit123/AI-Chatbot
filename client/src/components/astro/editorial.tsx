@@ -25,9 +25,11 @@ export function EditorialShell({ theme, children }: { theme: "wapas" | "milan"; 
 const imgAttrs = { fetchpriority: "high", decoding: "async" } as Record<string, string>;
 
 export function PhotoHero({
-  src, alt, kicker, title, sub, children, position = "50% 100%", ornament,
+  src, alt, kicker, title, tagline, sub, children, position = "50% 100%", ornament,
 }: {
   src: string; alt: string; kicker: string; title: ReactNode; sub: string; children?: ReactNode; position?: string;
+  /** Short line right under the headline, over the photo. */
+  tagline?: string;
   /** Optional decoration drawn over the photo's sky (e.g. a zodiac wheel), behind the headline. */
   ornament?: ReactNode;
 }) {
@@ -40,6 +42,7 @@ export function PhotoHero({
         <div className="rise absolute inset-x-0 top-0 px-4 pt-[4.5rem]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--ed-accent)]">{kicker}</p>
           <h1 className="font-hindi mt-2 text-[2.75rem] leading-[1.12] text-[var(--ed-text)] [text-shadow:0_2px_24px_rgba(0,0,0,0.5)]">{title}</h1>
+          {tagline && <p className="mt-2.5 max-w-[290px] text-[16px] font-medium leading-snug text-[var(--ed-text)] [text-shadow:0_1px_12px_rgba(0,0,0,0.6)] [text-wrap:balance]">{tagline}</p>}
         </div>
       </div>
       <div className="relative -mt-8">
