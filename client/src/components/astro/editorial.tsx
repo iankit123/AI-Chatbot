@@ -73,39 +73,6 @@ export function SectionHead({ kicker, title, sub }: { kicker?: string; title: st
   );
 }
 
-/** Photo tiles that work as a single-choice picker. */
-export function PhotoChoice<T extends string>({
-  value, onChange, options,
-}: {
-  value: T; onChange: (v: T) => void; options: { value: T; label: string; img: string }[];
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(o.value)}
-            className={`group relative aspect-square overflow-hidden rounded-2xl text-left transition ${on ? "ring-2 ring-[var(--ed-accent)] ring-offset-2 ring-offset-[var(--ed-bg)]" : "ring-1 ring-white/10"}`}
-          >
-            <img src={o.img} alt="" width={480} height={480} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-active:scale-[1.03]" />
-            <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-            {on && (
-              <span className="absolute right-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-full bg-[var(--ed-accent)] text-[var(--ed-accent-ink)]">
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
-              </span>
-            )}
-            <span className="absolute inset-x-3 bottom-3 text-[14px] font-medium leading-snug text-white">{o.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function FactorList({ items }: { items: { img: string; name: string; en: string; text: string }[] }) {
   return (
     <ul className="divide-y divide-[var(--ed-line)] border-y border-[var(--ed-line)]">
