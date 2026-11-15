@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import NotFound from "@/pages/not-found";
 import Chat from "@/pages/Chat";
 import LandingPage from "./pages/LandingPage";
@@ -40,14 +40,6 @@ function Router() {
       <Route path="/career" component={CareerChat} />
       <Route path="/krishna" component={KrishnaChat} />
       <Route path="/english" component={EnglishChat} />
-      <Route path="/shaadi" component={ShaadiReportPage} />
-      <Route path="/shaadi/r/:id" component={ShaadiReportPage} />
-      <Route path="/milan" component={MilanReportPage} />
-      <Route path="/milan/r/:id" component={MilanReportPage} />
-      <Route path="/wapas" component={WapasReportPage} />
-      <Route path="/wapas/r/:id" component={WapasReportPage} />
-      <Route path="/business" component={BusinessReportPage} />
-      <Route path="/business/r/:id" component={BusinessReportPage} />
       <Route path="/about" component={AboutUs} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/terms" component={TermsAndConditions} />
@@ -58,8 +50,28 @@ function Router() {
   );
 }
 
+const REPORT_PAGES = ["/shaadi", "/milan", "/wapas", "/business"];
+
+/** Paid report pages. They live outside ChatProvider, which would otherwise open an empty companion chat per visitor. */
+function ReportRouter() {
+  return (
+    <Switch>
+      <Route path="/shaadi" component={ShaadiReportPage} />
+      <Route path="/shaadi/r/:id" component={ShaadiReportPage} />
+      <Route path="/milan" component={MilanReportPage} />
+      <Route path="/milan/r/:id" component={MilanReportPage} />
+      <Route path="/wapas" component={WapasReportPage} />
+      <Route path="/wapas/r/:id" component={WapasReportPage} />
+      <Route path="/business" component={BusinessReportPage} />
+      <Route path="/business/r/:id" component={BusinessReportPage} />
+    </Switch>
+  );
+}
+
 function App() {
+  const [location] = useLocation();
   if (isSupportBlocked()) return <SupportBlockedPage />;
+  if (REPORT_PAGES.some((p) => location === p || location.startsWith(`${p}/`))) return <ReportRouter />;
   return (
     <ChatProvider>
       <Router />

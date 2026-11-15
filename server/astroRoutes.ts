@@ -1,4 +1,8 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
+import { metaPurchaseEventId } from "@shared/metaEvents";
+import { priceForNewReport, priceOfReport } from "@shared/astroProducts";
+import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY } from "./services/supabaseBilling";
+import { metaContextFromRequest, sendMetaConversionEvent } from "./services/metaConversions";
 import { z } from "zod";
 import { generateImage, readPalm } from "./services/astro/ai";
 import {
@@ -11,6 +15,7 @@ import {
   type BusinessInput, type WapasInput,
 } from "./services/astro/reports2";
 import {
+  findOpenPayments,
   findSuccessfulPayment, getPortrait, getReport, insertReport, updateReport, type AstroReportRow,
 } from "./services/astro/store";
 
@@ -34,12 +39,78 @@ const selfSchema = z.object({
 
 function view(row: AstroReportRow) {
   const r = row as any;
-  switch (row.report_type) {
-    case "shaadi": return shaadiView(r);
-    case "milan": return milanView(r);
-    case "wapas": return wapasView(r);
-    case "business": return businessView(r);
+  const v = (() => {
+    switch (row.report_type) {
+      case "shaadi": return shaadiView(r);
+      case "milan": return milanView(r);
+      case "wapas": return wapasView(r);
+      case "business": return businessView(r);
+    }
+  })();
+  return { ...v, price: priceOfReport(row.report_type, row.price_rupees) };
+}
+
+/** A captured (or authorized) Razorpay payment id for this order, or null. */
+async function paidRazorpayPayment(orderId: string): Promise<string | null> {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  if (!keyId || !keySecret) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch(`https://api.razorpay.com/v1/orders/${encodeURIComponent(orderId)}/payments`, {
+      headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}` },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { items?: { id: string; status: string }[] };
+    const paid = data.items?.find((p) => p.status === "captured" || p.status === "authorized");
+    return paid?.id ?? null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+/**
+ * Buyers who pay in a UPI app often never return to the page that opened checkout, so the
+ * browser never confirms the payment. Ask Razorpay directly about this report's open orders
+ * and complete any that were paid.
+ */
+async function reconcileWithRazorpay(row: AstroReportRow, req?: Request): Promise<string | null> {
+  const open = await findOpenPayments(row.id);
+  for (const p of open) {
+    const gatewayPaymentId = await paidRazorpayPayment(p.gateway_order_id);
+    if (!gatewayPaymentId) continue;
+    const result = await completePaymentSuccess({
+      paymentId: p.id,
+      paymentGateway: PAYMENT_GATEWAY_RAZORPAY,
+      gatewayOrderId: p.gateway_order_id,
+      gatewayPaymentId,
+    });
+    console.log(`[astro] reconciled payment ${p.id} order=${p.gateway_order_id} report=${row.id}`);
+    const purchase = "purchase" in result ? result.purchase : null;
+    if (purchase && req) {
+      // The browser never sent its Purchase, so tell Meta from here (same event id as the Pixel would use).
+      await sendMetaConversionEvent({
+        eventName: "Purchase",
+        eventId: metaPurchaseEventId(p.gateway_order_id),
+        context: metaContextFromRequest(req, null),
+        deviceId: purchase.device_id,
+        phoneDigits: purchase.phone_digits,
+        customData: {
+          value: purchase.amount_rupees,
+          currency: "INR",
+          content_ids: [p.gateway_order_id],
+          content_type: "product",
+          product_type: purchase.product_type,
+        },
+      }).catch((err) => console.error("[astro] Meta purchase after reconcile failed:", err));
+    }
+    return p.id;
+  }
+  return null;
 }
 
 function writeNarrative(row: AstroReportRow) {
@@ -53,9 +124,16 @@ function writeNarrative(row: AstroReportRow) {
 }
 
 /** Marks the report paid (when a successful payment exists) and writes the narrative once. */
-async function unlockIfPaid(row: AstroReportRow): Promise<AstroReportRow> {
+async function unlockIfPaid(row: AstroReportRow, req?: Request): Promise<AstroReportRow> {
   if (!row.paid) {
-    const paymentId = await findSuccessfulPayment(row.id);
+    let paymentId = await findSuccessfulPayment(row.id);
+    if (!paymentId) {
+      try {
+        paymentId = await reconcileWithRazorpay(row, req);
+      } catch (err) {
+        console.error("[astro] Razorpay reconcile failed:", err);
+      }
+    }
     if (!paymentId) return row;
     row = { ...row, paid: true, payment_id: paymentId };
     await updateReport(row.id, { paid: true, payment_id: paymentId });
@@ -97,7 +175,7 @@ export function registerAstroRoutes(app: Express) {
       const facts = buildShaadiFacts(input);
       // The palm photo is read once and discarded; only the text reading is stored.
       const palm = body.palm_image ? await readPalm(body.palm_image) : null;
-      const row = await insertReport({ report_type: "shaadi", device_id: body.device_id, input, facts, palm });
+      const row = await insertReport({ report_type: "shaadi", device_id: body.device_id, input, facts, palm, price_rupees: priceForNewReport("shaadi", body.device_id) });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
@@ -132,7 +210,7 @@ export function registerAstroRoutes(app: Express) {
         question: body.question,
       };
       const facts = buildMilanFacts(input);
-      const row = await insertReport({ report_type: "milan", device_id: body.device_id, input, facts, palm: null });
+      const row = await insertReport({ report_type: "milan", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("milan", body.device_id) });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
@@ -154,7 +232,7 @@ export function registerAstroRoutes(app: Express) {
         .parse(req.body);
       const input: WapasInput = { self: { ...body.self, tob: body.self.tob ?? null }, partner: partnerInput(body.partner), status: body.status };
       const facts = buildWapasFacts(input);
-      const row = await insertReport({ report_type: "wapas", device_id: body.device_id, input, facts, palm: null });
+      const row = await insertReport({ report_type: "wapas", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("wapas", body.device_id) });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
@@ -178,7 +256,7 @@ export function registerAstroRoutes(app: Express) {
         situation: body.situation, budget: body.budget,
       };
       const facts = buildBusinessFacts(input);
-      const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null });
+      const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("business", body.device_id) });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
@@ -192,7 +270,7 @@ export function registerAstroRoutes(app: Express) {
       const id = z.string().uuid().parse(req.params.id);
       let row = await getReport(id);
       if (!row) return res.status(404).json({ message: "Report nahi mili" });
-      row = await unlockIfPaid(row);
+      row = await unlockIfPaid(row, req);
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(404).json({ message: "Report nahi mili" });

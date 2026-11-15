@@ -569,7 +569,7 @@ export async function registerRoutes(
         if (!report || report.report_type !== astroType) {
           return res.status(400).json({ error: "Report not found for this payment" });
         }
-        body.amount_rupees = ASTRO_PRICES[astroType].rupees;
+        body.amount_rupees = report.price_rupees ?? ASTRO_PRICES[astroType].rupees;
         body.billing.companion_id = null;
       } else if (body.billing.phone_number.replace(/\D/g, "").length < 10) {
         return res.status(400).json({ message: "Invalid payload", error: "phone_number is required" });

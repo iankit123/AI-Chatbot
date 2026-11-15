@@ -36,3 +36,26 @@ export function astroTypeFromProduct(v: string): AstroReportType | null {
 export function isAstroProductType(v: string): v is AstroProductType {
   return astroTypeFromProduct(v) !== null;
 }
+
+/**
+ * Pricing test (started 2026-11-15): each device is assigned 19, 49 or 99 for these reports,
+ * sticky per device. Milan stays at its own price. Change PRICE_TEST_SALT to reshuffle arms.
+ */
+export const PRICE_TEST_ARMS = [19, 49, 99] as const;
+export const PRICE_TEST_REPORTS: readonly AstroReportType[] = ["shaadi", "wapas", "business"];
+const PRICE_TEST_SALT = "price-test-1";
+const STRIKE_FOR: Record<number, number> = { 19: 99, 49: 199, 99: 299 };
+
+/** Price to charge for a new report of this type on this device. */
+export function priceForNewReport(type: AstroReportType, deviceId: string): number {
+  if (!PRICE_TEST_REPORTS.includes(type)) return ASTRO_PRICES[type].rupees;
+  let h = 2166136261;
+  for (const ch of PRICE_TEST_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return PRICE_TEST_ARMS[h % PRICE_TEST_ARMS.length];
+}
+
+/** Display price for a stored report; older rows have no stored price and use the default. */
+export function priceOfReport(type: AstroReportType, storedRupees: number | null | undefined): { rupees: number; strike: number } {
+  if (!storedRupees) return ASTRO_PRICES[type];
+  return { rupees: storedRupees, strike: STRIKE_FOR[storedRupees] ?? Math.max(storedRupees * 3, ASTRO_PRICES[type].strike) };
+}

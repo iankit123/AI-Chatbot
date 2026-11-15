@@ -19,10 +19,11 @@ export type AstroReportRow = {
   has_portrait: boolean;
   paid: boolean;
   payment_id: string | null;
+  price_rupees: number | null;
   created_at: string;
 };
 
-const COLS = "id, report_type, device_id, input, facts, narrative, palm, has_portrait, paid, payment_id, created_at";
+const COLS = "id, report_type, device_id, input, facts, narrative, palm, has_portrait, paid, payment_id, price_rupees, created_at";
 
 export async function insertReport(row: {
   report_type: AstroReportType;
@@ -30,6 +31,7 @@ export async function insertReport(row: {
   input: Record<string, unknown>;
   facts: Record<string, unknown>;
   palm: Record<string, unknown> | null;
+  price_rupees: number;
 }): Promise<AstroReportRow> {
   const { data, error } = await admin().from("astro_reports").insert(row).select(COLS).single();
   if (error) throw error;
@@ -66,4 +68,20 @@ export async function findSuccessfulPayment(reportId: string): Promise<string | 
     .limit(1);
   if (error) throw error;
   return data?.[0]?.id ? String(data[0].id) : null;
+}
+
+/** Checkouts for this report that never confirmed (handler did not run, or the modal was closed), newest first. */
+export async function findOpenPayments(reportId: string): Promise<{ id: string; gateway_order_id: string }[]> {
+  const since = new Date(Date.now() - 3 * 86400000).toISOString();
+  const { data, error } = await admin()
+    .from("payment_attempts")
+    .select("id, gateway_order_id")
+    .in("status", ["pending", "cancelled"])
+    .eq("metadata->>astro_report_id", reportId)
+    .not("gateway_order_id", "is", null)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(3);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ id: String(r.id), gateway_order_id: String(r.gateway_order_id) }));
 }
