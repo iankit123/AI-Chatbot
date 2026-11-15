@@ -6,10 +6,12 @@ import {
   Segmented, Steps, TimeSelect, ZodiacWheel,
 } from "@/components/astro/ui";
 import {
-  cacheReport, cachedReport, compressImage, createShaadiPreview, fetchReport, lastReportId, loadSelf, payForReport,
+  cacheReport, compressImage, createShaadiPreview, lastReportId, loadSelf, logAstro,
   portraitUrl, rememberReport, requestPortrait, saveSelf, shareOnWhatsApp, trackAstro, wait,
   type Gender, type ShaadiReport,
 } from "@/lib/astroApi";
+import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
+import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
 
 export default function ShaadiReportPage() {
   const [, params] = useRoute("/shaadi/r/:id");
@@ -198,6 +200,7 @@ function Landing() {
 
   return (
     <>
+      <PaidReportBanner type="shaadi" />
       <section className="rise pt-3 text-center">
         <div className="relative mx-auto mb-[-92px] h-[150px] w-[150px] opacity-60">
           <ZodiacWheel size={150} />
@@ -373,63 +376,8 @@ function Portrait({ report }: { report: ShaadiReport }) {
 }
 
 function ReportView({ id }: { id: string }) {
-  const [report, setReport] = useState<ShaadiReport | null>(() => cachedReport<ShaadiReport>(id) ?? null);
-  const [error, setError] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
-  const viewed = useRef<string | null>(null);
-
-  const load = async () => {
-    try {
-      const r = await fetchReport<ShaadiReport>(id);
-      if (r.type !== "shaadi") throw new Error("Report nahi mili");
-      cacheReport(r);
-      setReport(r);
-      setError(null);
-      return r;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Report load nahi ho payi");
-      return null;
-    }
-  };
-
-  useEffect(() => {
-    // Always re-check with the server: a payment may have completed while the page was in the background.
-    void load();
-    rememberReport("shaadi", id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  useEffect(() => {
-    if (!report) return;
-    const key = `${report.id}:${report.paid}`;
-    if (viewed.current === key) return;
-    viewed.current = key;
-    trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", "shaadi");
-  }, [report]);
-
-  const pay = async () => {
-    if (!report) return;
-    setPaying(true);
-    setError(null);
-    try {
-      await payForReport(report);
-      setUnlocking(true);
-      window.scrollTo({ top: 0 });
-      let r = await load();
-      // Verification can land a moment after checkout closes.
-      for (let i = 0; i < 4 && r && !r.paid; i++) {
-        await wait(1500);
-        r = await load();
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (!/cancel/i.test(msg)) setError(msg || "Payment poora nahi ho paya. Dobara koshish karein.");
-    } finally {
-      setPaying(false);
-      setUnlocking(false);
-    }
-  };
+  const { report, error, paying, unlocking, pay } = useAstroReport<ShaadiReport>(id, "shaadi");
+  useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapki poori report khul rahi hai" steps={["Payment ki pushti", "Vivah ke mahine", "Naam ke sabhi akshar", "Jeevansathi ka vivaran"]} />;
   if (!report) {
@@ -621,9 +569,10 @@ function ReportView({ id }: { id: string }) {
         <button
           type="button"
           className="btn-ghost w-full"
-          onClick={() =>
-            shareOnWhatsApp(`Meri kundli ke hisaab se shaadi ka yog ${report.windowYears} me hai aur jeevansathi ka naam ${letters} se shuru ho sakta hai 😄\nTum bhi apna dekho: ${window.location.origin}/shaadi`)
-          }
+          onClick={() => {
+            logAstro("astro_report_action", "shaadi", { report_id: report.id, action: "share" });
+            shareOnWhatsApp(`Meri kundli ke hisaab se shaadi ka yog ${report.windowYears} me hai aur jeevansathi ka naam ${letters} se shuru ho sakta hai 😄\nTum bhi apna dekho: ${window.location.origin}/shaadi`);
+          }}
         >
           <MessageCircle className="h-4 w-4" /> WhatsApp par share karein
         </button>
@@ -632,8 +581,9 @@ function ReportView({ id }: { id: string }) {
           <p className="chip mx-auto">Agla kadam</p>
           <h2 className="gold-text mt-3 text-[1.5rem] leading-snug">Kisi khaas ka naam {letters.split(", ")[0]} se shuru hota hai?</h2>
           <p className="mt-2 text-[14px] leading-relaxed text-[#e9d9bb]">36 gun milan se jaaniye ki unse aapki shaadi ke yog kitne majboot hain.</p>
-          <Link href="/milan" className="btn-gold mt-4">Kundli milan karein</Link>
+          <Link href="/milan" className="btn-gold mt-4" onClick={() => logAstro("astro_report_action", "shaadi", { report_id: report.id, action: "milan_cta" })}>Kundli milan karein</Link>
         </section>
+        <AskMoreCard type="shaadi" reportId={report.id} />
       </div>
       <AstroFooter />
     </>

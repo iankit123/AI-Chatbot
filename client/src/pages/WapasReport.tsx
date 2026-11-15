@@ -6,9 +6,10 @@ import {
   ScoreRing, Segmented, Steps, ZodiacWheel,
 } from "@/components/astro/ui";
 import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/components/astro/forms";
-import { useAstroReport } from "@/components/astro/useReport";
+import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
+import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
 import {
-  cacheReport, createWapasPreview, lastReportId, rememberReport, saveSelf, trackAstro, wait,
+  cacheReport, createWapasPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
   type WapasReport, type WapasStatus,
 } from "@/lib/astroApi";
 
@@ -113,6 +114,7 @@ function Landing() {
 
   return (
     <>
+      <PaidReportBanner type="wapas" />
       <section className="rise pt-1 text-center">
         <HeroArt a={self.name.trim().charAt(0).toUpperCase()} b={partner.name.trim().charAt(0).toUpperCase()} />
         <h1 className="font-hindi gold-text mt-3 text-[2.35rem] leading-[1.25]">
@@ -196,6 +198,7 @@ function Landing() {
 
 function ReportView({ id }: { id: string }) {
   const { report, error, paying, unlocking, pay } = useAstroReport<WapasReport>(id, "wapas");
+  useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapka poora jawab khul raha hai" steps={["Payment ki pushti", "Wapsi ke sanket", "Unke mann ki sthiti", "Sahi samay"]} />;
   if (!report) {
@@ -317,7 +320,7 @@ function ReportView({ id }: { id: string }) {
               <p className="font-display ink text-[2.2rem] leading-none">{s.gun.total}<span className="ink-soft text-base">/36 gun</span></p>
               <p className="ink mt-1 text-[14px] font-medium">{s.gun.band.label}</p>
             </div>
-            <Link href="/milan" className="rounded-full bg-[#2c1640] px-4 py-2.5 text-[13px] font-medium text-[#ffe6ee]">Poora gun milan</Link>
+            <Link href="/milan" className="rounded-full bg-[#2c1640] px-4 py-2.5 text-[13px] font-medium text-[#ffe6ee]" onClick={() => logAstro("astro_report_action", "wapas", { report_id: report.id, action: "milan_cta" })}>Poora gun milan</Link>
           </div>
         </PaperCard>
 
@@ -329,8 +332,9 @@ function ReportView({ id }: { id: string }) {
         <section className="glass p-5 text-center">
           <h2 className="gold-text text-[1.4rem] leading-snug">Aapki shaadi kab aur kisse hogi?</h2>
           <p className="mt-2 text-[14px] leading-relaxed text-[#eadff5]">Apni kundli se vivah ka samay aur jeevansathi ke naam ka pehla akshar jaaniye.</p>
-          <Link href="/shaadi" className="btn-gold mt-4">Shaadi ka yog dekhein</Link>
+          <Link href="/shaadi" className="btn-gold mt-4" onClick={() => logAstro("astro_report_action", "wapas", { report_id: report.id, action: "shaadi_cta" })}>Shaadi ka yog dekhein</Link>
         </section>
+        <AskMoreCard type="wapas" reportId={report.id} />
       </div>
       <AstroFooter />
     </>

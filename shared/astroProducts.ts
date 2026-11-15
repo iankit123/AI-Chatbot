@@ -38,13 +38,14 @@ export function isAstroProductType(v: string): v is AstroProductType {
 }
 
 /**
- * Pricing test (started 2026-11-15): each device is assigned 19, 49 or 99 for these reports,
- * sticky per device. Milan stays at its own price. Change PRICE_TEST_SALT to reshuffle arms.
+ * Pricing test: each device is assigned one of PRICE_TEST_ARMS for these reports, sticky per
+ * device. Milan stays at its own price. Change PRICE_TEST_SALT to reshuffle arms.
+ * Round 1 (2026-11-15 12:27): 19/49/99. Round 2: 19/29/49, after 99 sold nothing.
  */
-export const PRICE_TEST_ARMS = [19, 49, 99] as const;
+export const PRICE_TEST_ARMS = [19, 29, 49] as const;
 export const PRICE_TEST_REPORTS: readonly AstroReportType[] = ["shaadi", "wapas", "business"];
-const PRICE_TEST_SALT = "price-test-1";
-const STRIKE_FOR: Record<number, number> = { 19: 99, 49: 199, 99: 299 };
+const PRICE_TEST_SALT = "price-test-2";
+const STRIKE_FOR: Record<number, number> = { 19: 99, 29: 149, 49: 199, 99: 299 };
 
 /** Price to charge for a new report of this type on this device. */
 export function priceForNewReport(type: AstroReportType, deviceId: string): number {

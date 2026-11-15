@@ -85,3 +85,31 @@ export async function findOpenPayments(reportId: string): Promise<{ id: string; 
   if (error) throw error;
   return (data ?? []).map((r) => ({ id: String(r.id), gateway_order_id: String(r.gateway_order_id) }));
 }
+
+export async function getPaymentForContact(
+  paymentRowId: string,
+): Promise<{ device_id: string; gateway_payment_id: string | null; phone_number: string | null } | null> {
+  const { data, error } = await admin()
+    .from("payment_attempts")
+    .select("device_id, gateway_payment_id, phone_number")
+    .eq("id", paymentRowId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { device_id: string; gateway_payment_id: string | null; phone_number: string | null }) ?? null;
+}
+
+export async function setPaymentPhone(paymentRowId: string, digits: string): Promise<void> {
+  const { error } = await admin().from("payment_attempts").update({ phone_number: digits }).eq("id", paymentRowId);
+  if (error) throw error;
+}
+
+/** Status of every checkout opened for this report (empty for a first-time buyer). */
+export async function findReportPaymentStatuses(reportId: string): Promise<string[]> {
+  const { data, error } = await admin()
+    .from("payment_attempts")
+    .select("status")
+    .eq("metadata->>astro_report_id", reportId)
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []).map((r) => String(r.status));
+}

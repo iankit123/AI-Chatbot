@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { metaPurchaseEventId } from "@shared/metaEvents";
 import { priceForNewReport, priceOfReport } from "@shared/astroProducts";
-import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY } from "./services/supabaseBilling";
+import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY, upsertProfileRow } from "./services/supabaseBilling";
 import { metaContextFromRequest, sendMetaConversionEvent } from "./services/metaConversions";
 import { z } from "zod";
 import { generateImage, readPalm } from "./services/astro/ai";
@@ -16,7 +16,10 @@ import {
 } from "./services/astro/reports2";
 import {
   findOpenPayments,
-  findSuccessfulPayment, getPortrait, getReport, insertReport, updateReport, type AstroReportRow,
+  findReportPaymentStatuses,
+  findSuccessfulPayment,
+  getPaymentForContact,
+  setPaymentPhone, getPortrait, getReport, insertReport, updateReport, type AstroReportRow,
 } from "./services/astro/store";
 
 const dob = z
@@ -50,26 +53,62 @@ function view(row: AstroReportRow) {
   return { ...v, price: priceOfReport(row.report_type, row.price_rupees) };
 }
 
-/** A captured (or authorized) Razorpay payment id for this order, or null. */
-async function paidRazorpayPayment(orderId: string): Promise<string | null> {
+/** GET from the Razorpay API with the server's keys; null on any failure. */
+async function razorpayGet<T>(path: string): Promise<T | null> {
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
   const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
   if (!keyId || !keySecret) return null;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 6000);
   try {
-    const res = await fetch(`https://api.razorpay.com/v1/orders/${encodeURIComponent(orderId)}/payments`, {
+    const res = await fetch(`https://api.razorpay.com/v1/${path}`, {
       headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}` },
       signal: ctrl.signal,
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { items?: { id: string; status: string }[] };
-    const paid = data.items?.find((p) => p.status === "captured" || p.status === "authorized");
-    return paid?.id ?? null;
+    return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** A captured (or authorized) Razorpay payment id for this order, or null. */
+async function paidRazorpayPayment(orderId: string): Promise<string | null> {
+  const data = await razorpayGet<{ items?: { id: string; status: string }[] }>(`orders/${encodeURIComponent(orderId)}/payments`);
+  const paid = data?.items?.find((p) => p.status === "captured" || p.status === "authorized");
+  return paid?.id ?? null;
+}
+
+/**
+ * Report buyers enter their phone on Razorpay's own screen, not ours. Copy it onto the
+ * payment row and the device's profile, so the owner can send the report link to a buyer
+ * who loses the page.
+ */
+async function captureBuyerPhone(paymentRowId: string): Promise<void> {
+  const row = await getPaymentForContact(paymentRowId);
+  if (!row?.gateway_payment_id || (row.phone_number ?? "").replace(/\D/g, "").length === 10) return;
+  const payment = await razorpayGet<{ contact?: string }>(`payments/${encodeURIComponent(row.gateway_payment_id)}`);
+  const digits = (payment?.contact ?? "").replace(/\D/g, "").slice(-10);
+  if (digits.length !== 10) return;
+  await setPaymentPhone(paymentRowId, digits);
+  // Link this device's profile to the number, so the buyer is the same person across devices and products.
+  await upsertProfileRow({ deviceId: row.device_id, phoneNumber: digits });
+}
+
+/** True when this report already has a completed payment (including one Razorpay has but we never heard about). */
+export async function reportAlreadyPaid(row: AstroReportRow, req?: Request, knownStatuses?: string[]): Promise<boolean> {
+  if (row.paid) return true;
+  const statuses = knownStatuses ?? (await findReportPaymentStatuses(row.id));
+  // First checkout for this report: one quick lookup and nothing more, so first-time buyers wait no longer.
+  if (statuses.length === 0) return false;
+  if (statuses.includes("success")) return true;
+  // A repeat attempt: the earlier one may have been paid in a UPI app without the page knowing.
+  try {
+    return (await reconcileWithRazorpay(row, req)) !== null;
+  } catch (err) {
+    console.error("[astro] reconcile before checkout failed:", err);
+    return false;
   }
 }
 
@@ -125,6 +164,7 @@ function writeNarrative(row: AstroReportRow) {
 
 /** Marks the report paid (when a successful payment exists) and writes the narrative once. */
 async function unlockIfPaid(row: AstroReportRow, req?: Request): Promise<AstroReportRow> {
+  let phoneTask: Promise<void> = Promise.resolve();
   if (!row.paid) {
     let paymentId = await findSuccessfulPayment(row.id);
     if (!paymentId) {
@@ -137,6 +177,8 @@ async function unlockIfPaid(row: AstroReportRow, req?: Request): Promise<AstroRe
     if (!paymentId) return row;
     row = { ...row, paid: true, payment_id: paymentId };
     await updateReport(row.id, { paid: true, payment_id: paymentId });
+    // Runs alongside the AI text below, so it adds no wait for the buyer.
+    phoneTask = captureBuyerPhone(paymentId).catch((err) => console.error("[astro] buyer phone capture failed:", err));
   }
   if (!row.narrative) {
     const narrative = await writeNarrative(row);
@@ -144,6 +186,7 @@ async function unlockIfPaid(row: AstroReportRow, req?: Request): Promise<AstroRe
     // Keep only AI-written text; a fallback is rebuilt next time so a brief AI outage does not stick.
     if (narrative.ai) await updateReport(row.id, { narrative });
   }
+  await phoneTask;
   return row;
 }
 

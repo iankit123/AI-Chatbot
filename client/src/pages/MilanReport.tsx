@@ -6,10 +6,12 @@ import {
   ScoreRing, Segmented, Steps, TimeSelect, ZodiacWheel,
 } from "@/components/astro/ui";
 import {
-  cacheReport, cachedReport, createMilanPreview, fetchReport, lastReportId, loadSelf, payForReport, rememberReport,
+  cacheReport, createMilanPreview, lastReportId, loadSelf, logAstro, rememberReport,
   saveSelf, shareOnWhatsApp, trackAstro, wait,
   type Gender, type Koot, type MilanReport,
 } from "@/lib/astroApi";
+import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
+import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
 
 export default function MilanReportPage() {
   const [, params] = useRoute("/milan/r/:id");
@@ -109,6 +111,7 @@ function Landing() {
 
   return (
     <>
+      <PaidReportBanner type="milan" />
       <section className="rise pt-3 text-center">
         <HeroPair />
         <h1 className="font-hindi gold-text mt-5 text-[2.35rem] leading-[1.25]">
@@ -260,61 +263,8 @@ function KootRow({ k }: { k: Koot }) {
 }
 
 function ReportView({ id }: { id: string }) {
-  const [report, setReport] = useState<MilanReport | null>(() => cachedReport<MilanReport>(id) ?? null);
-  const [error, setError] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
-  const viewed = useRef<string | null>(null);
-
-  const load = async () => {
-    try {
-      const r = await fetchReport<MilanReport>(id);
-      if (r.type !== "milan") throw new Error("Report nahi mili");
-      cacheReport(r);
-      setReport(r);
-      setError(null);
-      return r;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Report load nahi ho payi");
-      return null;
-    }
-  };
-
-  useEffect(() => {
-    void load();
-    rememberReport("milan", id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  useEffect(() => {
-    if (!report) return;
-    const key = `${report.id}:${report.paid}`;
-    if (viewed.current === key) return;
-    viewed.current = key;
-    trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", "milan", { total: report.total });
-  }, [report]);
-
-  const pay = async () => {
-    if (!report) return;
-    setPaying(true);
-    setError(null);
-    try {
-      await payForReport(report);
-      setUnlocking(true);
-      window.scrollTo({ top: 0 });
-      let r = await load();
-      for (let i = 0; i < 4 && r && !r.paid; i++) {
-        await wait(1500);
-        r = await load();
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (!/cancel/i.test(msg)) setError(msg || "Payment poora nahi ho paya. Dobara koshish karein.");
-    } finally {
-      setPaying(false);
-      setUnlocking(false);
-    }
-  };
+  const { report, error, paying, unlocking, pay } = useAstroReport<MilanReport>(id, "milan");
+  useReadTracking(report);
 
   if (unlocking) return <Analysing title="Poori milan report khul rahi hai" steps={["Payment ki pushti", "Aathon koot ka vivaran", "Dosh ki jaanch", "Rishte ka nishkarsh"]} />;
   if (!report) {
@@ -469,11 +419,15 @@ function ReportView({ id }: { id: string }) {
         <button
           type="button"
           className="btn-ghost w-full"
-          onClick={() => shareOnWhatsApp(`${a} aur ${b} ke 36 me se ${report.total} gun mile ✨\nApna gun milan dekho: ${window.location.origin}/milan`)}
+          onClick={() => {
+            logAstro("astro_report_action", "milan", { report_id: report.id, action: "share" });
+            shareOnWhatsApp(`${a} aur ${b} ke 36 me se ${report.total} gun mile ✨\nApna gun milan dekho: ${window.location.origin}/milan`);
+          }}
         >
           <MessageCircle className="h-4 w-4" /> WhatsApp par share karein
         </button>
-        <Link href="/milan" className="btn-ghost w-full">Kisi aur ke saath milan karein</Link>
+        <Link href="/milan" className="btn-ghost w-full" onClick={() => logAstro("astro_report_action", "milan", { report_id: report.id, action: "milan_again" })}>Kisi aur ke saath milan karein</Link>
+        <AskMoreCard type="milan" reportId={report.id} />
       </div>
       <AstroFooter />
     </>

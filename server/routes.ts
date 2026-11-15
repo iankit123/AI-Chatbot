@@ -37,8 +37,8 @@ import {
 } from "./services/kundliProfile";
 import { buildKundliReading } from "./services/kundliChart";
 import { insertAppEventRow } from "./services/appEvents";
-import { registerAstroRoutes } from "./astroRoutes";
-import { getReport as getAstroReport } from "./services/astro/store";
+import { registerAstroRoutes, reportAlreadyPaid } from "./astroRoutes";
+import { findReportPaymentStatuses, getReport as getAstroReport } from "./services/astro/store";
 import { ASTRO_PRICES, ASTRO_PRODUCT_TYPES, astroTypeFromProduct } from "@shared/astroProducts";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
 import { metaPurchaseEventId } from "@shared/metaEvents";
@@ -565,9 +565,16 @@ export async function registerRoutes(
       if (astroType) {
         // Price and report come from the server, never from the browser.
         const reportId = z.string().uuid().safeParse(body.billing.metadata?.astro_report_id);
-        const report = reportId.success ? await getAstroReport(reportId.data) : null;
+        // Look up the report and its earlier checkouts together, so the paid check adds no wait.
+        const [report, earlierCheckouts] = reportId.success
+          ? await Promise.all([getAstroReport(reportId.data), findReportPaymentStatuses(reportId.data)])
+          : [null, [] as string[]];
         if (!report || report.report_type !== astroType) {
           return res.status(400).json({ error: "Report not found for this payment" });
+        }
+        // Never charge twice: a buyer who paid in a UPI app may come back to a page that still shows the paywall.
+        if (await reportAlreadyPaid(report, req, earlierCheckouts)) {
+          return res.status(409).json({ error: "already_paid" });
         }
         body.amount_rupees = report.price_rupees ?? ASTRO_PRICES[astroType].rupees;
         body.billing.companion_id = null;

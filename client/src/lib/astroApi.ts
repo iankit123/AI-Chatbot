@@ -229,3 +229,12 @@ export const cacheReport = (r: AstroReport) => reportCache.set(r.id, r);
 export const cachedReport = <T extends AstroReport>(id: string) => reportCache.get(id) as T | undefined;
 
 export const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Report-page events stored for our own analysis only (never sent to the Meta Pixel). */
+export function logAstro(
+  event: "astro_report_read" | "astro_report_action" | "astro_question",
+  report: AstroReport["type"],
+  props: Record<string, unknown>,
+) {
+  logAppEventToServer(event, { report, ...props });
+}

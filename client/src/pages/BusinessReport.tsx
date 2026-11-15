@@ -6,9 +6,10 @@ import {
   Segmented, Steps, ZodiacWheel,
 } from "@/components/astro/ui";
 import { SelfFields, useSelfForm } from "@/components/astro/forms";
-import { useAstroReport } from "@/components/astro/useReport";
+import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
+import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
 import {
-  cacheReport, createBusinessPreview, lastReportId, rememberReport, saveSelf, shareOnWhatsApp, trackAstro, wait,
+  cacheReport, createBusinessPreview, lastReportId, logAstro, rememberReport, saveSelf, shareOnWhatsApp, trackAstro, wait,
   type BusinessReport, type BusinessSituation,
 } from "@/lib/astroApi";
 
@@ -121,6 +122,7 @@ function Landing() {
 
   return (
     <>
+      <PaidReportBanner type="business" />
       <section className="rise pt-1 text-center">
         <HeroArt />
         <h1 className="font-hindi gold-text mt-3 text-[2.35rem] leading-[1.25]">
@@ -214,6 +216,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function ReportView({ id }: { id: string }) {
   const { report, error, paying, unlocking, pay } = useAstroReport<BusinessReport>(id, "business");
+  useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapki poori report khul rahi hai" steps={["Payment ki pushti", "Business ke sujhaav", "Shuruaat ka samay", "Naam aur shubh disha"]} />;
   if (!report) {
@@ -383,10 +386,14 @@ function ReportView({ id }: { id: string }) {
         <button
           type="button"
           className="btn-ghost w-full"
-          onClick={() => shareOnWhatsApp(`Meri kundli ke hisaab se mere liye "${s.fields[0]?.field}" ka kaam sabse shubh hai 🙂\nTum bhi apna dekho: ${window.location.origin}/business`)}
+          onClick={() => {
+            logAstro("astro_report_action", "business", { report_id: report.id, action: "share" });
+            shareOnWhatsApp(`Meri kundli ke hisaab se mere liye "${s.fields[0]?.field}" ka kaam sabse shubh hai 🙂\nTum bhi apna dekho: ${window.location.origin}/business`);
+          }}
         >
           <MessageCircle className="h-4 w-4" /> WhatsApp par share karein
         </button>
+        <AskMoreCard type="business" reportId={report.id} />
       </div>
       <AstroFooter />
     </>
