@@ -39,7 +39,7 @@ import { buildKundliReading } from "./services/kundliChart";
 import { insertAppEventRow } from "./services/appEvents";
 import { registerAstroRoutes } from "./astroRoutes";
 import { getReport as getAstroReport } from "./services/astro/store";
-import { ASTRO_PRICES, astroTypeFromProduct } from "@shared/astroProducts";
+import { ASTRO_PRICES, ASTRO_PRODUCT_TYPES, astroTypeFromProduct } from "@shared/astroProducts";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
 import { metaPurchaseEventId } from "@shared/metaEvents";
 import { crisisSupportReply, isSelfHarmMessage } from "@shared/crisisSupport";
@@ -547,8 +547,7 @@ export async function registerRoutes(
           "photo_pack",
           "voice_chat",
           "premium_photo",
-          "shaadi_report",
-          "milan_report",
+          ...ASTRO_PRODUCT_TYPES,
           "other",
         ]),
         companion_id: z.string().optional().nullable(),

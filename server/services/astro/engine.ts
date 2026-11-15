@@ -152,8 +152,8 @@ export function computeChart(input: BirthInput): Chart {
 }
 
 /** House number (1–12) of a sign counted from the base sign. */
-const houseOf = (sign: number, base: number) => ((sign - base + 12) % 12) + 1;
-const signOfHouse = (house: number, base: number) => (base + house - 1) % 12;
+export const houseOf = (sign: number, base: number) => ((sign - base + 12) % 12) + 1;
+export const signOfHouse = (house: number, base: number) => (base + house - 1) % 12;
 
 // ---------------------------------------------------------------- Vimshottari dasha
 
@@ -217,7 +217,7 @@ export type MarriageFacts = {
 const MANGAL_HOUSES = [1, 2, 4, 7, 8, 12];
 
 /** Traditional naam-akshar initials per rashi (most common starting sounds first). */
-const RASHI_LETTERS: { latin: string; hi: string }[][] = [
+export const RASHI_LETTERS: { latin: string; hi: string }[][] = [
   [{ latin: "A", hi: "अ" }, { latin: "L", hi: "ल" }, { latin: "Ch", hi: "च" }],
   [{ latin: "V", hi: "व" }, { latin: "B", hi: "ब" }, { latin: "U", hi: "उ" }],
   [{ latin: "K", hi: "क" }, { latin: "G", hi: "ग" }, { latin: "Chh", hi: "छ" }],
@@ -588,3 +588,169 @@ export function moonPointFromName(name: string): (MoonPoint & { syllable: string
 }
 
 export const moonPointOf = (c: Chart): MoonPoint => ({ moonLon: c.positions.Moon, moonSign: c.moonSign, nakshatra: c.nakshatra });
+
+/** Splits an antardasha into its nine pratyantar (sub-sub) periods, in Vimshottari proportion. */
+function pratyantars(p: DashaPeriod): { md: PlanetName; ad: PlanetName; pd: PlanetName; start: Date; end: Date }[] {
+  const total = p.end.getTime() - p.start.getTime();
+  const first = DASHA_ORDER.indexOf(p.ad);
+  let cursor = p.start.getTime();
+  return Array.from({ length: 9 }, (_, i) => {
+    const pd = DASHA_ORDER[(first + i) % 9];
+    const len = (total * DASHA_YEARS[pd]) / 120;
+    const out = { md: p.md, ad: p.ad, pd, start: new Date(cursor), end: new Date(cursor + len) };
+    cursor += len;
+    return out;
+  });
+}
+
+/**
+ * Upcoming stretches when a favourable planet rules the antardasha or the pratyantar.
+ * Adjacent stretches are joined; each is at least `minDays` long and capped at `maxMonths`.
+ */
+function favourableWindows(chart: Chart, fav: Set<PlanetName>, from: Date, opts: { minDays: number; maxMonths: number; horizonMonths: number }) {
+  const horizon = addMonths(from, opts.horizonMonths);
+  const subs = vimshottari(chart)
+    .filter((p) => p.end > from && p.start < horizon)
+    .flatMap(pratyantars)
+    .filter((s) => s.end > from && (fav.has(s.ad) || fav.has(s.pd)));
+  const merged: { start: Date; end: Date; md: PlanetName; ad: PlanetName }[] = [];
+  for (const s of subs) {
+    const start = new Date(Math.max(s.start.getTime(), from.getTime()));
+    const last = merged[merged.length - 1];
+    if (last && start.getTime() - last.end.getTime() < 86400000) last.end = s.end;
+    else merged.push({ start, end: s.end, md: s.md, ad: s.ad });
+  }
+  return merged
+    .filter((w) => w.end.getTime() - w.start.getTime() >= opts.minDays * 86400000)
+    .map((w) => ({ ...w, end: new Date(Math.min(w.end.getTime(), addMonths(w.start, opts.maxMonths).getTime())) }));
+}
+
+// ---------------------------------------------------------------- Love windows (for "will they come back")
+
+export type LoveWindows = {
+  currentFavourable: boolean;
+  current: { md: PlanetName; ad: PlanetName; end: string };
+  windows: { start: string; end: string; ad: PlanetName }[];
+};
+
+/** Dasha periods that activate the 5th (romance) and 7th (partnership) houses, from today onward. */
+export function loveWindows(chart: Chart, now = new Date()): LoveWindows {
+  const base = chart.baseSign;
+  const fifth = signOfHouse(5, base), seventh = signOfHouse(7, base);
+  const fav = new Set<PlanetName>([RASHI[fifth].lord as PlanetName, RASHI[seventh].lord as PlanetName, "Venus"]);
+  (Object.keys(chart.signOf) as PlanetName[]).forEach((p) => {
+    if (chart.signOf[p] === fifth || chart.signOf[p] === seventh) fav.add(p);
+  });
+  const cur = vimshottari(chart).filter((p) => p.end > now)[0];
+  const curSub = pratyantars(cur).find((s) => s.end > now)!;
+  const windows = favourableWindows(chart, fav, now, { minDays: 21, maxMonths: 6, horizonMonths: 36 })
+    .slice(0, 2)
+    .map((w) => ({ start: iso(w.start), end: iso(w.end), ad: w.ad }));
+  return {
+    // Favourable now when either the antardasha or the current pratyantar activates love and partnership.
+    currentFavourable: fav.has(cur.ad) || fav.has(curSub.pd),
+    current: { md: cur.md, ad: cur.ad, end: iso(cur.end) },
+    windows,
+  };
+}
+
+// ---------------------------------------------------------------- Business analysis
+
+const OWN_OR_EXALTED: Record<string, number[]> = {
+  Sun: [4, 0], Moon: [3, 1], Mars: [0, 7, 9], Mercury: [2, 5], Jupiter: [8, 11, 3], Venus: [1, 6, 11], Saturn: [9, 10, 6],
+};
+
+export type BusinessFacts = {
+  score: number;
+  level: "prabal" | "mishrit" | "seva";
+  tenthSign: number;
+  tenthLord: PlanetName;
+  tenthLordHouse: number;
+  planetsInTenth: PlanetName[];
+  /** Planets that most shape work and earnings, strongest first. */
+  rulers: PlanetName[];
+  partnership: "solo" | "partner" | "family";
+  startWindow: { start: string; end: string; md: PlanetName; ad: PlanetName };
+  nextWindow: { start: string; end: string } | null;
+  nameLetters: { latin: string; hi: string }[];
+  cautions: string[];
+  reasons: string[];
+};
+
+export function analyseBusiness(chart: Chart, now = new Date()): BusinessFacts {
+  const base = chart.baseSign;
+  const lordOf = (house: number) => RASHI[signOfHouse(house, base)].lord as PlanetName;
+  const houseOfPlanet = (p: PlanetName) => houseOf(chart.signOf[p], base);
+  const planets = Object.keys(chart.signOf) as PlanetName[];
+  const inHouse = (h: number) => planets.filter((p) => houseOfPlanet(p) === h);
+  const strong = (p: PlanetName) => (OWN_OR_EXALTED[p] ?? []).includes(chart.signOf[p]);
+
+  const tenthSign = signOfHouse(10, base);
+  const tenthLord = lordOf(10), seventhLord = lordOf(7), eleventhLord = lordOf(11), secondLord = lordOf(2), thirdLord = lordOf(3);
+  const tenthLordHouse = houseOfPlanet(tenthLord);
+  const planetsInTenth = inHouse(10);
+  const GOOD = [1, 2, 7, 10, 11];
+
+  let score = 0;
+  const reasons: string[] = [];
+  if ([1, 4, 7, 10, 5, 9].includes(houseOfPlanet("Mercury"))) { score += 2; reasons.push(`Vyapar ka karak Budh ${houseOfPlanet("Mercury")}ve bhaav me shubh sthiti me hai`); }
+  if (GOOD.includes(houseOfPlanet(seventhLord))) { score += 2; reasons.push(`Saptamesh (vyapar-sajhedari) ${PLANET_HINGLISH[seventhLord]} ${houseOfPlanet(seventhLord)}ve bhaav me hai`); }
+  if (GOOD.includes(tenthLordHouse)) { score += 2; reasons.push(`Dashamesh (karm) ${PLANET_HINGLISH[tenthLord]} ${tenthLordHouse}ve bhaav me bal de raha hai`); }
+  if (GOOD.includes(houseOfPlanet(eleventhLord))) { score += 1; reasons.push(`Labhesh ${PLANET_HINGLISH[eleventhLord]} aamdani ke bhaav ko majboot kar raha hai`); }
+  if ([3, 6, 10, 11].includes(houseOfPlanet("Rahu"))) { score += 1; reasons.push("Rahu sahas aur naye tareekon se kamai ka yog bana raha hai"); }
+  if ([3, 10].includes(houseOfPlanet("Mars")) || strong(thirdLord)) { score += 1; reasons.push("Parakram bhaav majboot hai, jokhim uthane ki himmat hai"); }
+  if (tenthLordHouse === 6) { score -= 1; reasons.push("Dashamesh chhathe bhaav me hai, jo naukri aur seva ki taraf jhukav deta hai"); }
+  if ([6, 8, 12].includes(houseOfPlanet(seventhLord))) { score -= 1; reasons.push("Saptamesh kamzor bhaav me hai, vyapar me shuruaati rukavat ke sanket"); }
+  if (planetsInTenth.includes("Saturn") && tenthLordHouse === 6) score -= 1;
+  const level: BusinessFacts["level"] = score >= 5 ? "prabal" : score >= 2 ? "mishrit" : "seva";
+
+  // Rank the planets that shape the person's work.
+  const weight = new Map<PlanetName, number>();
+  const bump = (p: PlanetName, w: number) => weight.set(p, (weight.get(p) ?? 0) + w);
+  bump(tenthLord, 3);
+  planetsInTenth.forEach((p) => bump(p, 3));
+  bump(seventhLord, 2);
+  bump(eleventhLord, 2);
+  bump(secondLord, 1);
+  bump("Mercury", 1);
+  planets.forEach((p) => { if (strong(p)) bump(p, 2); });
+  weight.delete("Ketu");
+  const rulers = Array.from(weight.entries()).sort((a, b) => b[1] - a[1]).map(([p]) => p).slice(0, 3);
+
+  const inSeventh = inHouse(7);
+  const partnership: BusinessFacts["partnership"] =
+    [6, 8, 12].includes(houseOfPlanet(seventhLord)) || inSeventh.some((p) => ["Saturn", "Rahu", "Ketu", "Mars"].includes(p))
+      ? "solo"
+      : inSeventh.some((p) => ["Jupiter", "Venus", "Mercury"].includes(p)) || [1, 7, 10, 11].includes(houseOfPlanet(seventhLord))
+        ? "partner"
+        : "family";
+
+  // Start window: next antardasha ruled by a work/earnings planet.
+  const fav = new Set<PlanetName>([tenthLord, seventhLord, eleventhLord, secondLord, "Mercury", "Jupiter"]);
+  const wins = favourableWindows(chart, fav, addMonths(now, 1), { minDays: 45, maxMonths: 8, horizonMonths: 60 });
+  const fallbackPeriod = vimshottari(chart).filter((p) => p.end > addMonths(now, 3))[0];
+  const chosen = wins[0] ?? { start: addMonths(now, 3), end: addMonths(now, 9), md: fallbackPeriod.md, ad: fallbackPeriod.ad };
+  const start = chosen.start, end = chosen.end;
+  const after = wins[1];
+
+  const pool = [...RASHI_LETTERS[base].slice(0, 2), ...RASHI_LETTERS[signOfHouse(11, base)].slice(0, 2)];
+  const nameLetters: BusinessFacts["nameLetters"] = [];
+  for (const l of pool) if (!nameLetters.some((x) => x.latin === l.latin)) nameLetters.push(l);
+
+  const cautions: string[] = [];
+  if ([2, 8].includes(houseOfPlanet("Rahu"))) cautions.push("Udhaar, satta aur jaldi ameer banane wali scheme se door rahein");
+  if (inHouse(8).length) cautions.push("Bina likha-padhi ke sajhedari ya bada len-den na karein");
+  if (inSeventh.includes("Mars")) cautions.push("Partner ya grahak se behas me gussa nuksan kara sakta hai");
+  if ([7, 10].includes(houseOfPlanet("Saturn"))) cautions.push("Safalta dheere aayegi. Pehle 2-3 saal dhairya aur niyam se kaam karein");
+  if (inHouse(12).length >= 2) cautions.push("Kharch par kadi nazar rakhein, hisaab roz likhein");
+  cautions.push("Shuruaat me apni jama poonji ka 60% se zyada ek saath na lagayein");
+
+  return {
+    score, level, tenthSign, tenthLord, tenthLordHouse, planetsInTenth, rulers, partnership,
+    startWindow: { start: iso(start), end: iso(end), md: chosen.md, ad: chosen.ad },
+    nextWindow: after ? { start: iso(after.start), end: iso(after.end) } : null,
+    nameLetters: nameLetters.slice(0, 4),
+    cautions: cautions.slice(0, 4),
+    reasons: reasons.slice(0, 4),
+  };
+}

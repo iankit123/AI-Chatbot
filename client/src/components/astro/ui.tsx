@@ -42,9 +42,9 @@ export function ZodiacWheel({ size = 220, className = "" }: { size?: number; cla
   );
 }
 
-export function AstroShell({ children, tagline }: { children: ReactNode; tagline: string }) {
+export function AstroShell({ children, tagline, theme }: { children: ReactNode; tagline: string; theme?: "wapas" | "business" }) {
   return (
-    <div className="astro">
+    <div className={`astro ${theme ? `theme-${theme}` : ""}`}>
       <div className="stars" />
       <div className="relative mx-auto w-full max-w-md px-4 pb-40">
         <header className="flex items-center justify-between py-4">
@@ -203,7 +203,7 @@ export function LockedRow({ title, hint }: { title: string; hint: string }) {
 
 export function PayBar({ price, label, sub, busy, onPay }: { price: Price; label: string; sub: string; busy: boolean; onPay: () => void }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#ecc97f]/25 bg-[rgba(20,7,13,0.96)] backdrop-blur-md">
+    <div className="fixed inset-x-0 bottom-0 z-40 paybar border-t border-[#ecc97f]/25 backdrop-blur-md">
       <div className="mx-auto w-full max-w-md px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
         <button type="button" className="btn-gold" disabled={busy} onClick={onPay}>
           {busy ? (
@@ -318,4 +318,37 @@ export function AstroFooter() {
 export function ErrorNote({ message }: { message: string | null }) {
   if (!message) return null;
   return <p role="alert" className="rounded-xl border border-[#c0392b]/40 bg-[#fdecea] px-3.5 py-2.5 text-[13px] text-[#8e2b20]">{message}</p>;
+}
+
+/** Three-step strength meter (kam / madhyam / prabal). */
+export function LevelMeter({ level, labels }: { level: number; labels: [string, string, string] }) {
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {[1, 2, 3].map((n) => (
+          <div key={n} className={`h-2.5 rounded-full ${n <= level ? "bg-gradient-to-r from-[#c9973f] to-[#ecc97f]" : "bg-[#e6d9c0]"}`} />
+        ))}
+      </div>
+      <div className="mt-1.5 grid grid-cols-3 text-[11px] font-medium">
+        {labels.map((l, i) => (
+          <span key={l} className={`${i === 1 ? "text-center" : i === 2 ? "text-right" : ""} ${i + 1 === level ? "ink font-semibold" : "ink-soft"}`}>{l}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function Bullets({ items, tone = "star" }: { items: string[]; tone?: "star" | "yes" | "no" }) {
+  const mark = tone === "yes" ? "✓" : tone === "no" ? "✕" : "✦";
+  const colour = tone === "yes" ? "text-[#4f8a35]" : tone === "no" ? "text-[#b9441c]" : "text-[#c9973f]";
+  return (
+    <ul className="space-y-2">
+      {items.map((t) => (
+        <li key={t} className="ink flex gap-2.5 text-[14px] leading-relaxed">
+          <span className={`mt-0.5 shrink-0 text-[13px] font-bold ${colour}`}>{mark}</span>
+          {t}
+        </li>
+      ))}
+    </ul>
+  );
 }

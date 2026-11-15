@@ -339,3 +339,54 @@
 @media (prefers-reduced-motion: reduce) {
   .astro .spin-slow, .astro .spin-med, .astro .rise, .astro .pulse, .astro .shimmer { animation: none; }
 }
+
+/* ---- Astro themes. Default is the wine-and-gold wedding card (/shaadi, /milan). ---- */
+/* /wapas: moonlit night, plum with rose-gold. Softer, for someone who is hurting. */
+.astro.theme-wapas {
+  --wine-700: #4a2a6b;
+  --ink: #2c1640;
+  --ink-soft: #6f5a80;
+  background:
+    radial-gradient(900px 480px at 78% -80px, rgba(255, 214, 226, 0.20), transparent 60%),
+    radial-gradient(700px 520px at 0% 38%, rgba(120, 70, 170, 0.34), transparent 70%),
+    linear-gradient(180deg, #24123a 0%, #0e0820 100%);
+  background-attachment: fixed;
+}
+.astro.theme-wapas .gold-text {
+  background: linear-gradient(100deg, #ffe6ee 0%, #f8bccd 40%, #e58ea9 72%, #ffe1ea 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.astro.theme-wapas .btn-gold {
+  color: #2c1640;
+  background: linear-gradient(180deg, #ffe3ea 0%, #f6a9bf 50%, #df7d9c 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset, 0 10px 28px -8px rgba(229, 142, 169, 0.75);
+}
+.astro.theme-wapas .chip { color: #ffdbe6; border-color: rgba(248, 188, 205, 0.45); background: rgba(248, 188, 205, 0.1); }
+.astro.theme-wapas .glass { border-color: rgba(248, 188, 205, 0.24); }
+.astro.theme-wapas .paper { box-shadow: 0 0 0 1px rgba(229, 142, 169, 0.6), 0 24px 60px -24px rgba(0, 0, 0, 0.75); }
+.astro.theme-wapas .paper::before { border-color: rgba(229, 142, 169, 0.35); }
+.astro.theme-wapas .seg button[aria-pressed="true"] { background: linear-gradient(180deg, #5d3785, #3c2259); border-color: #3c2259; }
+.astro.theme-wapas .letter-tile { background: linear-gradient(160deg, #5d3785 0%, #2c1640 100%); box-shadow: 0 0 0 1px rgba(248, 188, 205, 0.6), 0 10px 22px -12px rgba(44, 22, 64, 0.9); }
+
+/* /business: emerald and gold, the colours of a shop's shubh-labh. */
+.astro.theme-business {
+  --wine-700: #14503f;
+  --ink: #10261f;
+  --ink-soft: #4f6a60;
+  background:
+    radial-gradient(1100px 520px at 50% -140px, rgba(236, 201, 127, 0.26), transparent 62%),
+    radial-gradient(700px 460px at 100% 34%, rgba(26, 110, 84, 0.42), transparent 70%),
+    linear-gradient(180deg, #0f3229 0%, #06140f 100%);
+  background-attachment: fixed;
+}
+.astro.theme-business .seg button[aria-pressed="true"] { background: linear-gradient(180deg, #1c6a54, #124334); border-color: #124334; }
+.astro.theme-business .letter-tile { background: linear-gradient(160deg, #1c6a54 0%, #0c2a22 100%); }
+
+.astro .paybar { background: rgba(14, 7, 12, 0.96); }
+.astro.theme-wapas .paybar { background: rgba(14, 8, 28, 0.96); }
+.astro.theme-business .paybar { background: rgba(5, 18, 13, 0.96); }
+.astro .ink { color: var(--ink); }
+.astro .ink-soft { color: var(--ink-soft); }
+@keyframes astro-beat { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.18); } }
+.astro .beat { animation: astro-beat 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) { .astro .beat { animation: none; } }

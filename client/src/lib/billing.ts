@@ -1,4 +1,5 @@
 import { getDeviceId, getStoredBillingPhoneDigits } from "@/lib/supabase";
+import type { AstroProductType } from "@shared/astroProducts";
 import { normalizeBillingWalletPayload } from "@/lib/normalizeWallet";
 import { syncPhotoPackUnlocksFromServer } from "@/lib/photoPackUnlock";
 import { syncVoicePackUnlocksFromServer } from "@/lib/voicePackUnlock";
@@ -9,8 +10,7 @@ export type PaymentProductType =
   | "photo_pack"
   | "voice_chat"
   | "premium_photo"
-  | "shaadi_report"
-  | "milan_report"
+  | AstroProductType
   | "other";
 
 export type RazorpayBillingContext = {

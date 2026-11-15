@@ -12,7 +12,7 @@ import { generateJson, type PalmReading } from "./ai";
 import { ASTRO_PRICES } from "@shared/astroProducts";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const monthYear = (isoDate: string) => {
+export const monthYear = (isoDate: string) => {
   const d = new Date(isoDate);
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 };
@@ -69,7 +69,7 @@ export type ShaadiFacts = {
   marriage: MarriageFacts;
 };
 
-function chartSummary(c: Chart) {
+export function chartSummary(c: Chart) {
   return {
     lagna: c.lagnaSign !== null ? RASHI[c.lagnaSign].en : null,
     moonRashi: RASHI[c.moonSign].en,
@@ -149,7 +149,7 @@ export function portraitPrompt(input: ShaadiInput, f: ShaadiFacts): string {
   return `A delicate hand-drawn pencil and soft watercolor portrait sketch of ${subject}. Features: ${partner.sketch}. Shoulders-up, facing slightly to the side, warm gentle expression. Style: fine graphite lines with light sepia and rose watercolor wash on textured ivory paper, artistic, tasteful, like an illustration in a keepsake book. Plain background. No text, no letters, no watermark, no frame.`;
 }
 
-const TONE = `Likho simple, garmjoshi bhari Hinglish me (Roman lipi, jaise log WhatsApp par likhte hain). Vakya chhote rakho. "Sambhavna", "yog", "sanket" jaise shabd use karo, kabhi pakka dava ya guarantee mat do. Diye gaye tathyon se bahar koi nayi tareekh, akshar ya graha sthiti mat banao. Sirf JSON lautao.`;
+export const TONE = `Likho simple, garmjoshi bhari Hinglish me (Roman lipi, jaise log WhatsApp par likhte hain). Vakya chhote rakho. "Sambhavna", "yog", "sanket" jaise shabd use karo, kabhi pakka dava ya guarantee mat do. Diye gaye tathyon se bahar koi nayi tareekh, akshar ya graha sthiti mat banao. Sirf JSON lautao.`;
 
 export async function shaadiNarrative(input: ShaadiInput, f: ShaadiFacts, palm: PalmReading | null) {
   const s = shaadiSections(input, f);
@@ -292,14 +292,14 @@ const yoniName = (n: number) => YONI_NAMES[YONI[n]];
 const ganaName = (n: number) => GANA_NAMES[GANA[n]];
 const nadiName = (n: number) => NADI_NAMES[NADI[n]];
 
-const BAND_COPY: Record<MilanFacts["band"], { label: string; hi: string; line: string }> = {
+export const BAND_COPY: Record<MilanFacts["band"], { label: string; hi: string; line: string }> = {
   uttam: { label: "Uttam milan", hi: "उत्तम मिलान", line: "Yeh jodi shastron ke hisaab se bahut shubh maani jaati hai." },
   achha: { label: "Achha milan", hi: "अच्छा मिलान", line: "Yeh jodi vivah ke liye anukool maani jaati hai." },
   madhyam: { label: "Madhyam milan", hi: "मध्यम मिलान", line: "Milan seema par hai. Samajhdari aur upay ke saath rishta chal sakta hai." },
   kamzor: { label: "Kamzor milan", hi: "कमज़ोर मिलान", line: "Gun kam mile hain. Rishta namumkin nahi, par mehnat aur upay zaroori honge." },
 };
 
-const BASIS_NOTE: Record<MilanFacts["partner"]["basis"], string> = {
+export const BASIS_NOTE: Record<MilanFacts["partner"]["basis"], string> = {
   kundli: "Dono ki janm kundli se milan kiya gaya hai.",
   dob_only: "Saathi ka janm samay nahi tha, isliye unki rashi dopahar 12 baje ke Chandra se li gayi hai. Nakshatra me halka antar ho sakta hai.",
   naam: "Saathi ki janm tithi nahi thi, isliye naam ke pehle akshar se naam-rashi li gayi hai. Janm tithi dene par milan zyada sateek hoga.",

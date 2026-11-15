@@ -214,7 +214,7 @@ function Landing() {
           <SampleCard />
         </div>
         <button type="button" className="btn-gold mt-8" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-          <Sparkles className="h-4 w-4" /> Apni kundli dekhein, free
+          <Sparkles className="h-4 w-4" /> Apni kundli dekhein
         </button>
         {last && (
           <Link href={`/shaadi/r/${last}`} className="mt-3 inline-block text-[13px] text-[#ecc97f] underline underline-offset-4">
@@ -284,7 +284,7 @@ function Landing() {
             <button type="submit" className="btn-gold">
               <Sparkles className="h-4 w-4" /> Meri shaadi ka yog dekhein
             </button>
-            <p className="text-center text-[11px] text-[#7a5560]">Kundli aur naam ka pehla akshar free me dikhega.</p>
+            <p className="text-center text-[11px] text-[#7a5560]">Kundli aur naam ka pehla akshar turant dikhega.</p>
           </form>
         </PaperCard>
       </div>
@@ -317,7 +317,7 @@ function Landing() {
   );
 }
 
-// ---------------------------------------------------------------- report (free preview + paid)
+// ---------------------------------------------------------------- report (preview + paid)
 
 /** Letter tiles separated by commas and a final "ya", so they read as alternatives and not as one word. */
 function LetterRow({ tiles }: { tiles: React.ReactNode[] }) {

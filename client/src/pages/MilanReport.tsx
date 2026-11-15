@@ -120,7 +120,7 @@ function Landing() {
           36 gun milan, Mangal dosh aur rishte ka bhavishya. Sirf naam se bhi milan ho sakta hai.
         </p>
         <button type="button" className="btn-gold mt-7" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-          <Sparkles className="h-4 w-4" /> Gun milan dekhein, free
+          <Sparkles className="h-4 w-4" /> Gun milan dekhein
         </button>
         {last && (
           <Link href={`/milan/r/${last}`} className="mt-3 inline-block text-[13px] text-[#ecc97f] underline underline-offset-4">
@@ -198,7 +198,7 @@ function Landing() {
           <button type="submit" className="btn-gold">
             <Heart className="h-4 w-4" /> Gun milan karein
           </button>
-          <p className="text-center text-[11px] text-[#d9c7a3]">36 me se kitne gun mile, yeh free me dikhega.</p>
+          <p className="text-center text-[11px] text-[#d9c7a3]">36 me se kitne gun mile, yeh turant dikhega.</p>
         </form>
       </div>
 

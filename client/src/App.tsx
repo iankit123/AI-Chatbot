@@ -19,6 +19,8 @@ import RefundPolicy from "./pages/RefundPolicy";
 import ContactUs from "./pages/ContactUs";
 import ShaadiReportPage from "./pages/ShaadiReport";
 import MilanReportPage from "./pages/MilanReport";
+import WapasReportPage from "./pages/WapasReport";
+import BusinessReportPage from "./pages/BusinessReport";
 import { ChatProvider } from "./context/ChatContext";
 import { SupportBlockedPage } from "@/components/SupportBlockedPage";
 import { isSupportBlocked } from "@/lib/supportBlock";
@@ -42,6 +44,10 @@ function Router() {
       <Route path="/shaadi/r/:id" component={ShaadiReportPage} />
       <Route path="/milan" component={MilanReportPage} />
       <Route path="/milan/r/:id" component={MilanReportPage} />
+      <Route path="/wapas" component={WapasReportPage} />
+      <Route path="/wapas/r/:id" component={WapasReportPage} />
+      <Route path="/business" component={BusinessReportPage} />
+      <Route path="/business/r/:id" component={BusinessReportPage} />
       <Route path="/about" component={AboutUs} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/terms" component={TermsAndConditions} />

@@ -53,7 +53,58 @@ export type MilanReport = {
   narrative?: { summary: string; bond: string; caution: string; advice: string } | null;
 };
 
-export type AstroReport = ShaadiReport | MilanReport;
+export type WapasStatus = "breakup" | "no_contact" | "fight" | "separated";
+export type WapasReport = {
+  id: string; type: "wapas"; paid: boolean; price: Price; selfName: string; partnerName: string; status: WapasStatus;
+  gunTotal: number; gunBand: string;
+  self: { moonRashi: string; nakshatra: string }; partner: { moonRashi: string; nakshatra: string };
+  basisNote: string;
+  sections?: {
+    level: { label: string; hi: string; line: string }; meter: number; feel: string; causes: string[];
+    act: { title: string; text: string };
+    timing: { contact: string | null; next: string | null; dasha: string };
+    doList: string[]; dontList: string[]; upay: string[];
+    gun: { total: number; band: { label: string; hi: string; line: string } };
+    care: string; basisNote: string;
+  };
+  narrative?: { summary: string; feelings: string; cause: string; advice: string } | null;
+};
+
+export type BusinessSituation = "naukri" | "business" | "berozgar" | "student";
+export type BusinessReport = {
+  id: string; type: "business"; paid: boolean; price: Price; name: string;
+  chart: ShaadiReport["chart"];
+  level: { label: string; hi: string; line: string }; meter: number; budget: string;
+  topField?: { planet: string; field: string }; ideaCount?: number; letterCount?: number;
+  sections?: {
+    reasons: string[];
+    fields: { planet: string; field: string }[];
+    ideas: { text: string; planet: string; field: string; budget: string }[];
+    partnership: { title: string; text: string };
+    timing: { start: string; dasha: string; next: string | null };
+    name: { letters: { latin: string; hi: string }[]; note: string };
+    luck: { day: string; colour: string; direction: string };
+    cautions: string[]; tip: string;
+    snapshot: { label: string; value: string }[];
+  };
+  narrative?: { summary: string; why: string; how: string; caution: string } | null;
+};
+
+export type AstroReport = ShaadiReport | MilanReport | WapasReport | BusinessReport;
+
+export type PartnerDetails = { name: string; dob: string | null; tob: string | null; place: string | null };
+
+export const createWapasPreview = (payload: { self: SelfDetails; partner: PartnerDetails; status: WapasStatus }) =>
+  request<WapasReport>("/api/astro/wapas/preview", {
+    method: "POST",
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload }),
+  });
+
+export const createBusinessPreview = (payload: SelfDetails & { situation: BusinessSituation; budget: 1 | 2 | 3 | 4 }) =>
+  request<BusinessReport>("/api/astro/business/preview", {
+    method: "POST",
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload }),
+  });
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -97,7 +148,7 @@ export async function payForReport(report: AstroReport): Promise<void> {
       phone_number: "",
       product_type: ASTRO_PRODUCT_TYPE[report.type],
       companion_id: null,
-      rate_note: report.type === "shaadi" ? "Shaadi report" : "Kundli milan report",
+      rate_note: `${report.type} report`,
       metadata: { astro_report_id: report.id, source: `${report.type}_report` },
     },
   });
