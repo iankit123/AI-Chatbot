@@ -431,6 +431,20 @@
   --ink: #1d1a2c;
   --ink-soft: #625b73;
 }
+/* /tayari: exam-prep quiz. Night study-room navy with a desk-lamp amber accent. */
+.astro.ed.ed-tayari {
+  --ed-bg: #0c111d;
+  --ed-surface: #151c2b;
+  --ed-line: rgba(255, 255, 255, 0.1);
+  --ed-accent: #f5b544;
+  --ed-accent-ink: #231703;
+  --ed-text: #f3f1ea;
+  --ed-muted: #a9b2c3;
+  --ink: #141b2b;
+  --ink-soft: #5d6577;
+}
+.astro.ed.ed-tayari .btn-gold { box-shadow: 0 14px 32px -16px rgba(245, 181, 68, 0.7); }
+.astro.ed.ed-tayari .seg button { height: auto; min-height: 48px; padding: 8px 10px; line-height: 1.25; }
 .astro.ed .stars { display: none; }
 .astro.ed .paper {
   background: var(--paper);

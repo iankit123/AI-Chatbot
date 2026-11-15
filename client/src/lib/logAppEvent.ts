@@ -14,9 +14,11 @@ export function logAppEventToServer(
   eventName: AppEventName,
   properties?: Record<string, unknown>,
   metaEventId?: string,
+  /** A number the user just typed (e.g. a waitlist form), used instead of the stored billing phone. */
+  phoneOverride?: string,
 ): void {
   const deviceId = getDeviceId();
-  const phone = getStoredBillingPhoneDigits();
+  const phone = phoneOverride ?? getStoredBillingPhoneDigits();
   const userId = auth.currentUser?.uid ?? null;
 
   void fetch("/api/events", {

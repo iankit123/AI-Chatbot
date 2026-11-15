@@ -18,6 +18,16 @@ export const APP_EVENT_NAMES = [
   "astro_question",
   /** Self-harm message detected; logged to our DB only, never sent to Meta. */
   "crisis_detected",
+  /**
+   * /tayari: free exam-prep quiz for sarkari aspirants (a demand test, nothing is sold).
+   * landing → one tayari_step per answer → tayari_completed (all answers) → tayari_offer_click
+   * on a "coming soon" ₹49 offer → tayari_lead when they leave a WhatsApp number.
+   */
+  "tayari_landing",
+  "tayari_step",
+  "tayari_completed",
+  "tayari_offer_click",
+  "tayari_lead",
 ] as const;
 
 export type AppEventName = (typeof APP_EVENT_NAMES)[number];
