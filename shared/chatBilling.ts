@@ -3,20 +3,16 @@ import {
   KUNDLI_CONTEXT_DETAILS,
 } from "./kundliMessageKinds";
 
-/** Default free user messages per companion before paid chat (₹0.20/message) applies. */
-export const FREE_USER_MESSAGE_ALLOWANCE = 8;
-
 /**
- * Companions with a different free allowance. Kundli: by the 6th message most people
- * are on their most personal question, and few drop off before that (Nov 2026 ad traffic).
+ * Free user messages in every chat (Kundli, Krishna, companions, all others). The paywall
+ * opens when the person sends the next one, i.e. on their 3rd message; after a recharge
+ * each message costs ₹0.20.
  */
-const FREE_USER_MESSAGE_ALLOWANCE_BY_COMPANION: Record<string, number> = {
-  kundli: 5,
-};
+export const FREE_USER_MESSAGE_ALLOWANCE = 2;
 
-export function freeMessageAllowance(companionId: string | null | undefined): number {
-  if (!companionId) return FREE_USER_MESSAGE_ALLOWANCE;
-  return FREE_USER_MESSAGE_ALLOWANCE_BY_COMPANION[companionId] ?? FREE_USER_MESSAGE_ALLOWANCE;
+/** Same allowance for every chat. Takes the companion so a per-chat limit can return later. */
+export function freeMessageAllowance(_companionId: string | null | undefined): number {
+  return FREE_USER_MESSAGE_ALLOWANCE;
 }
 
 /** Saved with role "user" but not typed by the person (Kundli birth-form bubbles). */
