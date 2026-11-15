@@ -11,6 +11,7 @@ export type PaymentProductType =
   | "voice_chat"
   | "premium_photo"
   | AstroProductType
+  | "question_pack"
   | "other";
 
 export type RazorpayBillingContext = {

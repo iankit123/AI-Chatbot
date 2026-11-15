@@ -39,6 +39,7 @@ import { buildKundliReading } from "./services/kundliChart";
 import { insertAppEventRow } from "./services/appEvents";
 import { razorpayBuyerPhone, registerAstroRoutes, rememberBuyerPhone, reportAlreadyPaid } from "./astroRoutes";
 import { registerAstroAskRoutes } from "./astroAsk";
+import { QUESTION_PACK, QUESTION_PACK_PRODUCT } from "@shared/questionPack";
 import { findReportPaymentStatuses, getReport as getAstroReport } from "./services/astro/store";
 import { ASTRO_PRICES, ASTRO_PRODUCT_TYPES, astroTypeFromProduct } from "@shared/astroProducts";
 import { APP_EVENT_NAMES } from "@shared/appEvents";
@@ -549,6 +550,7 @@ export async function registerRoutes(
           "voice_chat",
           "premium_photo",
           ...ASTRO_PRODUCT_TYPES,
+          QUESTION_PACK_PRODUCT,
           "other",
         ]),
         companion_id: z.string().optional().nullable(),
@@ -578,6 +580,15 @@ export async function registerRoutes(
           return res.status(409).json({ error: "already_paid" });
         }
         body.amount_rupees = report.price_rupees ?? ASTRO_PRICES[astroType].rupees;
+        body.billing.companion_id = null;
+      } else if (body.billing.product_type === QUESTION_PACK_PRODUCT) {
+        // 10 more answers on one paid report. Price comes from the server.
+        const reportId = z.string().uuid().safeParse(body.billing.metadata?.astro_report_id);
+        const report = reportId.success ? await getAstroReport(reportId.data) : null;
+        if (!report?.paid) {
+          return res.status(400).json({ error: "Report not found for this payment" });
+        }
+        body.amount_rupees = QUESTION_PACK.rupees;
         body.billing.companion_id = null;
       } else if (body.billing.phone_number.replace(/\D/g, "").length < 10) {
         return res.status(400).json({ message: "Invalid payload", error: "phone_number is required" });

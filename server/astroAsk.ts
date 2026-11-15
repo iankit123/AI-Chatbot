@@ -3,10 +3,15 @@
  * answered from their own chart and their report's findings, and stored with the answer.
  * Questions asked before answering existed are answered the next time the report is opened.
  */
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { crisisSupportReply, isSelfHarmMessage } from "@shared/crisisSupport";
+import { metaPurchaseEventId } from "@shared/metaEvents";
+import { FREE_ANSWERS, QUESTION_PACK, QUESTION_PACK_PRODUCT } from "@shared/questionPack";
+import { razorpayBuyerPhone, rememberBuyerPhone } from "./astroRoutes";
+import { metaContextFromRequest, sendMetaConversionEvent } from "./services/metaConversions";
+import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY } from "./services/supabaseBilling";
 import { insertAppEventRow } from "./services/appEvents";
 import { generateJson } from "./services/astro/ai";
 import {
@@ -17,8 +22,6 @@ import { milanView, monthYear, shaadiView } from "./services/astro/reports";
 import { businessView, wapasView } from "./services/astro/reports2";
 import { getReport, type AstroReportRow } from "./services/astro/store";
 
-/** Answers per report; questions beyond this are still recorded for product ideas. */
-const MAX_ANSWERS = 5;
 
 const admin = () => {
   const url = process.env.SUPABASE_URL?.trim();
@@ -47,6 +50,77 @@ async function saveAnswer(row: QuestionRow, answer: string): Promise<void> {
     .update({ properties: { ...row.properties, answer, answered_at: new Date().toISOString() } })
     .eq("id", row.id);
   if (error) throw error;
+}
+
+/** Answers this report may get: the free ones plus 10 for every question pack bought. */
+async function allowanceFor(reportId: string): Promise<number> {
+  const { count, error } = await admin()
+    .from("payment_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "success")
+    .eq("product_type", QUESTION_PACK_PRODUCT)
+    .eq("metadata->>astro_report_id", reportId);
+  if (error) throw error;
+  return FREE_ANSWERS + QUESTION_PACK.questions * (count ?? 0);
+}
+
+async function razorpayGet<T>(path: string): Promise<T | null> {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  if (!keyId || !keySecret) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch(`https://api.razorpay.com/v1/${path}`, {
+      headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}` },
+      signal: ctrl.signal,
+    });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * A question pack paid in a UPI app may never be confirmed by the browser. When the buyer is
+ * back on the report, ask Razorpay about this report's open pack orders and complete paid ones.
+ */
+async function recoverQuestionPacks(row: AstroReportRow, req: Request): Promise<void> {
+  const since = new Date(Date.now() - 3 * 86400000).toISOString();
+  const { data, error } = await admin()
+    .from("payment_attempts")
+    .select("id, gateway_order_id")
+    .in("status", ["pending", "cancelled"])
+    .eq("product_type", QUESTION_PACK_PRODUCT)
+    .eq("metadata->>astro_report_id", row.id)
+    .not("gateway_order_id", "is", null)
+    .gte("created_at", since)
+    .limit(3);
+  if (error) throw error;
+  for (const p of data ?? []) {
+    const orderId = String(p.gateway_order_id);
+    const payments = await razorpayGet<{ items?: { id: string; status: string }[] }>(`orders/${encodeURIComponent(orderId)}/payments`);
+    const paid = payments?.items?.find((x) => x.status === "captured" || x.status === "authorized");
+    if (!paid) continue;
+    const [result, phone] = await Promise.all([
+      completePaymentSuccess({ paymentId: String(p.id), paymentGateway: PAYMENT_GATEWAY_RAZORPAY, gatewayOrderId: orderId, gatewayPaymentId: paid.id }),
+      razorpayBuyerPhone(paid.id).catch(() => null),
+    ]);
+    const purchase = "purchase" in result ? result.purchase : null;
+    if (!purchase) continue;
+    if (phone && !purchase.phone_digits) await rememberBuyerPhone(String(p.id), purchase.device_id, phone).catch(() => {});
+    console.log(`[astro-ask] recovered question pack ${p.id} order=${orderId} report=${row.id}`);
+    await sendMetaConversionEvent({
+      eventName: "Purchase",
+      eventId: metaPurchaseEventId(orderId),
+      context: metaContextFromRequest(req, null),
+      deviceId: purchase.device_id,
+      phoneDigits: purchase.phone_digits || phone,
+      customData: { value: purchase.amount_rupees, currency: "INR", content_ids: [orderId], content_type: "product", product_type: QUESTION_PACK_PRODUCT },
+    }).catch(() => {});
+  }
 }
 
 const selfInput = (row: AstroReportRow): BirthInput => ((row.input as any).self ?? row.input) as BirthInput;
@@ -138,9 +212,10 @@ export function registerAstroAskRoutes(app: Express) {
       const id = z.string().uuid().parse(req.params.id);
       const row = await getReport(id);
       if (!row?.paid) return res.status(404).json({ items: [], remaining: 0 });
-      const rows = await listQuestions(id);
+      await recoverQuestionPacks(row, req).catch((err) => console.error("[astro-ask] pack recovery failed:", err));
+      const [rows, allowed] = await Promise.all([listQuestions(id), allowanceFor(id)]);
       let answered = rows.filter((q) => q.properties.answer).length;
-      const pending = rows.filter((q) => !q.properties.answer && q.properties.question).slice(0, Math.max(0, MAX_ANSWERS - answered)).slice(0, 3);
+      const pending = rows.filter((q) => !q.properties.answer && q.properties.question).slice(0, Math.max(0, allowed - answered)).slice(0, 3);
       await Promise.all(
         pending.map(async (q) => {
           const answer = await answerQuestion(row, String(q.properties.question).slice(0, 500));
@@ -150,7 +225,7 @@ export function registerAstroAskRoutes(app: Express) {
           answered += 1;
         }),
       );
-      res.json({ items: rows.map(view), remaining: Math.max(0, MAX_ANSWERS - answered) });
+      res.json({ items: rows.map(view), remaining: Math.max(0, allowed - answered), free: FREE_ANSWERS, pack: QUESTION_PACK });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(404).json({ items: [], remaining: 0 });
       console.error("[astro-ask] list failed:", error);
@@ -165,8 +240,10 @@ export function registerAstroAskRoutes(app: Express) {
       const row = await getReport(id);
       if (!row) return res.status(404).json({ message: "Report nahi mili" });
       if (!row.paid) return res.status(402).json({ message: "Pehle report kholein" });
-      const answered = (await listQuestions(id)).filter((q) => q.properties.answer).length;
-      const answer = answered < MAX_ANSWERS ? await answerQuestion(row, question) : null;
+      const [rows, allowed] = await Promise.all([listQuestions(id), allowanceFor(id)]);
+      const answered = rows.filter((q) => q.properties.answer).length;
+      const hasAllowance = answered < allowed;
+      const answer = hasAllowance ? await answerQuestion(row, question) : null;
       const saved = await insertAppEventRow({
         eventName: "astro_question",
         deviceId: row.device_id,
@@ -177,8 +254,12 @@ export function registerAstroAskRoutes(app: Express) {
           ...(answer ? { answer, answered_at: new Date().toISOString() } : {}),
         },
       });
-      const remaining = Math.max(0, MAX_ANSWERS - answered - (answer ? 1 : 0));
-      if (!answer && answered < MAX_ANSWERS) {
+      const remaining = Math.max(0, allowed - answered - (answer ? 1 : 0));
+      if (!hasAllowance) {
+        // Saved now; answered as soon as a question pack is paid for.
+        return res.status(402).json({ needsPack: true, item: { id: saved.id, question, answer: null }, remaining: 0, pack: QUESTION_PACK });
+      }
+      if (!answer) {
         // Kept unanswered; the next time the report opens it is answered.
         return res.status(503).json({ message: "Abhi jawab nahi ban paya. Thodi der baad report dobara kholein, jawab yahin milega.", item: { id: saved.id, question, answer: null }, remaining });
       }

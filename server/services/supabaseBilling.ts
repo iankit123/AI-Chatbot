@@ -39,6 +39,7 @@ export type PaymentProductType =
   | "voice_chat"
   | "premium_photo"
   | AstroProductType
+  | "question_pack"
   | "other";
 
 export interface UpsertProfileInput {
@@ -114,7 +115,7 @@ export function resolvePaymentProductType(row: PaymentRowLite): PaymentProductTy
     return col as PaymentProductType;
   }
   // One-off reports: never chat credits or companion packs.
-  if (isAstroProductType(col)) return "other";
+  if (isAstroProductType(col) || col === "question_pack") return "other";
   const meta = (row.metadata as Record<string, unknown>) ?? {};
   const source = String(meta.source ?? "").toLowerCase();
   if (source === "photo_pack_activation") return "photo_pack";
