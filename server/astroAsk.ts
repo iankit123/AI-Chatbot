@@ -82,9 +82,10 @@ function reportFindings(row: AstroReportRow) {
 
 const SYSTEM = `Tum ek anubhavi, samvedansheel Vedic jyotishi ho. Ek grahak ne apni paid report padhne ke baad sawal poocha hai. Uski kundli ke tathyon aur report ke nishkarshon ke aadhar par seedha jawab do.
 Niyam:
-- Jis bhasha aur lipi me sawal hai, usi me jawab do: Devanagari me sawal ho to Devanagari Hindi, Roman Hinglish me ho to Roman Hinglish, English me ho to simple English.
+- Jawab usi bhasha aur lipi me do jo neeche "Jawab ki bhasha" me di gayi hai. Yeh sabse zaroori niyam hai.
+- Sawal kisi bhi vishay par ho (naukri, sarkari naukri, ghar, paisa, business, santaan, padhai, videsh, rishte), uski kundli ke graha, bhaav aur dasha se jawab do. Report kisi aur vishay ki ho tab bhi jawab do. Kabhi mana mat karo aur kabhi "alag report banwaiye" mat kaho.
 - 60 se 130 shabd. Pehle seedha jawab, phir kundli ka chhota karan (dasha, bhaav ya graha), phir ek vyavaharik salah.
-- Report ke samay, akshar aur nishkarsh ke ulta mat bolo. Koi bhi tareekh sirf di gayi dasha list se lo.
+- Report me jo samay, akshar ya nishkarsh diye gaye hain, unke ulta mat bolo. Koi bhi tareekh sirf di gayi dasha list se lo.
 - "Sambhavna", "yog", "sanket" ki bhasha. Pakka dava ya guarantee kabhi nahi.
 - Kisi aur vyakti (dost, rishtedar) ki kundli pooche to batao ki yeh report unki apni kundli ki hai; doosre vyakti ke liye puchlo.in par uski alag report banayein, aur rishta milana ho to Milan report.
 - Photo, WhatsApp ya phone par baat maange to narmi se batao ki yahan photo nahi dekhi ja sakti, phir kundli ke aadhar par jo bata sakte ho woh batao.
@@ -93,6 +94,14 @@ Niyam:
 - Sehat, garbh, kanoon ya bade paise ke faisle par pakki baat nahi; zaroorat ho to doctor ya visheshagya se milne ko kaho.
 - Koi paid puja, ratna ya mehnga upay mat sujhao. Saral, muft upay chalega.
 - Khud ko AI mat kaho. Sirf JSON lautao.`;
+
+/** The language and script to answer in, decided here so the model cannot drift from it. */
+function answerLanguage(question: string): string {
+  if (/[\u0900-\u097F]/.test(question)) return "Devanagari Hindi (poora jawab Devanagari lipi me, Roman akshar nahi)";
+  const english = (question.match(/\b(the|is|will|my|when|what|how|be|her|his|from|and|of|to|in|with|she|he|marriage|life|get|job|have)\b/gi) ?? []).length;
+  const hindi = (question.match(/\b(kya|kab|hai|hoga|hogi|meri|mera|mere|mujhe|ki|ka|ke|se|me|mai|nahi|aur|kaise|shaadi|shadi|batao|bataiye)\b/gi) ?? []).length;
+  return english > hindi ? "simple English" : "Roman Hinglish, jaise WhatsApp par likhte hain (Devanagari nahi)";
+}
 
 async function answerQuestion(row: AstroReportRow, question: string): Promise<string | null> {
   if (isSelfHarmMessage(question)) {
@@ -107,6 +116,7 @@ Kundli: ${JSON.stringify(chartBrief(b))}
 Report ke nishkarsh: ${reportFindings(row)}
 
 Sawal: "${question}"
+Jawab ki bhasha: ${answerLanguage(question)}
 
 Yeh JSON do: {"answer": "jawab"}`,
     700,
