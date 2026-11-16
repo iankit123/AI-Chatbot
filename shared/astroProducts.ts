@@ -17,7 +17,7 @@ export const ASTRO_PRODUCT_TYPES = Object.values(ASTRO_PRODUCT_TYPE) as [AstroPr
 
 export const ASTRO_PRICES: Record<AstroReportType, { rupees: number; strike: number }> = {
   shaadi: { rupees: 29, strike: 149 },
-  milan: { rupees: 99, strike: 299 },
+  milan: { rupees: 29, strike: 149 },
   wapas: { rupees: 29, strike: 149 },
   business: { rupees: 29, strike: 149 },
   naukri: { rupees: 29, strike: 149 },
@@ -47,7 +47,7 @@ export function isAstroProductType(v: string): v is AstroProductType {
  * Round 3: 39/29/49. Same salt and slots, so the 29 and 49 groups keep their devices and only
  * the old 19 slot moves to 39. Keep the slot order when changing prices.
  * Ended 2026-11-16 ~12:00 IST: 29 won (Rs 10.60 per price-page viewer vs 8.54 at 39 and 7.74 at 49,
- * and about twice as many buyers), so every report above Milan is now Rs 29 for everyone.
+ * and about twice as many buyers), so every report, Milan included, is now Rs 29 for everyone.
  * To run a new test, list the reports again in PRICE_TEST_REPORTS.
  */
 export const PRICE_TEST_ARMS = [39, 29, 49] as const;
