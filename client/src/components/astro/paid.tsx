@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { CheckCircle2, Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, Send } from "lucide-react";
 import { PaperCard } from "@/components/astro/ui";
-import { fetchReport, lastReportId, logAstro, type AstroReport } from "@/lib/astroApi";
+import { fetchReport, lastReportId, loadSelf, logAstro, type AstroReport } from "@/lib/astroApi";
+import { rememberMilanPartner, suggestForQuestion, type QuestionSuggestion } from "@/lib/questionTopic";
 
 /**
  * On the start page: if this phone's last report is paid, offer a way back to it. Renders
@@ -39,6 +40,49 @@ export function PaidReportBanner({ type }: { type: AstroReport["type"] }) {
   );
 }
 
+/** Under an answer: the report that fits what the buyer asked about (a person, a job, a business). */
+function QuestionCrossSell({ type, reportId, suggestion }: { type: AstroReport["type"]; reportId: string; suggestion: QuestionSuggestion }) {
+  const target = suggestion.kind;
+  useEffect(() => {
+    logAstro("astro_report_action", type, { report_id: reportId, action: "question_xsell_shown", target });
+  }, [type, reportId, target]);
+  const partnerName = suggestion.kind === "milan" ? suggestion.partnerName : null;
+  const copy = {
+    milan: {
+      eyebrow: "Kundli milan",
+      title: partnerName ? `${partnerName} ke saath aapke kitne gun milte hain?` : "Jinke baare me pooch rahe hain, unse aapke kitne gun milte hain?",
+      body: "Aap dono ki kundli milakar 36 me se gun, dosh aur rishta aage kaisa chalega, ek alag report me.",
+      cta: "Gun milan dekhein",
+    },
+    naukri: {
+      eyebrow: "Naukri yog",
+      title: "Naukri kab lagegi?",
+      body: "Aapki kundli se kis saal aur kin mahino me naukri ka mauka hai, aur Railway, Police, Bank, Teacher me se kaunsi aapke liye.",
+      cta: "Naukri ka yog dekhein",
+    },
+    business: {
+      eyebrow: "Vyapar yog",
+      title: "Kaunsa business aapke liye shubh hai?",
+      body: "Janm kundli se sabse shubh vyapar, shuruaat ka sahi samay aur dukan ke naam ka akshar, ek alag report me.",
+      cta: "Vyapar yog dekhein",
+    },
+  }[target];
+  const onClick = () => {
+    if (suggestion.kind === "milan") rememberMilanPartner({ name: suggestion.partnerName, dob: suggestion.partnerDob });
+    logAstro("astro_report_action", type, { report_id: reportId, action: "question_xsell_click", target });
+  };
+  return (
+    <div className="rounded-2xl bg-[#fbeedd] p-3.5 ring-1 ring-[#e3c48c]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9a6b1f]">{copy.eyebrow}</p>
+      <p className="ink mt-1 text-[15px] font-semibold leading-snug">{copy.title}</p>
+      <p className="ink-soft mt-1 text-[13px] leading-relaxed">{copy.body}</p>
+      <Link href={`/${target}`} onClick={onClick} className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--wine-700)] px-4 py-2 text-[13px] font-semibold text-[#fbefd3]">
+        {copy.cta} <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
+    </div>
+  );
+}
+
 /**
  * End of a paid report: the buyer asks a question and gets an answer from their own chart, right
  * here. The first few answers are free; after that a small pack unlocks more.
@@ -53,6 +97,7 @@ export function AskMoreCard({ type, reportId }: { type: AstroReport["type"]; rep
   const [busy, setBusy] = useState(false);
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const buyer = useRef(loadSelf()).current;
   // Earlier questions with their answers; unanswered ones get answered here when allowance exists.
   const loadThread = async () => {
     try {
@@ -125,12 +170,23 @@ export function AskMoreCard({ type, reportId }: { type: AstroReport["type"]; rep
       setBuying(false);
     }
   };
+  // One card per kind of report, under the latest answered question that asks about it.
+  const suggestionAt = new Map<number, QuestionSuggestion>();
+  const seenKinds = new Set<string>();
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (!items[i].answer) continue;
+    const s = suggestForQuestion(items[i].question, type, buyer);
+    if (s && !seenKinds.has(s.kind)) {
+      seenKinds.add(s.kind);
+      suggestionAt.set(i, s);
+    }
+  }
   return (
     <PaperCard eyebrow="Aapka sawal" title="Bataiye, aapko aur kya jaanna hai?">
       <p className="ink-soft text-[13px] leading-relaxed">Apni kundli se juda koi bhi sawal poochiye. Jawab aapki kundli dekhkar yahin milega.</p>
       {items.length > 0 && (
         <ul className="mt-4 space-y-3">
-          {items.map((it) => (
+          {items.map((it, i) => (
             <li key={it.id} className="space-y-2">
               <p className="ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-[var(--wine-700)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[#fbefd3]">
                 {it.question}
@@ -146,6 +202,7 @@ export function AskMoreCard({ type, reportId }: { type: AstroReport["type"]; rep
                   </p>
                 )}
               </div>
+              {suggestionAt.has(i) && <QuestionCrossSell type={type} reportId={reportId} suggestion={suggestionAt.get(i)!} />}
             </li>
           ))}
         </ul>

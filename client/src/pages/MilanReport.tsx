@@ -13,6 +13,7 @@ import {
 } from "@/lib/astroApi";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
+import { takeMilanPartner } from "@/lib/questionTopic";
 
 export default function MilanReportPage() {
   const [, params] = useRoute("/milan/r/:id");
@@ -72,14 +73,16 @@ function KootGuide() {
 function Landing() {
   const [, navigate] = useLocation();
   const saved = useRef(loadSelf()).current;
+  // Came from a question in a paid report that named this person: fill them in.
+  const asked = useRef(takeMilanPartner()).current;
   const [name, setName] = useState(saved.name ?? "");
   const [gender, setGender] = useState<Gender | "">(saved.gender ?? "");
   const [dob, setDob] = useState(saved.dob ?? "");
   const [tob, setTob] = useState<string | null>(saved.tob ?? null);
   const [place, setPlace] = useState(saved.place ?? "");
-  const [pName, setPName] = useState("");
+  const [pName, setPName] = useState(asked?.name ?? "");
   const [pKnowsDob, setPKnowsDob] = useState<"yes" | "no">("yes");
-  const [pDob, setPDob] = useState("");
+  const [pDob, setPDob] = useState(asked?.dob ?? "");
   const [pTob, setPTob] = useState<string | null>(null);
   const [pPlace, setPPlace] = useState("");
   const [question, setQuestion] = useState<MilanReport["question"]>("shaadi");
@@ -89,7 +92,9 @@ function Landing() {
   const last = useRef(lastReportId("milan")).current;
 
   useEffect(() => {
-    trackAstro("astro_landing", "milan");
+    trackAstro("astro_landing", "milan", asked ? { from: "question" } : undefined);
+    if (asked) window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submit = async (e: React.FormEvent) => {
