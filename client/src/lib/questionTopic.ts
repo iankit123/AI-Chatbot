@@ -13,7 +13,7 @@ export type QuestionSuggestion =
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 const NAUKRI = /\b(naukri|naukari|nokri|nukri|nokari|job|jobs|career|carier|carrier|sarkari|govt|government|salary|promotion|exam|placement|interview)\b|नौकरी|नोकरी|करियर|कैरियर|सरकारी|जॉब|परीक्षा/i;
-const BUSINESS = /\b(business|buisness|bussiness|busines|bijnes|vyapar|vyapaar|vypar|vyaapar|dhandha|dhanda|dukan|dukaan|shop|startup)\b|व्यापार|व्यवसाय|धंधा|धंधे|दुकान|बिज़नेस|बिजनेस/i;
+const BUSINESS = /\b(business|buisness|bussiness|busines|bijnes|bijnesh|bisnes|bizness|buisnes|vyapar|vyapaar|vypar|vyaapar|dhandha|dhanda|dukan|dukaan|shop|startup)\b|व्यापार|व्यवसाय|धंधा|धंधे|दुकान|बिज़नेस|बिजनेस/i;
 const MILAN = new RegExp(
   [
     "\\b(gun|kundli|kundali|kundali)\\s*milan\\b",
@@ -26,6 +26,7 @@ const MILAN = new RegExp(
     "\\b(dob|d\\.o\\.b|date of birth)\\b",
     "रिश्ता.{0,20}आया",
     "गुण\\s*मिलान|कुंडली\\s*मिलान",
+    "\\b(crush|boyfriend|girlfriend|boyfrnd|bf|gf)\\s+se\\s+(shadi|shaadi|sadi|vivah|hogi|hoga|rishta)\\b",
   ].join("|"),
   "i",
 );
@@ -120,6 +121,49 @@ export function suggestForQuestion(
   if (biz >= 0 && currentType !== "business") options.push({ kind: "business", at: biz });
   options.sort((a, b) => a.at - b.at);
   return options[0] ? { kind: options[0].kind } : null;
+}
+
+/** In the Jyotish chat, any of our reports can fit, Shaadi and Wapas included. */
+export type ChatSuggestion = QuestionSuggestion | { kind: "shaadi" } | { kind: "wapas" };
+
+const WAPAS = /\b(ex|wapas|vapas|vapis|wapis|breakup|break up|patch ?up|unblock|block)\b|वापस|ब्रेकअप/i;
+const SHAADI = /\b(shadi|shaadi|sadi|sadhi|shaddi|saadi|marriage|marrige|mrg|vivah|vivaah|rishta|rista|jeevansathi|jivansathi|jeevan sathi|life ?partner|spouse|dulha|dulhan)\b|शादी|विवाह|रिश्ता|जीवनसाथी|मैरिज|मॅरेज/i;
+
+/**
+ * A chat message: a named person -> Milan, an ex -> Wapas, a job or business -> Naukri or
+ * Business, marriage -> Shaadi. Anything else: no card, the chat just carries on.
+ */
+/** "क्या मेरी शादी विकास जी से होगी", "विकास नाम के लड़के से प्यार" */
+const HINDI_NOT_A_NAME = new Set("किस किसी उस उसी इस इसी जिस मुझ मुझसे आप तुम उन इन लड़के लड़की लड़का कब कैसे घर".split(" "));
+function findHindiName(text: string): string | null {
+  for (const p of [/([\u0900-\u097F]+)\s+(?:जी\s+)?से\s+(?:होगी|होगा|शादी|विवाह|प्यार)/, /([\u0900-\u097F]+)\s+नाम\s+(?:के|की|का)/]) {
+    const w = text.match(p)?.[1];
+    if (w && w.length >= 2 && !HINDI_NOT_A_NAME.has(w)) return w;
+  }
+  return null;
+}
+
+export function suggestForChat(message: string, user: { name?: string | null; dob?: string | null } = {}): ChatSuggestion | null {
+  const text = message.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const own = new Set((user.name ?? "").toLowerCase().split(/\s+/).filter(Boolean));
+  const dob = findDob(text, user.dob);
+  const name = findName(text, dob?.index ?? null, own) ?? findHindiName(text);
+  // In chat people retype their own date of birth, so a date alone is not about someone else.
+  const milanWords = MILAN.test(text.replace(/\b(dob|d\.o\.b|date of birth)\b/gi, ""));
+  if (name || milanWords || (dob && SHAADI.test(text))) return { kind: "milan", partnerName: name, partnerDob: dob?.dob ?? null };
+  // Otherwise the topic mentioned first wins: "shaadi kab hogi aur job kab" -> Shaadi.
+  const found = (
+    [
+      ["wapas", text.search(WAPAS)],
+      ["naukri", text.search(NAUKRI)],
+      ["business", text.search(BUSINESS)],
+      ["shaadi", text.search(SHAADI)],
+    ] as const
+  )
+    .filter(([, at]) => at >= 0)
+    .sort((a, b) => a[1] - b[1]);
+  return found[0] ? { kind: found[0][0] } : null;
 }
 
 /** Hand-off to the Milan form: the partner named in a question, kept for one visit to /milan. */

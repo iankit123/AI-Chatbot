@@ -213,6 +213,15 @@ export function saveSelf(self: SelfDetails) {
     /* storage may be unavailable in some in-app browsers */
   }
 }
+/** Fills the report forms' saved details, only when none are saved yet (e.g. from the Kundli chat). */
+export function saveSelfIfEmpty(self: Partial<SelfDetails>) {
+  if (loadSelf().name) return;
+  try {
+    localStorage.setItem(SELF_KEY, JSON.stringify(self));
+  } catch {
+    /* storage may be unavailable in some in-app browsers */
+  }
+}
 const lastKey = (t: AstroReportType) => `astroLastReport:${t}`;
 export function rememberReport(t: AstroReportType, id: string) {
   try {

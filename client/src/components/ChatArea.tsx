@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatMessage } from './ChatMessage';
+import { ReportCtaCard } from '@/components/chat/ReportCtaCard';
+import { suggestForChat, type ChatSuggestion } from '@/lib/questionTopic';
+import { loadStoredKundliBirth } from '@/lib/kundliBirthStorage';
+import { KUNDLI_CONTEXT_AUTOMATED, KUNDLI_CONTEXT_DETAILS } from '@/lib/kundliMessageKinds';
 import { TypingIndicator } from './TypingIndicator';
 import { formatDate } from '@/lib/dates';
 import { useChat } from '@/context/ChatContext';
@@ -42,6 +46,34 @@ export function ChatArea() {
   useEffect(() => {
     setCompanionSelection(readCompanionSelection());
   }, [messages]);
+
+  // Kundli chat: under the reply to a question about marriage, an ex, a person, a job or a
+  // business, a card for the report that answers it. One card per report, on the latest such reply.
+  const reportCards = useMemo(() => {
+    const cards = new Map<string, ChatSuggestion>();
+    if (companionId !== 'kundli') return cards;
+    const birth = loadStoredKundliBirth();
+    const user = { name: birth?.name ?? null, dob: birth?.dateOfBirth ?? null };
+    const replies: { id: string; suggestion: ChatSuggestion }[] = [];
+    let pending: ChatSuggestion | null = null;
+    for (const m of messages) {
+      if (m.role === 'user') {
+        if (m.contextInfo === KUNDLI_CONTEXT_AUTOMATED || m.contextInfo === KUNDLI_CONTEXT_DETAILS) continue;
+        pending = suggestForChat(m.content ?? '', user);
+      } else if (pending) {
+        replies.push({ id: String(m.id), suggestion: pending });
+        pending = null;
+      }
+    }
+    const seen = new Set<string>();
+    for (let i = replies.length - 1; i >= 0; i--) {
+      const { id, suggestion } = replies[i];
+      if (seen.has(suggestion.kind)) continue;
+      seen.add(suggestion.kind);
+      cards.set(id, suggestion);
+    }
+    return cards;
+  }, [messages, companionId]);
 
   const persistentDisclaimer =
     companionId ? getPersistentChatDisclaimer(companionId) : null;
@@ -151,11 +183,10 @@ export function ChatArea() {
       
       {/* Chat messages */}
       {messages.map((message) => (
-        <ChatMessage 
-          key={message.id} 
-          message={message} 
-          botAvatar={botAvatar}
-        />
+        <Fragment key={message.id}>
+          <ChatMessage message={message} botAvatar={botAvatar} />
+          {reportCards.has(String(message.id)) && <ReportCtaCard suggestion={reportCards.get(String(message.id))!} />}
+        </Fragment>
       ))}
       
       {/* Typing indicator */}
