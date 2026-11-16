@@ -22,6 +22,7 @@ import {
   getPaymentForContact,
   setPaymentPhone, getPortrait, getReport, insertReport, updateReport, type AstroReportRow,
 } from "./services/astro/store";
+import { findCheckoutStatuses, findDeviceReports } from "./services/astro/store";
 
 const dob = z
   .string()
@@ -210,6 +211,49 @@ async function unlockIfPaid(row: AstroReportRow, req?: Request): Promise<AstroRe
   return row;
 }
 
+/** Report details compared loosely: key order, letter case and extra spaces do not matter. */
+function detailsKey(v: unknown): string {
+  if (typeof v === "string") return JSON.stringify(v.trim().replace(/\s+/g, " ").toLowerCase());
+  if (Array.isArray(v)) return `[${v.map(detailsKey).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${detailsKey(o[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+/**
+ * A report this phone already made from the same details that was paid for, or at least taken to
+ * checkout. Buyers who pay in a UPI app often come back to a reloaded start page, fill the same
+ * form again and used to land on a new unpaid report, with the pay button showing again. Reusing
+ * the earlier report opens what they paid for, and keeps any further checkout on the report its
+ * payment belongs to. Visitors who never opened checkout always get a fresh report, as before.
+ */
+async function sameDetailsReport(
+  type: AstroReportRow["report_type"],
+  deviceId: string,
+  input: object,
+  req: Request,
+): Promise<AstroReportRow | null> {
+  try {
+    const key = detailsKey(input);
+    const same = (await findDeviceReports(type, deviceId)).filter((r) => detailsKey(r.input) === key);
+    if (!same.length) return null;
+    const checkouts = await findCheckoutStatuses(same.map((r) => r.id));
+    const pick =
+      same.find((r) => r.paid || checkouts.get(r.id)?.includes("success")) ?? same.find((r) => checkouts.has(r.id));
+    if (!pick) return null;
+    const row = await getReport(pick.id);
+    if (!row) return null;
+    const unlocked = await unlockIfPaid(row, req);
+    console.log(`[astro] same details again: reusing ${type} report ${row.id} (paid=${unlocked.paid})`);
+    return unlocked;
+  } catch (err) {
+    console.error("[astro] same-details lookup failed:", err);
+    return null;
+  }
+}
+
 const partnerSchema = z.object({
   name: personName,
   dob: dob.nullable().optional(),
@@ -235,6 +279,9 @@ export function registerAstroRoutes(app: Express) {
       const input: ShaadiInput = {
         name: body.name, gender: body.gender, dob: body.dob, tob: body.tob ?? null, place: body.place,
       };
+      const earlier = await sameDetailsReport("shaadi", body.device_id, input, req);
+      // A new palm photo on a report that is not paid yet gets a fresh report, so the palm is read.
+      if (earlier && (earlier.paid || !body.palm_image)) return res.json(view(earlier));
       const facts = buildShaadiFacts(input);
       // The palm photo is read once and discarded; only the text reading is stored.
       const palm = body.palm_image ? await readPalm(body.palm_image) : null;
@@ -273,6 +320,8 @@ export function registerAstroRoutes(app: Express) {
         question: body.question,
       };
       const facts = buildMilanFacts(input);
+      const earlier = await sameDetailsReport("milan", body.device_id, input, req);
+      if (earlier) return res.json(view(earlier));
       const row = await insertReport({ report_type: "milan", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("milan", body.device_id) });
       res.json(view(row));
     } catch (error) {
@@ -295,6 +344,8 @@ export function registerAstroRoutes(app: Express) {
         .parse(req.body);
       const input: WapasInput = { self: { ...body.self, tob: body.self.tob ?? null }, partner: partnerInput(body.partner), status: body.status };
       const facts = buildWapasFacts(input);
+      const earlier = await sameDetailsReport("wapas", body.device_id, input, req);
+      if (earlier) return res.json(view(earlier));
       const row = await insertReport({ report_type: "wapas", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("wapas", body.device_id) });
       res.json(view(row));
     } catch (error) {
@@ -322,6 +373,8 @@ export function registerAstroRoutes(app: Express) {
         ...(body.budget_scale ? { budget_scale: body.budget_scale } : {}),
       };
       const facts = buildBusinessFacts(input);
+      const earlier = await sameDetailsReport("business", body.device_id, input, req);
+      if (earlier) return res.json(view(earlier));
       const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("business", body.device_id) });
       res.json(view(row));
     } catch (error) {
@@ -345,6 +398,8 @@ export function registerAstroRoutes(app: Express) {
         status: body.status, target: body.target,
       };
       const facts = buildNaukriFacts(input);
+      const earlier = await sameDetailsReport("naukri", body.device_id, input, req);
+      if (earlier) return res.json(view(earlier));
       const row = await insertReport({ report_type: "naukri", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("naukri", body.device_id) });
       res.json(view(row));
     } catch (error) {

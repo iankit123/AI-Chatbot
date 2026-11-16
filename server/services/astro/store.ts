@@ -44,6 +44,41 @@ export async function getReport(id: string): Promise<AstroReportRow | null> {
   return (data as AstroReportRow) ?? null;
 }
 
+/** This phone's reports of one type from the last week, newest first (id, input, paid only). */
+export async function findDeviceReports(
+  reportType: AstroReportType,
+  deviceId: string,
+): Promise<{ id: string; input: Record<string, any>; paid: boolean }[]> {
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  const { data, error } = await admin()
+    .from("astro_reports")
+    .select("id, input, paid")
+    .eq("report_type", reportType)
+    .eq("device_id", deviceId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []) as { id: string; input: Record<string, any>; paid: boolean }[];
+}
+
+/** Checkout statuses for each of these reports; reports with no checkout are left out. */
+export async function findCheckoutStatuses(reportIds: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!reportIds.length) return out;
+  const { data, error } = await admin()
+    .from("payment_attempts")
+    .select("status, metadata")
+    .in("metadata->>astro_report_id", reportIds)
+    .limit(100);
+  if (error) throw error;
+  for (const r of data ?? []) {
+    const id = String((r.metadata as Record<string, unknown> | null)?.astro_report_id ?? "");
+    if (id) out.set(id, [...(out.get(id) ?? []), String(r.status)]);
+  }
+  return out;
+}
+
 export async function updateReport(id: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await admin()
     .from("astro_reports")
