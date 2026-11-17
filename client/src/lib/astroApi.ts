@@ -186,6 +186,25 @@ export async function payForReport(report: AstroReport): Promise<void> {
   });
 }
 
+/**
+ * The Meta ad's URL parameters (site, placement, ad set id, ad id), so a landing can be tied to the
+ * ad that brought it. The ads carry
+ * utm_source={{site_source_name}}&utm_medium={{placement}}&utm_campaign={{adset.id}}&utm_content={{ad.id}}.
+ */
+function adParams(): Record<string, string> {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const out: Record<string, string> = {};
+    for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content"]) {
+      const v = q.get(k);
+      if (v) out[k] = v.slice(0, 100);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export function trackAstro(event: Extract<AppEventName, `astro_${string}`>, report: AstroReportType, extra?: Record<string, unknown>) {
   const props = { report, ...extra };
   try {
@@ -193,7 +212,7 @@ export function trackAstro(event: Extract<AppEventName, `astro_${string}`>, repo
   } catch {
     /* analytics must never block the page */
   }
-  logAppEventToServer(event, props);
+  logAppEventToServer(event, event === "astro_landing" ? { ...props, ...adParams() } : props);
 }
 
 // ---- remembered details, so the second product opens pre-filled
