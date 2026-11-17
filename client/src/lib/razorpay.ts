@@ -57,6 +57,8 @@ type RazorpayOptions = {
     email?: string;
     contact?: string;
   };
+  /** Extra Razorpay Checkout options (for example hidden fields); merged after prefill. */
+  checkoutOverrides?: Record<string, unknown>;
   /** Close parent dialogs before opening Razorpay (avoids Radix overlay blocking checkout). */
   onBeforeOpen?: () => void;
 };
@@ -191,6 +193,7 @@ export async function runRazorpayCheckout(
       name: checkoutDisplay.name,
       description: checkoutDisplay.description,
       prefill: options.prefill,
+      ...(options.checkoutOverrides ?? {}),
       notes: paymentRowId
         ? buildRazorpayGatewayNotes({
             paymentId: paymentRowId,

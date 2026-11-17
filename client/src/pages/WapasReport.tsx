@@ -10,7 +10,7 @@ import {
 } from "@/components/astro/editorial";
 import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
+import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import {
   cacheReport, createWapasPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
   type WapasReport, type WapasStatus,
@@ -245,7 +245,7 @@ function Landing() {
 }
 
 function ReportView({ id }: { id: string }) {
-  const { report, error, paying, unlocking, pay } = useAstroReport<WapasReport>(id, "wapas");
+  const { report, error, paying, unlocking, pay, reload } = useAstroReport<WapasReport>(id, "wapas");
   useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapka poora jawab khul raha hai" steps={["Payment ki pushti", "Wapsi ke sanket", "Unke mann ki sthiti", "Sahi samay"]} />;
@@ -309,6 +309,17 @@ function ReportView({ id }: { id: string }) {
         </div>
         <AstroFooter />
         <PayBar price={report.price} label="Poora jawab kholein" sub="Razorpay se surakshit · UPI, card · Turant khulega" busy={paying} onPay={pay} />
+      </>
+    );
+  }
+
+  if (report.needsPhone) {
+    return (
+      <>
+        {header}
+        <div className="mt-6">
+          <BuyerPhoneGate type="wapas" reportId={report.id} onSaved={reload} />
+        </div>
       </>
     );
   }

@@ -11,7 +11,7 @@ import {
   type Gender, type ShaadiReport,
 } from "@/lib/astroApi";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
+import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 
 export default function ShaadiReportPage() {
   const [, params] = useRoute("/shaadi/r/:id");
@@ -376,7 +376,7 @@ function Portrait({ report }: { report: ShaadiReport }) {
 }
 
 function ReportView({ id }: { id: string }) {
-  const { report, error, paying, unlocking, pay } = useAstroReport<ShaadiReport>(id, "shaadi");
+  const { report, error, paying, unlocking, pay, reload } = useAstroReport<ShaadiReport>(id, "shaadi");
   useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapki poori report khul rahi hai" steps={["Payment ki pushti", "Vivah ke mahine", "Naam ke sabhi akshar", "Jeevansathi ka vivaran"]} />;
@@ -472,6 +472,17 @@ function ReportView({ id }: { id: string }) {
         </div>
         <AstroFooter />
         <PayBar price={report.price} label="Poori report kholein" sub="Razorpay se surakshit · UPI, card · Turant khulegi" busy={paying} onPay={pay} />
+      </>
+    );
+  }
+
+  if (report.needsPhone) {
+    return (
+      <>
+        {header}
+        <div className="mt-6">
+          <BuyerPhoneGate type="shaadi" reportId={report.id} onSaved={reload} />
+        </div>
       </>
     );
   }

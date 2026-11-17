@@ -9,7 +9,7 @@ import {
 } from "@/components/astro/editorial";
 import { SelfFields, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
+import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import {
   cacheReport, createNaukriPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
   type NaukriReport, type NaukriStatus, type NaukriTarget,
@@ -274,7 +274,7 @@ const STATUS_ROW: Record<NaukriStatus, { title: string; hint: string }> = {
 };
 
 function ReportView({ id }: { id: string }) {
-  const { report, error, paying, unlocking, pay } = useAstroReport<NaukriReport>(id, "naukri");
+  const { report, error, paying, unlocking, pay, reload } = useAstroReport<NaukriReport>(id, "naukri");
   useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapka poora jawab khul raha hai" steps={["Payment ki pushti", "Naukri ka saal aur mahine", "Aapke liye sahi kshetra", "Rukavat aur upay"]} />;
@@ -369,6 +369,17 @@ function ReportView({ id }: { id: string }) {
         </div>
         <AstroFooter />
         <PayBar price={report.price} label="Poora jawab kholein" sub="Razorpay se surakshit · UPI, card · Turant khulega" busy={paying} onPay={pay} />
+      </>
+    );
+  }
+
+  if (report.needsPhone) {
+    return (
+      <>
+        {header}
+        <div className="mt-6">
+          <BuyerPhoneGate type="naukri" reportId={report.id} onSaved={reload} />
+        </div>
       </>
     );
   }

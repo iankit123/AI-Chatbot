@@ -148,3 +148,25 @@ export async function findReportPaymentStatuses(reportId: string): Promise<strin
   if (error) throw error;
   return (data ?? []).map((r) => String(r.status));
 }
+
+/** The successful payment for a report and the phone stored on it (null when not paid). */
+export async function getSuccessfulPaymentContact(
+  reportId: string,
+): Promise<{ id: string; device_id: string; phone_number: string | null } | null> {
+  const { data, error } = await admin()
+    .from("payment_attempts")
+    .select("id, device_id, phone_number")
+    .eq("status", "success")
+    .eq("metadata->>astro_report_id", reportId)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  const r = data?.[0];
+  return r ? { id: String(r.id), device_id: String(r.device_id), phone_number: (r.phone_number as string | null) ?? null } : null;
+}
+
+export async function getProfilePhone(deviceId: string): Promise<string | null> {
+  const { data, error } = await admin().from("profiles").select("phone_number").eq("device_id", deviceId).maybeSingle();
+  if (error) throw error;
+  return (data?.phone_number as string | null) ?? null;
+}

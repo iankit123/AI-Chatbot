@@ -64,6 +64,33 @@ export function priceForNewReport(type: AstroReportType, deviceId: string): numb
   return PRICE_TEST_ARMS[h % PRICE_TEST_ARMS.length];
 }
 
+/**
+ * Contact-skip test (started 2026-11-17): for CONTACT_TEST_PERCENT of devices, Razorpay opens with
+ * a placeholder phone (the owner's number) and the phone field hidden, so checkout starts at the
+ * payment methods. Those buyers are asked for their real number after paying. Razorpay rejects
+ * 9876543210 as a prefill, so the placeholder must be a real-looking number.
+ */
+export const CONTACT_PLACEHOLDER = "7829234220";
+export const CONTACT_TEST_PERCENT = 50;
+const CONTACT_TEST_SALT = "skip-contact-1";
+
+export function skipsContactScreen(deviceId: string): boolean {
+  let h = 2166136261;
+  for (const ch of CONTACT_TEST_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return h % 100 < CONTACT_TEST_PERCENT;
+}
+
+/** Last 10 digits of a typed or stored phone (drops +91, a leading 0, spaces). */
+export function phoneDigits(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "").slice(-10);
+}
+
+/** A real Indian mobile number: 10 digits starting 6–9, and not our checkout placeholder. */
+export function isRealPhone(value: string | null | undefined): boolean {
+  const d = phoneDigits(value);
+  return /^[6-9]\d{9}$/.test(d) && d !== CONTACT_PLACEHOLDER;
+}
+
 /** Display price for a stored report; older rows have no stored price and use the default. */
 export function priceOfReport(type: AstroReportType, storedRupees: number | null | undefined): { rupees: number; strike: number } {
   if (!storedRupees) return ASTRO_PRICES[type];

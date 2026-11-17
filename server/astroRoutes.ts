@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { metaPurchaseEventId } from "@shared/metaEvents";
-import { priceForNewReport, priceOfReport } from "@shared/astroProducts";
+import { isRealPhone, phoneDigits, priceForNewReport, priceOfReport } from "@shared/astroProducts";
 import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY, upsertProfileRow } from "./services/supabaseBilling";
 import { metaContextFromRequest, sendMetaConversionEvent } from "./services/metaConversions";
 import { z } from "zod";
@@ -16,6 +16,8 @@ import {
 } from "./services/astro/reports2";
 import { buildNaukriFacts, naukriNarrative, naukriView, type NaukriInput } from "./services/astro/naukri";
 import {
+  getProfilePhone,
+  getSuccessfulPaymentContact,
   findOpenPayments,
   findReportPaymentStatuses,
   findSuccessfulPayment,
@@ -86,8 +88,9 @@ async function paidRazorpayPayment(orderId: string): Promise<string | null> {
 /** The phone the buyer typed on Razorpay's checkout, as 10 digits, or null. */
 export async function razorpayBuyerPhone(gatewayPaymentId: string): Promise<string | null> {
   const payment = await razorpayGet<{ contact?: string }>(`payments/${encodeURIComponent(gatewayPaymentId)}`);
-  const digits = (payment?.contact ?? "").replace(/\D/g, "").slice(-10);
-  return digits.length === 10 ? digits : null;
+  const digits = phoneDigits(payment?.contact);
+  // The contact-skip test sends a placeholder; never store it or pass it to Meta as the buyer's phone.
+  return isRealPhone(digits) ? digits : null;
 }
 
 /** Save the buyer's phone on the payment row and link it to the device's profile. */
@@ -103,7 +106,7 @@ export async function rememberBuyerPhone(paymentRowId: string, deviceId: string,
  */
 async function captureBuyerPhone(paymentRowId: string): Promise<void> {
   const row = await getPaymentForContact(paymentRowId);
-  if (!row?.gateway_payment_id || (row.phone_number ?? "").replace(/\D/g, "").length === 10) return;
+  if (!row?.gateway_payment_id || isRealPhone(row.phone_number)) return;
   const digits = await razorpayBuyerPhone(row.gateway_payment_id);
   if (digits) await rememberBuyerPhone(paymentRowId, row.device_id, digits);
 }
@@ -415,11 +418,38 @@ export function registerAstroRoutes(app: Express) {
       let row = await getReport(id);
       if (!row) return res.status(404).json({ message: "Report nahi mili" });
       row = await unlockIfPaid(row, req);
-      res.json(view(row));
+      if (!row.paid) return res.json(view(row));
+      // Paid: ask for the buyer's number when neither Razorpay nor an earlier purchase gave a real one.
+      const [payment, profilePhone] = await Promise.all([
+        getSuccessfulPaymentContact(row.id),
+        getProfilePhone(row.device_id).catch(() => null),
+      ]);
+      const needsPhone = !isRealPhone(payment?.phone_number) && !isRealPhone(profilePhone);
+      res.json({ ...view(row), needsPhone });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(404).json({ message: "Report nahi mili" });
       console.error("[astro] report fetch failed:", error);
       res.status(500).json({ message: "Report load nahi ho payi" });
+    }
+  });
+
+  /** The buyer's phone, typed after payment when checkout did not provide a real one. */
+  app.post("/api/astro/report/:id/phone", async (req, res) => {
+    try {
+      const id = z.string().uuid().parse(req.params.id);
+      const digits = phoneDigits(z.object({ phone: z.string().max(20) }).parse(req.body).phone);
+      if (!isRealPhone(digits)) return res.status(400).json({ message: "Kripya sahi 10 ankon ka mobile number daalein." });
+      const row = await getReport(id);
+      if (!row) return res.status(404).json({ message: "Report nahi mili" });
+      const payment = await getSuccessfulPaymentContact(row.id);
+      if (!payment) return res.status(409).json({ message: "Is report ka payment nahi mila" });
+      // Never overwrite a real number that is already stored.
+      if (!isRealPhone(payment.phone_number)) await rememberBuyerPhone(payment.id, row.device_id, digits);
+      res.json({ ok: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sahi mobile number daalein." });
+      console.error("[astro] saving buyer phone failed:", error);
+      res.status(500).json({ message: "Number save nahi ho paya. Dobara koshish karein." });
     }
   });
 

@@ -12,7 +12,7 @@ import {
   type Gender, type Koot, type MilanReport,
 } from "@/lib/astroApi";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
+import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import { takeMilanPartner } from "@/lib/questionTopic";
 
 export default function MilanReportPage() {
@@ -303,7 +303,7 @@ function KootRow({ k }: { k: Koot }) {
 }
 
 function ReportView({ id }: { id: string }) {
-  const { report, error, paying, unlocking, pay } = useAstroReport<MilanReport>(id, "milan");
+  const { report, error, paying, unlocking, pay, reload } = useAstroReport<MilanReport>(id, "milan");
   useReadTracking(report);
 
   if (unlocking) return <Analysing title="Poori milan report khul rahi hai" steps={["Payment ki pushti", "Aathon koot ka vivaran", "Dosh ki jaanch", "Rishte ka nishkarsh"]} />;
@@ -376,6 +376,17 @@ function ReportView({ id }: { id: string }) {
         </div>
         <AstroFooter />
         <PayBar price={report.price} label="Poori milan report kholein" sub="Razorpay se surakshit · UPI, card · Turant khulegi" busy={paying} onPay={pay} />
+      </>
+    );
+  }
+
+  if (report.needsPhone) {
+    return (
+      <>
+        {header}
+        <div className="mt-6">
+          <BuyerPhoneGate type="milan" reportId={report.id} onSaved={reload} />
+        </div>
       </>
     );
   }

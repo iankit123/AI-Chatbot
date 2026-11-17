@@ -1,6 +1,6 @@
 import type { AppEventName } from "@shared/appEvents";
 import type { AstroReportType } from "@shared/astroProducts";
-import { ASTRO_PRODUCT_TYPE } from "@shared/astroProducts";
+import { ASTRO_PRODUCT_TYPE, CONTACT_PLACEHOLDER, skipsContactScreen } from "@shared/astroProducts";
 import { getDeviceId } from "@/lib/supabase";
 import { logAppEventToServer } from "@/lib/logAppEvent";
 import { runRazorpayCheckout } from "@/lib/razorpay";
@@ -12,7 +12,7 @@ export type Koot = { key: string; name: string; hi: string; meaning: string; sco
 export type Price = { rupees: number; strike: number };
 
 export type ShaadiReport = {
-  id: string; type: "shaadi"; paid: boolean; name: string; gender: Gender; price: Price;
+  id: string; type: "shaadi"; paid: boolean; needsPhone?: boolean; name: string; gender: Gender; price: Price;
   chart: { lagna: string | null; moonRashi: string; moonRashiHi: string; nakshatra: string; pada: number; timeKnown: boolean; placePrecise: boolean };
   palmRead: boolean; headline: string; letterCount: number;
   /** Paid only. */
@@ -34,7 +34,7 @@ export type ShaadiReport = {
 };
 
 export type MilanReport = {
-  id: string; type: "milan"; paid: boolean; price: Price; selfName: string; partnerName: string;
+  id: string; type: "milan"; paid: boolean; needsPhone?: boolean; price: Price; selfName: string; partnerName: string;
   question: "shaadi" | "wapas" | "rishta"; total: number;
   band: { label: string; hi: string; line: string };
   self: { moonRashi: string; nakshatra: string };
@@ -55,7 +55,7 @@ export type MilanReport = {
 
 export type WapasStatus = "breakup" | "no_contact" | "fight" | "separated";
 export type WapasReport = {
-  id: string; type: "wapas"; paid: boolean; price: Price; selfName: string; partnerName: string; status: WapasStatus;
+  id: string; type: "wapas"; paid: boolean; needsPhone?: boolean; price: Price; selfName: string; partnerName: string; status: WapasStatus;
   gunTotal: number; gunBand: string;
   self: { moonRashi: string; nakshatra: string }; partner: { moonRashi: string; nakshatra: string };
   basisNote: string;
@@ -72,7 +72,7 @@ export type WapasReport = {
 
 export type BusinessSituation = "naukri" | "business" | "berozgar" | "student";
 export type BusinessReport = {
-  id: string; type: "business"; paid: boolean; price: Price; name: string;
+  id: string; type: "business"; paid: boolean; needsPhone?: boolean; price: Price; name: string;
   chart: ShaadiReport["chart"];
   level: { label: string; hi: string; line: string }; meter: number; budget: string;
   topField?: { planet: string; field: string }; ideaCount?: number; letterCount?: number;
@@ -93,7 +93,7 @@ export type BusinessReport = {
 export type NaukriStatus = "taiyari" | "result" | "private" | "attempts";
 export type NaukriTarget = "railway" | "ssc_bank" | "police_army" | "teacher" | "upsc_pcs" | "open";
 export type NaukriReport = {
-  id: string; type: "naukri"; paid: boolean; price: Price; name: string; status: NaukriStatus; target: NaukriTarget;
+  id: string; type: "naukri"; paid: boolean; needsPhone?: boolean; price: Price; name: string; status: NaukriStatus; target: NaukriTarget;
   chart: ShaadiReport["chart"]; dasha: string; yogCount: number;
   /** Free preview only. */
   firstYog?: string | null; obstacleCount?: number; hasWindow?: boolean;
@@ -171,8 +171,12 @@ export const requestPortrait = (id: string) =>
 
 export const portraitUrl = (id: string) => `/api/astro/report/${id}/portrait`;
 
-/** Opens Razorpay straight away (no phone step). Resolves once the payment is verified. */
+/** Which arm of the contact-skip test this phone is in ("skip" opens Razorpay without its phone screen). */
+export const contactTestArm = (): "skip" | "control" => (skipsContactScreen(getDeviceId()) ? "skip" : "control");
+
+/** Opens Razorpay straight away (no phone step on our side). Resolves once the payment is verified. */
 export async function payForReport(report: AstroReport): Promise<void> {
+  const arm = contactTestArm();
   await runRazorpayCheckout({
     amountRupees: report.price.rupees,
     billing: {
@@ -181,10 +185,22 @@ export async function payForReport(report: AstroReport): Promise<void> {
       product_type: ASTRO_PRODUCT_TYPE[report.type],
       companion_id: null,
       rate_note: `${report.type} report`,
-      metadata: { astro_report_id: report.id, source: `${report.type}_report` },
+      metadata: { astro_report_id: report.id, source: `${report.type}_report`, contact_test: arm },
     },
+    ...(arm === "skip"
+      ? {
+          // Placeholder phone with the field hidden, so checkout opens straight on the payment methods.
+          // remember_customer off: buyers sharing one placeholder must never see each other's saved methods.
+          prefill: { contact: `+91${CONTACT_PLACEHOLDER}` },
+          checkoutOverrides: { hidden: { contact: true }, readonly: { contact: true }, remember_customer: false },
+        }
+      : {}),
   });
 }
+
+/** Saves the buyer's real phone after payment (contact-skip test, or when checkout gave none). */
+export const saveBuyerPhone = (id: string, phone: string) =>
+  request<{ ok: true }>(`/api/astro/report/${id}/phone`, { method: "POST", body: JSON.stringify({ phone }) });
 
 /**
  * The Meta ad's URL parameters (site, placement, ad set id, ad id), so a landing can be tied to the

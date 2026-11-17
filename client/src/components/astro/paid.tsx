@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, CheckCircle2, Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, Lock, Send } from "lucide-react";
 import { PaperCard } from "@/components/astro/ui";
-import { fetchReport, lastReportId, loadSelf, logAstro, type AstroReport } from "@/lib/astroApi";
+import { fetchReport, lastReportId, loadSelf, logAstro, saveBuyerPhone, type AstroReport } from "@/lib/astroApi";
 import { rememberMilanPartner, suggestForQuestion, type QuestionSuggestion } from "@/lib/questionTopic";
+import { isRealPhone, phoneDigits } from "@shared/astroProducts";
 
 /**
  * On the start page: if this phone's last report is paid, offer a way back to it. Renders
@@ -245,6 +246,67 @@ export function AskMoreCard({ type, reportId }: { type: AstroReport["type"]; rep
           {error && <p role="alert" className="mt-2 text-[13px] text-[#8e2b20]">{error}</p>}
         </div>
       )}
+    </PaperCard>
+  );
+}
+
+/**
+ * After payment, when checkout did not give us a real number: ask for it before the report opens.
+ * Only paid buyers ever see this.
+ */
+export function BuyerPhoneGate({ type, reportId, onSaved }: { type: AstroReport["type"]; reportId: string; onSaved: () => Promise<unknown> }) {
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    logAstro("astro_report_action", type, { report_id: reportId, action: "phone_gate_shown" });
+  }, [type, reportId]);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const digits = phoneDigits(phone);
+    if (!isRealPhone(digits)) return setError("Kripya apna sahi 10 ankon ka mobile number daalein.");
+    setBusy(true);
+    setError(null);
+    try {
+      await saveBuyerPhone(reportId, digits);
+      logAstro("astro_report_action", type, { report_id: reportId, action: "phone_submitted" });
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Number save nahi ho paya. Dobara koshish karein.");
+      setBusy(false);
+    }
+  };
+  return (
+    <PaperCard eyebrow="Payment ho gaya ✓" title="Bas ek aakhri kadam">
+      <form onSubmit={submit} className="space-y-3" noValidate>
+        <p className="ink-soft text-[13.5px] leading-relaxed">
+          Aapki poori report taiyaar hai. Apna mobile number daalein, aapka payment aur report isi number se jude
+          rahenge.
+        </p>
+        <label htmlFor={`buyer-phone-${reportId}`} className="label">Mobile number</label>
+        <div className="flex items-center gap-2">
+          <span className="ink grid h-12 shrink-0 place-items-center rounded-xl border border-[#dcc9a6] bg-[#fffaf0] px-3 text-[15px] font-medium">+91</span>
+          <input
+            id={`buyer-phone-${reportId}`}
+            className="field"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            placeholder="10 ankon ka number"
+            maxLength={18}
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              if (error) setError(null);
+            }}
+          />
+        </div>
+        {error && <p role="alert" className="text-[13px] text-[#8e2b20]">{error}</p>}
+        <button type="submit" className="btn-gold" disabled={busy}>
+          {busy ? "Report khul rahi hai…" : <><Lock className="h-4 w-4" /> Meri report dekhein</>}
+        </button>
+        <p className="ink-soft text-center text-[11px]">Aapka number kisi ke saath share nahi kiya jaata.</p>
+      </form>
     </PaperCard>
   );
 }

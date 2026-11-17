@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { navigate } from "wouter/use-browser-location";
 import {
-  cacheReport, cachedReport, fetchReport, logAstro, payForReport, rememberReport, trackAstro, wait,
+  cacheReport, cachedReport, contactTestArm, fetchReport, logAstro, payForReport, rememberReport, trackAstro, wait,
   type AstroReport,
 } from "@/lib/astroApi";
 
@@ -39,7 +39,7 @@ export function useAstroReport<T extends AstroReport>(id: string, type: T["type"
     const key = `${report.id}:${report.paid}`;
     if (viewed.current === key) return;
     viewed.current = key;
-    trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", type, { price: report.price.rupees });
+    trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", type, { price: report.price.rupees, contact_test: contactTestArm() });
   }, [report, type]);
 
   // Coming back from a UPI app: ask the server again, it checks Razorpay for a completed payment.
@@ -91,12 +91,12 @@ export function useAstroReport<T extends AstroReport>(id: string, type: T["type"
     }
   };
 
-  return { report, error, paying, unlocking, pay };
+  return { report, error, paying, unlocking, pay, reload: load };
 }
 
 /** On a paid report: how far the buyer scrolls (25/50/75/100%) and how long the page is visible. */
 export function useReadTracking(report: AstroReport | null) {
-  const active = !!report?.paid;
+  const active = !!report?.paid && !report.needsPhone;
   const id = report?.id;
   const type = report?.type;
   useEffect(() => {

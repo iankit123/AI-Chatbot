@@ -7,7 +7,7 @@ import {
 } from "@/components/astro/ui";
 import { SelfFields, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, PaidReportBanner } from "@/components/astro/paid";
+import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import {
   cacheReport, createBusinessPreview, lastReportId, logAstro, rememberReport, saveSelf, shareOnWhatsApp, trackAstro, wait,
   type BusinessBudget, type BusinessReport, type BusinessSituation,
@@ -218,7 +218,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 function ReportView({ id }: { id: string }) {
-  const { report, error, paying, unlocking, pay } = useAstroReport<BusinessReport>(id, "business");
+  const { report, error, paying, unlocking, pay, reload } = useAstroReport<BusinessReport>(id, "business");
   useReadTracking(report);
 
   if (unlocking) return <Analysing title="Aapki poori report khul rahi hai" steps={["Payment ki pushti", "Business ke sujhaav", "Shuruaat ka samay", "Naam aur shubh disha"]} />;
@@ -294,6 +294,17 @@ function ReportView({ id }: { id: string }) {
         </div>
         <AstroFooter />
         <PayBar price={report.price} label="Poori report kholein" sub="Razorpay se surakshit · UPI, card · Turant khulegi" busy={paying} onPay={pay} />
+      </>
+    );
+  }
+
+  if (report.needsPhone) {
+    return (
+      <>
+        {header}
+        <div className="mt-6">
+          <BuyerPhoneGate type="business" reportId={report.id} onSaved={reload} />
+        </div>
       </>
     );
   }
