@@ -1,6 +1,7 @@
 import type { AppEventName } from "@shared/appEvents";
 import type { AstroReportType } from "@shared/astroProducts";
-import { ASTRO_PRODUCT_TYPE, CONTACT_PLACEHOLDER, skipsContactScreen } from "@shared/astroProducts";
+import { ASTRO_PRODUCT_TYPE, CONTACT_PLACEHOLDER, inShaadiQuizFlow, skipsContactScreen } from "@shared/astroProducts";
+import type { ShaadiQuizAnswers } from "@shared/shaadiQuiz";
 import { getDeviceId } from "@/lib/supabase";
 import { logAppEventToServer } from "@/lib/logAppEvent";
 import { runRazorpayCheckout } from "@/lib/razorpay";
@@ -31,6 +32,12 @@ export type ShaadiReport = {
   narrative?: { summary: string; timing: string; partner: string; meeting: string; advice: string } | null;
   palm?: { heart_line: string; marriage_line: string; fate_line: string; summary: string } | null;
   hasPortrait?: boolean;
+  /** Made in the quiz flow (SHAADI_QUIZ test), with the answers the buyer tapped. */
+  flow?: "quiz";
+  quiz?: ShaadiQuizAnswers;
+  /** Quiz-flow free preview only: the birth chart and the 7th house, drawn on the paywall. */
+  kundli?: { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
+  seventh?: { rashi: string; lord: string; lordHouse: number };
 };
 
 export type MilanReport = {
@@ -148,11 +155,30 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export const createShaadiPreview = (self: SelfDetails, palmImage?: string | null) =>
+export const createShaadiPreview = (self: SelfDetails, palmImage?: string | null, quiz?: ShaadiQuizAnswers) =>
   request<ShaadiReport>("/api/astro/shaadi/preview", {
     method: "POST",
-    body: JSON.stringify({ device_id: getDeviceId(), ...self, ...(palmImage ? { palm_image: palmImage } : {}) }),
+    body: JSON.stringify({
+      device_id: getDeviceId(),
+      ...self,
+      ...(palmImage ? { palm_image: palmImage } : {}),
+      ...(quiz ? { flow: "quiz", quiz } : {}),
+    }),
   });
+
+/**
+ * Which /shaadi flow this phone gets: the quiz flow for SHAADI_QUIZ.percent of devices, sticky.
+ * ?flow=quiz or ?flow=classic forces one, for checking either page.
+ */
+export function shaadiFlow(): "quiz" | "classic" {
+  try {
+    const forced = new URLSearchParams(window.location.search).get("flow");
+    if (forced === "quiz" || forced === "classic") return forced;
+  } catch {
+    /* fall through to the device's arm */
+  }
+  return inShaadiQuizFlow(getDeviceId()) ? "quiz" : "classic";
+}
 
 export const createMilanPreview = (payload: {
   self: SelfDetails;
@@ -185,7 +211,12 @@ export async function payForReport(report: AstroReport): Promise<void> {
       product_type: ASTRO_PRODUCT_TYPE[report.type],
       companion_id: null,
       rate_note: `${report.type} report`,
-      metadata: { astro_report_id: report.id, source: `${report.type}_report`, contact_test: arm },
+      metadata: {
+        astro_report_id: report.id,
+        source: `${report.type}_report`,
+        contact_test: arm,
+        ...(report.type === "shaadi" ? { flow: report.flow ?? "classic" } : {}),
+      },
     },
     ...(arm === "skip"
       ? {
@@ -308,7 +339,7 @@ export const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Report-page events stored for our own analysis only (never sent to the Meta Pixel). */
 export function logAstro(
-  event: "astro_report_read" | "astro_report_action" | "astro_question",
+  event: "astro_report_read" | "astro_report_action" | "astro_question" | "astro_quiz_step",
   report: AstroReport["type"],
   props: Record<string, unknown>,
 ) {

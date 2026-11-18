@@ -1,12 +1,13 @@
 import type { Express, Request } from "express";
 import { metaPurchaseEventId } from "@shared/metaEvents";
-import { isRealPhone, phoneDigits, priceForNewReport, priceOfReport } from "@shared/astroProducts";
+import { isRealPhone, phoneDigits, priceForNewReport, priceOfReport, SHAADI_QUIZ } from "@shared/astroProducts";
+import { isShaadiQuizAnswers } from "@shared/shaadiQuiz";
 import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY, upsertProfileRow } from "./services/supabaseBilling";
 import { metaContextFromRequest, sendMetaConversionEvent } from "./services/metaConversions";
 import { z } from "zod";
 import { generateImage, readPalm } from "./services/astro/ai";
 import {
-  buildMilanFacts, buildShaadiFacts, milanNarrative, milanView, MilanInputError,
+  buildMilanFacts, buildShaadiFacts, kundliHouses, milanNarrative, milanView, MilanInputError,
   portraitPrompt, shaadiNarrative, shaadiView,
   type MilanFacts, type MilanInput, type ShaadiFacts, type ShaadiInput,
 } from "./services/astro/reports";
@@ -55,7 +56,12 @@ function view(row: AstroReportRow) {
       case "naukri": return naukriView(r);
     }
   })();
-  return { ...v, price: priceOfReport(row.report_type, row.price_rupees) };
+  // Quiz-flow Shaadi reports show their own strike price (₹999), not the usual one for ₹99.
+  const quizFlow = row.report_type === "shaadi" && (row.facts as Partial<ShaadiFacts> | null)?.flow === "quiz";
+  const price = quizFlow
+    ? { rupees: row.price_rupees ?? SHAADI_QUIZ.rupees, strike: SHAADI_QUIZ.strike }
+    : priceOfReport(row.report_type, row.price_rupees);
+  return { ...v, price };
 }
 
 /** GET from the Razorpay API with the server's keys; null on any failure. */
@@ -277,18 +283,28 @@ export function registerAstroRoutes(app: Express) {
         .extend({
           device_id: z.string().min(1).max(120),
           palm_image: z.string().startsWith("data:image/").max(1_400_000).optional(),
+          /** The quiz flow (SHAADI_QUIZ test) sends its six answers; they price the report at ₹99. */
+          flow: z.literal("quiz").optional(),
+          quiz: z.unknown().optional(),
         })
         .parse(req.body);
+      if (body.flow === "quiz" && !isShaadiQuizAnswers(body.quiz)) {
+        return res.status(400).json({ message: "Kripya sabhi sawalon ke jawab chunein" });
+      }
       const input: ShaadiInput = {
         name: body.name, gender: body.gender, dob: body.dob, tob: body.tob ?? null, place: body.place,
       };
       const earlier = await sameDetailsReport("shaadi", body.device_id, input, req);
       // A new palm photo on a report that is not paid yet gets a fresh report, so the palm is read.
       if (earlier && (earlier.paid || !body.palm_image)) return res.json(view(earlier));
-      const facts = buildShaadiFacts(input);
+      // Quiz answers live in facts, not input, so a buyer who refills the same details still finds their report.
+      const facts: ShaadiFacts = body.flow === "quiz" && isShaadiQuizAnswers(body.quiz)
+        ? { ...buildShaadiFacts(input), flow: "quiz", quiz: body.quiz, kundli: kundliHouses(input) }
+        : buildShaadiFacts(input);
       // The palm photo is read once and discarded; only the text reading is stored.
       const palm = body.palm_image ? await readPalm(body.palm_image) : null;
-      const row = await insertReport({ report_type: "shaadi", device_id: body.device_id, input, facts, palm, price_rupees: priceForNewReport("shaadi", body.device_id) });
+      const price = facts.flow === "quiz" ? SHAADI_QUIZ.rupees : priceForNewReport("shaadi", body.device_id);
+      const row = await insertReport({ report_type: "shaadi", device_id: body.device_id, input, facts, palm, price_rupees: price });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });

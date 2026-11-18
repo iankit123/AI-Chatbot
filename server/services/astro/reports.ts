@@ -4,12 +4,13 @@
  * so locked content never reaches an unpaid browser.
  */
 import {
-  analyseMarriage, computeChart, gunMilan, moonPointFromName, moonPointOf,
-  GANA, GANA_NAMES, NADI, NADI_NAMES, NAKSHATRA, PLANET_HINGLISH, RASHI, YONI, YONI_NAMES,
-  type BirthInput, type Chart, type GunMilan, type MarriageFacts, type MoonPoint,
+  analyseMarriage, computeChart, gunMilan, houseOf, moonPointFromName, moonPointOf,
+  GANA, GANA_NAMES, NADI, NADI_NAMES, NAKSHATRA, PLANET_HI, PLANET_HINGLISH, RASHI, YONI, YONI_NAMES,
+  type BirthInput, type Chart, type GunMilan, type MarriageFacts, type MoonPoint, type PlanetName,
 } from "./engine";
 import { generateJson, type PalmReading } from "./ai";
 import { ASTRO_PRICES } from "@shared/astroProducts";
+import { shaadiQuizLabels, type ShaadiQuizAnswers } from "@shared/shaadiQuiz";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 export const monthYear = (isoDate: string) => {
@@ -63,11 +64,31 @@ const DISTANCE_COPY: Record<MarriageFacts["partnerDistance"], string> = {
 };
 
 export type ShaadiInput = BirthInput;
+/** A North Indian chart: house 1 first; `sign` is the rashi number (1 = Mesh), `planets` short Hindi names. */
+export type KundliHouses = { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
 export type ShaadiFacts = {
   kind: "shaadi";
   chart: { lagna: string | null; moonRashi: string; moonRashiHi: string; nakshatra: string; pada: number; timeKnown: boolean; placePrecise: boolean };
   marriage: MarriageFacts;
+  /** Set on reports made in the /shaadi quiz flow (SHAADI_QUIZ test). */
+  flow?: "quiz";
+  quiz?: ShaadiQuizAnswers;
+  kundli?: KundliHouses;
 };
+
+const PLANET_SHORT: Record<PlanetName, string> = {
+  Sun: "सू", Moon: "चं", Mars: "मं", Mercury: "बु", Jupiter: "गु", Venus: "शु", Saturn: "श", Rahu: "रा", Ketu: "के",
+};
+
+/** The birth chart as houses with the planets in each, for drawing the kundli on the quiz-flow paywall. */
+export function kundliHouses(input: BirthInput): KundliHouses {
+  const chart = computeChart(input);
+  const houses = Array.from({ length: 12 }, (_, i) => ({ sign: ((chart.baseSign + i) % 12) + 1, planets: [] as string[] }));
+  for (const p of Object.keys(chart.signOf) as PlanetName[]) {
+    houses[houseOf(chart.signOf[p], chart.baseSign) - 1].planets.push(PLANET_SHORT[p]);
+  }
+  return { baseIsLagna: chart.baseIsLagna, houses };
+}
 
 export function chartSummary(c: Chart) {
   return {
@@ -162,9 +183,14 @@ export async function shaadiNarrative(input: ShaadiInput, f: ShaadiFacts, palm: 
       ? `Thodi der ke yog ${s.timing.delays.join(", ")} ki wajah se hain. Sabr rakhein aur neeche diye upay niyamit karein.`
       : "Aapki kundli me vivah ko rokne wala koi bada dosh nahi hai. Sahi samay par aaye rishte ko gambhirta se dekhein.",
   };
+  // Quiz-flow buyers told us their worry in their own words; the report should speak to it.
+  const q = f.quiz ? shaadiQuizLabels(f.quiz) : null;
+  const worryLine = q
+    ? `\nUnki chinta (unke tappe hue jawab, Hindi me): "${q.detail}", ${q.since}. Unhe sabse pehle jaanna hai: "${q.want}". Summary ke pehle vakya me is chinta ko naam lekar seedha sambodhit karo, phir kundli ka jawab do.`
+    : "";
   const ai = await generateJson(
     `Tum ek anubhavi Vedic jyotishi ho jo vivah bhavishya ki report likhte ho. ${TONE}`,
-    `Vyakti: ${input.name}, ${input.gender === "male" ? "purush" : "mahila"}, janm ${input.dob}.
+    `Vyakti: ${input.name}, ${input.gender === "male" ? "purush" : "mahila"}, janm ${input.dob}.${worryLine}
 Kundli ke tathya (inhe hi aadhar banao):
 ${JSON.stringify({ snapshot: s.snapshot, vivah_samay: s.timing, vivah_prakar: s.type, jeevansathi: s.partner, mangal: s.mangal.title, hast_rekha: palm }, null, 1)}
 
@@ -198,12 +224,21 @@ export function shaadiView(row: { id: string; paid: boolean; input: ShaadiInput;
     letterCount: m.letters.length,
   };
   const years = yearSpan(m.window.start, m.window.end);
+  const quizFlow = f.flow === "quiz" ? { flow: "quiz" as const, quiz: f.quiz } : {};
   if (!row.paid) {
     // The year itself is paid content: the free preview only learns whether it is one year or a span.
-    return { ...common, windowIsRange: years.includes("–"), firstLetter: m.letters[0], delayCount: m.delayFactors.length };
+    const preview = { ...common, ...quizFlow, windowIsRange: years.includes("–"), firstLetter: m.letters[0], delayCount: m.delayFactors.length };
+    if (f.flow !== "quiz") return preview;
+    // The quiz-flow paywall draws the chart and names the 7th house; the readings stay locked.
+    return {
+      ...preview,
+      kundli: f.kundli,
+      seventh: { rashi: RASHI[m.seventhSign].hi, lord: PLANET_HI[m.seventhLord], lordHouse: m.seventhLordHouse },
+    };
   }
   return {
     ...common,
+    ...quizFlow,
     windowYears: years,
     sections: shaadiSections(input, f),
     narrative: row.narrative,

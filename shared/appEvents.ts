@@ -10,6 +10,12 @@ export const APP_EVENT_NAMES = [
   "astro_form_submitted",
   "astro_preview_viewed",
   "astro_report_viewed",
+  /**
+   * /shaadi quiz flow (SHAADI_QUIZ): one event per answered screen, quiz questions and birth
+   * details alike (properties.step, n, value; never the name or birth details themselves).
+   * Stored for our analysis only, never sent to the Meta Pixel.
+   */
+  "astro_quiz_step",
   /** Paid report reading: scroll depth milestones and time on page. */
   "astro_report_read",
   /** Taps on Share and cross-sell links in a paid report. */

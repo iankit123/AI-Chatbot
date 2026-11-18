@@ -82,6 +82,23 @@ export function skipsContactScreen(deviceId: string): boolean {
   return h % 100 < CONTACT_TEST_PERCENT;
 }
 
+/**
+ * Shaadi quiz-flow test (from 2026-11-18). SHAADI_QUIZ.percent of devices that open /shaadi get a
+ * flow modelled on numsecret.com: six one-tap questions about their shaadi worry, birth details one
+ * per screen, then a paywall that quotes their answers, draws their kundli and shows three locked
+ * answer cards at ₹99 (strike ₹999). The rest keep the classic page at ASTRO_PRICES.shaadi.
+ * Sticky per device. `?flow=quiz` or `?flow=classic` on /shaadi forces one flow (for checking).
+ * Reports made in the quiz flow carry facts.flow = "quiz"; events and checkouts carry `flow`.
+ */
+export const SHAADI_QUIZ = { percent: 50, rupees: 99, strike: 999 } as const;
+const SHAADI_QUIZ_SALT = "shaadi-quiz-1";
+
+export function inShaadiQuizFlow(deviceId: string): boolean {
+  let h = 2166136261;
+  for (const ch of SHAADI_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return h % 100 < SHAADI_QUIZ.percent;
+}
+
 /** Last 10 digits of a typed or stored phone (drops +91, a leading 0, spaces). */
 export function phoneDigits(value: string | null | undefined): string {
   return (value ?? "").replace(/\D/g, "").slice(-10);

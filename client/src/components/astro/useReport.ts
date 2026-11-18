@@ -39,7 +39,11 @@ export function useAstroReport<T extends AstroReport>(id: string, type: T["type"
     const key = `${report.id}:${report.paid}`;
     if (viewed.current === key) return;
     viewed.current = key;
-    trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", type, { price: report.price.rupees, contact_test: contactTestArm() });
+    trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", type, {
+      price: report.price.rupees,
+      contact_test: contactTestArm(),
+      ...(report.type === "shaadi" ? { flow: report.flow ?? "classic" } : {}),
+    });
   }, [report, type]);
 
   // Coming back from a UPI app: ask the server again, it checks Razorpay for a completed payment.
