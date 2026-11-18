@@ -88,17 +88,21 @@ export function skipsContactScreen(deviceId: string): boolean {
  * per screen, then a paywall that quotes their answers, draws their kundli and shows three locked
  * answer cards at ₹99 (strike ₹999). The rest keep the classic page at ASTRO_PRICES.shaadi.
  * Sticky per device. `?flow=quiz|picker|classic` on /shaadi forces one flow (for checking).
- * Live for 50% from 2026-11-18 ~14:35 IST. From ~16:00 the Shaadi ad is split in thirds:
- *   quiz    (hash 0–32)  — the Shaadi quiz flow above;
- *   picker  (hash 33–65) — first asks which part of life hurts (shaadi, breakup, paisa, sarkari
+ * Live for 50% from 2026-11-18 ~14:35 IST; thirds (quiz / picker / classic) from ~14:52 IST.
+ * From ~16:30 IST the Shaadi ad is split in quarters:
+ *   quiz    (hash 0–24)  — the Shaadi quiz flow above;
+ *   picker  (hash 25–49) — first asks which part of life hurts (shaadi, breakup, paisa, sarkari
  *                          naukri), then that report's own quiz flow (shared/quizFlows.ts), ₹99;
- *   classic (hash 66–99) — the classic page at the normal price.
+ *   steps   (hash 50–74) — the same first question, then only the classic form's questions for
+ *                          that report, one per screen, and the classic report page at its price;
+ *   classic (hash 75–99) — the classic page at the normal price.
  * Quiz-flow reports of any type carry facts.flow = "quiz" (and facts.entry = "picker" from the
- * picker) and cost SHAADI_QUIZ.rupees; events and checkouts carry `flow`.
+ * picker) and cost SHAADI_QUIZ.rupees. Steps reports carry facts.entry = "steps" and the normal
+ * price. Events and checkouts carry `flow`.
  */
-export const SHAADI_QUIZ = { quizPercent: 33, pickerPercent: 33, rupees: 99, strike: 999 } as const;
+export const SHAADI_QUIZ = { quizPercent: 25, pickerPercent: 25, stepsPercent: 25, rupees: 99, strike: 999 } as const;
 const SHAADI_QUIZ_SALT = "shaadi-quiz-1";
-export type ShaadiArm = "quiz" | "picker" | "classic";
+export type ShaadiArm = "quiz" | "picker" | "steps" | "classic";
 
 export function shaadiArm(deviceId: string): ShaadiArm {
   let h = 2166136261;
@@ -106,6 +110,7 @@ export function shaadiArm(deviceId: string): ShaadiArm {
   const b = h % 100;
   if (b < SHAADI_QUIZ.quizPercent) return "quiz";
   if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent) return "picker";
+  if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent + SHAADI_QUIZ.stepsPercent) return "steps";
   return "classic";
 }
 

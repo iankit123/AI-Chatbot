@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, ArrowRight, Check, Lock, Quote, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, Lock, Quote, ShieldCheck, Sparkles, X } from "lucide-react";
 import {
   PROBLEMS, QUIZ_KEYS, QUOTE_KEY, quizLabels, quizStep,
   type QuizAnswers, type QuizProduct,
@@ -9,7 +9,7 @@ import { Analysing, AstroFooter, CITY_HINTS, ErrorNote, Faq, ZodiacWheel } from 
 import { SectionHead, TrustLine } from "@/components/astro/editorial";
 import { PaidReportBanner } from "@/components/astro/paid";
 import {
-  cacheReport, createBusinessPreview, createNaukriPreview, createShaadiPreview, createWapasPreview,
+  cacheReport, compressImage, createBusinessPreview, createNaukriPreview, createShaadiPreview, createWapasPreview,
   lastReportId, loadSelf, logAstro, rememberReport, saveSelf, trackAstro, wait,
   type AstroReport, type BusinessBudget, type BusinessSituation, type Gender, type NaukriStatus, type NaukriTarget,
   type SelfDetails, type WapasStatus,
@@ -21,7 +21,13 @@ import type { ShaadiQuizAnswers } from "@shared/shaadiQuiz";
  * questions about the worry, a short "we hear you" screen, birth details one per screen, then the
  * report's quiz paywall (quizPaywalls.tsx / ShaadiQuizPaywall). `entry="picker"` starts with
  * "which part of life hurts" and branches into that report's questions; `entry="quiz"` is Shaadi only.
+ * `entry="steps"` asks the same first question, then only the classic form's questions for that
+ * report (STEPS_INPUTS, plus the optional palm photo for Shaadi), one per screen, and makes a
+ * classic report at the normal price.
  */
+
+/** In the steps flow: which quiz questions to ask, by index. They are the classic form's own inputs. */
+const STEPS_INPUTS: Record<QuizProduct, number[]> = { shaadi: [], wapas: [0], business: [1, 4], naukri: [0, 1] };
 
 const HERO = "/astro/milan-hero.webp";
 
@@ -51,17 +57,21 @@ const PRODUCT: Record<QuizProduct, { hear: string; making: { title: string; step
   },
 };
 
-type DetailStep = "name" | "gender" | "year" | "month" | "day" | "time" | "place" | "pname" | "pknows" | "pyear" | "pmonth" | "pday";
+type DetailStep = "name" | "gender" | "year" | "month" | "day" | "time" | "place" | "palm" | "pname" | "pknows" | "pyear" | "pmonth" | "pday";
 const SELF_STEPS: DetailStep[] = ["name", "gender", "year", "month", "day", "time", "place"];
 
 type Phase = { kind: "pick" } | { kind: "quiz"; i: number } | { kind: "hear" } | { kind: "detail"; i: number } | { kind: "making" };
 
-/** Creates the report for the chosen product from the quiz answers and birth details. */
-function createReport(product: QuizProduct, self: SelfDetails, a: QuizAnswers, partner: { name: string; dob: string | null }, entry: "quiz" | "picker"): Promise<AstroReport> {
-  const extra = { quiz: a, ...(entry === "picker" ? { entry: "picker" as const } : {}) };
+type Entry = "quiz" | "picker" | "steps";
+
+/** Creates the report for the chosen product from the answers and birth details. */
+function createReport(product: QuizProduct, self: SelfDetails, a: QuizAnswers, partner: { name: string; dob: string | null }, entry: Entry, palm: string | null): Promise<AstroReport> {
+  const extra = entry === "steps" ? { entry: "steps" as const } : { quiz: a, ...(entry === "picker" ? { entry: "picker" as const } : {}) };
   switch (product) {
     case "shaadi":
-      return createShaadiPreview(self, null, a as ShaadiQuizAnswers, entry === "picker" ? "picker" : undefined);
+      return entry === "steps"
+        ? createShaadiPreview(self, palm, undefined, "steps")
+        : createShaadiPreview(self, null, a as ShaadiQuizAnswers, entry === "picker" ? "picker" : undefined);
     case "wapas":
       return createWapasPreview({ self, partner: { name: partner.name, dob: partner.dob, tob: null, place: null }, status: a.worry as WapasStatus }, extra);
     case "business":
@@ -73,13 +83,14 @@ function createReport(product: QuizProduct, self: SelfDetails, a: QuizAnswers, p
 
 // ---------------------------------------------------------------- landing: picker → quiz → details
 
-export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
+export function QuizLanding({ entry }: { entry: Entry }) {
   const [, navigate] = useLocation();
   const saved = useRef(loadSelf()).current;
   const last = useRef(lastReportId("shaadi")).current;
-  const flowName = entry === "picker" ? "picker" : "quiz";
+  const flowName = entry;
+  const stepsMode = entry === "steps";
   const [product, setProduct] = useState<QuizProduct>("shaadi");
-  const [phase, setPhase] = useState<Phase>(entry === "picker" ? { kind: "pick" } : { kind: "quiz", i: 0 });
+  const [phase, setPhase] = useState<Phase>(entry === "quiz" ? { kind: "quiz", i: 0 } : { kind: "pick" });
   const [answers, setAnswers] = useState<QuizAnswers>({});
   const [name, setName] = useState(saved.name ?? "");
   const [gender, setGender] = useState<Gender | "">(saved.gender ?? "");
@@ -93,6 +104,7 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
   const [pYear, setPYear] = useState("");
   const [pMonth, setPMonth] = useState(0);
   const [pDay, setPDay] = useState(0);
+  const [palm, setPalm] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,12 +112,18 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const steps: DetailStep[] =
-    product === "wapas" ? [...SELF_STEPS, "pname", "pknows", ...(pKnows === "no" ? [] : (["pyear", "pmonth", "pday"] as DetailStep[]))] : SELF_STEPS;
+  const partnerSteps = (knows: string): DetailStep[] => ["pname", "pknows", ...(knows === "no" ? [] : (["pyear", "pmonth", "pday"] as DetailStep[]))];
+  const steps: DetailStep[] = [
+    ...SELF_STEPS,
+    ...(product === "shaadi" && stepsMode ? (["palm"] as DetailStep[]) : []),
+    ...(product === "wapas" ? partnerSteps(pKnows) : []),
+  ];
+  /** The questions asked before the birth details: all six, or in the steps flow only the report's inputs. */
+  const questions = stepsMode ? STEPS_INPUTS[product] : QUIZ_KEYS.map((_, k) => k);
 
   const phaseKey = "i" in phase ? `${phase.kind}${phase.i}` : phase.kind;
   useEffect(() => {
-    if (phaseKey !== (entry === "picker" ? "pick" : "quiz0")) window.scrollTo({ top: 0 });
+    if (phaseKey !== (entry === "quiz" ? "quiz0" : "pick")) window.scrollTo({ top: 0 });
   }, [phaseKey, entry]);
 
   /** Moves to another screen, dropping any error shown on this one. */
@@ -113,7 +131,7 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
     setError(null);
     setPhase(p);
   };
-  const offset = entry === "picker" ? 1 : 0;
+  const offset = entry === "quiz" ? 0 : 1;
   const step = (n: number, stepName: string, value?: string) =>
     logAstro("astro_quiz_step", "shaadi", { flow: flowName, product, step: stepName, n, ...(value ? { value } : {}) });
 
@@ -121,7 +139,9 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
     setProduct(p);
     setAnswers({});
     logAstro("astro_quiz_step", "shaadi", { flow: flowName, product: p, step: "problem", n: 1, value: p });
-    window.setTimeout(() => go({ kind: "quiz", i: 0 }), 220);
+    // The steps flow has no questions for Shaadi before the birth details.
+    const none = stepsMode && STEPS_INPUTS[p].length === 0;
+    window.setTimeout(() => go(none ? { kind: "detail", i: 0 } : { kind: "quiz", i: 0 }), 220);
   };
 
   const pick = (key: string, value: string, i: number) => {
@@ -130,18 +150,19 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
     if (key === "worry" && answers.worry !== value) delete next.detail;
     setAnswers(next);
     step(offset + i + 1, key, value);
-    window.setTimeout(() => go(i + 1 < QUIZ_KEYS.length ? { kind: "quiz", i: i + 1 } : { kind: "hear" }), 220);
+    const after: Phase = stepsMode ? { kind: "detail", i: 0 } : { kind: "hear" };
+    window.setTimeout(() => go(i + 1 < questions.length ? { kind: "quiz", i: i + 1 } : after), 220);
   };
 
   const submit = async () => {
     const dob = `${year}-${pad(month)}-${pad(day)}`;
     const pDob = product === "wapas" && pKnows === "yes" && pMonth && pDay ? `${pYear}-${pad(pMonth)}-${pad(pDay)}` : null;
-    if (!gender || !month || !day || !answers.want || place.trim().length < 2) return setError("कुछ जानकारी छूट गई है। कृपया पीछे जाकर भरें।");
+    if (!gender || !month || !day || (!stepsMode && !answers.want) || place.trim().length < 2) return setError("कुछ जानकारी छूट गई है। कृपया पीछे जाकर भरें।");
     go({ kind: "making" });
     const self: SelfDetails = { name: name.trim(), gender, dob, tob, place: place.trim() };
-    trackAstro("astro_form_submitted", product, { flow: flowName, has_time: !!tob, has_palm: false, worry: answers.worry, want: answers.want });
+    trackAstro("astro_form_submitted", product, { flow: flowName, has_time: !!tob, has_palm: !!palm, worry: answers.worry, want: answers.want });
     try {
-      const [report] = await Promise.all([createReport(product, self, answers, { name: pName.trim(), dob: pDob }, entry), wait(5200)]);
+      const [report] = await Promise.all([createReport(product, self, answers, { name: pName.trim(), dob: pDob }, entry, palm), wait(5200)]);
       saveSelf(self);
       rememberReport(product, report.id);
       cacheReport(report);
@@ -156,13 +177,13 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
   const submitRef = useRef(submit);
   submitRef.current = submit;
   const nextDetail = (i: number, value?: string, list = steps) => {
-    step(offset + QUIZ_KEYS.length + i + 1, list[i], value);
+    step(offset + questions.length + i + 1, list[i], value);
     if (i + 1 < list.length) go({ kind: "detail", i: i + 1 });
     else void submitRef.current();
   };
   const back = () => {
     if (phase.kind === "quiz") go(phase.i > 0 ? { kind: "quiz", i: phase.i - 1 } : { kind: "pick" });
-    else if (phase.kind === "detail") go(phase.i > 0 ? { kind: "detail", i: phase.i - 1 } : { kind: "quiz", i: QUIZ_KEYS.length - 1 });
+    else if (phase.kind === "detail") go(phase.i > 0 ? { kind: "detail", i: phase.i - 1 } : questions.length ? { kind: "quiz", i: questions.length - 1 } : { kind: "pick" });
   };
 
   if (phase.kind === "making") {
@@ -221,7 +242,7 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
     );
     return (
       <div className="pt-16">
-        <StepCard onBack={back} label={i < SELF_STEPS.length ? "आपकी कुंडली के लिए" : "उनकी जानकारी"} progress={<Dots n={steps.length} at={i} />}>
+        <StepCard onBack={back} label={key.startsWith("p") && key !== "place" && key !== "palm" ? "उनकी जानकारी" : "आपकी कुंडली के लिए"} progress={<Dots n={steps.length} at={i} />}>
           {key === "name" && (
             <form onSubmit={(e) => { e.preventDefault(); if (name.trim().length < 2) return setError("कृपया अपना नाम लिखें।"); nextDetail(i); }}>
               <QuestionTitle title="आपका पूरा नाम?" sub="जन्म के समय का नाम, जैसा घर में लिखा जाता है।" />
@@ -258,6 +279,44 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
               )}
             </form>
           )}
+          {key === "palm" && (
+            <div>
+              <QuestionTitle title="हथेली की फ़ोटो (वैकल्पिक)" sub="हस्त रेखा से विवाह रेखा भी देखी जाएगी। फ़ोटो सेव नहीं होती, सिर्फ़ पढ़ी जाती है।" />
+              {palm ? (
+                <div className="flex items-center gap-3 rounded-xl border border-[#eadbcf] bg-white p-2">
+                  <img src={palm} alt="Aapki hatheli" className="h-14 w-14 rounded-lg object-cover" />
+                  <span className="ink flex-1 text-[13.5px]">फ़ोटो जुड़ गई।</span>
+                  <button type="button" aria-label="फ़ोटो हटाएँ" className="grid h-8 w-8 place-items-center rounded-full bg-[#f3e8d2] text-[var(--ink)]" onClick={() => setPalm(null)}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#cdb9a8] bg-white px-3.5 py-3 text-[13.5px] text-[var(--ink)]">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--ink)] text-white"><Camera className="h-4 w-4" /></span>
+                  सीधे हाथ की साफ़ फ़ोटो लें
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        setPalm(await compressImage(file));
+                      } catch {
+                        setError("फ़ोटो लोड नहीं हो पाई। दोबारा कोशिश करें या बिना फ़ोटो के आगे बढ़ें।");
+                      }
+                    }}
+                  />
+                </label>
+              )}
+              <ErrorNote message={error} />
+              <button type="button" className="btn-gold mt-5" onClick={() => nextDetail(i, palm ? "photo" : "none")}>
+                <Sparkles className="h-4 w-4" /> {palm ? "मेरी कुंडली देखें" : "बिना फ़ोटो के कुंडली देखें"}
+              </button>
+            </div>
+          )}
           {key === "pname" && (
             <form onSubmit={(e) => { e.preventDefault(); if (pName.trim().length < 2) return setError("कृपया उनका नाम लिखें।"); nextDetail(i); }}>
               <QuestionTitle title="उनका नाम?" sub="जिनके बारे में जानना है। उन्हें कुछ पता नहीं चलेगा।" />
@@ -276,7 +335,7 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
                   const knows = v as "yes" | "no";
                   setPKnows(knows);
                   // The step list changes with this answer, so advance against the new list.
-                  const list: DetailStep[] = [...SELF_STEPS, "pname", "pknows", ...(knows === "no" ? [] : (["pyear", "pmonth", "pday"] as DetailStep[]))];
+                  const list: DetailStep[] = [...SELF_STEPS, ...partnerSteps(knows)];
                   window.setTimeout(() => nextDetail(i, v, list), 200);
                 }}
               />
@@ -301,23 +360,24 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
 
   // ---- the first screen (photo + first question), then one question per screen
   const total = QUIZ_KEYS.length + offset;
+  const progressText = (n: number) => (stepsMode ? `सवाल ${n}` : `सवाल ${n} / ${total}`);
   let card: ReactNode;
   if (phase.kind === "pick") {
     card = (
-      <StepCard label="दिल से बताइए" progress={<span className="ink-soft text-[12.5px]">सवाल 1 / {total}</span>} bar={1 / total}>
+      <StepCard label="दिल से बताइए" progress={<span className="ink-soft text-[12.5px]">{progressText(1)}</span>} bar={stepsMode ? undefined : 1 / total}>
         <QuestionTitle title="ज़िंदगी के किस हिस्से में सबसे ज़्यादा परेशानी है?" sub="जो सबसे सही लगे, वो चुनें" />
         <Options options={PROBLEMS} value="" onPick={(v) => pickProblem(v as QuizProduct)} />
       </StepCard>
     );
   } else {
     const i = phase.i;
-    const q = quizStep(product, i, answers);
+    const q = quizStep(product, questions[i], answers);
     card = (
       <StepCard
-        onBack={i > 0 || entry === "picker" ? back : undefined}
-        label={q.kicker}
-        progress={<span className="ink-soft text-[12.5px]">सवाल {offset + i + 1} / {total}</span>}
-        bar={(offset + i + 1) / total}
+        onBack={i > 0 || entry !== "quiz" ? back : undefined}
+        label={stepsMode ? "आपकी कुंडली के लिए" : q.kicker}
+        progress={<span className="ink-soft text-[12.5px]">{progressText(offset + i + 1)}</span>}
+        bar={stepsMode ? undefined : (offset + i + 1) / total}
       >
         <QuestionTitle title={q.title} sub="जो सबसे सही लगे, वो चुनें" />
         <Options key={`${product}-${q.key}`} options={q.options} value={answers[q.key] ?? ""} onPick={(v) => pick(q.key, v, i)} />
@@ -341,11 +401,13 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
   );
 
   // The picker covers every problem, so no wedding photo: the first question sits at the top.
-  if (entry === "picker") {
+  if (entry !== "quiz") {
     return (
       <>
         <div className="pt-16">{card}</div>
-        <p className="mt-5 max-w-[340px] text-[14.5px] leading-relaxed text-[var(--ed-muted)]">बताइए किस बात से परेशान हैं। 7 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब।</p>
+        <p className="mt-5 max-w-[340px] text-[14.5px] leading-relaxed text-[var(--ed-muted)]">
+          {stepsMode ? "बताइए किस बात से परेशान हैं, फिर जन्म की जानकारी से आपकी कुंडली का जवाब।" : "बताइए किस बात से परेशान हैं। 7 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब।"}
+        </p>
         <TrustLine items={["1 मिनट", "पूरी तरह गोपनीय", "लाहिड़ी अयनांश से गणना"]} />
         {footer}
       </>

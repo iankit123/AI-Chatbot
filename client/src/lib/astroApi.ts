@@ -8,11 +8,12 @@ import type { QuizAnswers } from "@shared/quizFlows";
 export type QuizFlowFields = {
   flow?: "quiz";
   quiz?: QuizAnswers;
-  entry?: "picker" | null;
+  entry?: "picker" | "steps" | null;
   kundli?: { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
 };
-/** What the quiz flow sends with a preview request. */
-export type QuizExtra = { quiz: QuizAnswers; entry?: "picker" };
+/** What the quiz flow sends with a preview request; the "steps" flow sends only its entry tag. */
+export type QuizExtra = { quiz: QuizAnswers; entry?: "picker" } | { entry: "steps" };
+const extraBody = (x?: QuizExtra) => (!x ? {} : "quiz" in x ? { flow: "quiz", ...x } : x);
 import { getDeviceId } from "@/lib/supabase";
 import { logAppEventToServer } from "@/lib/logAppEvent";
 import { runRazorpayCheckout } from "@/lib/razorpay";
@@ -46,7 +47,7 @@ export type ShaadiReport = {
   /** Made in the quiz flow (SHAADI_QUIZ test), with the answers the buyer tapped. */
   flow?: "quiz";
   quiz?: ShaadiQuizAnswers;
-  entry?: "picker" | null;
+  entry?: "picker" | "steps" | null;
   /** Quiz-flow free preview only: the birth chart and the 7th house, drawn on the paywall. */
   kundli?: { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
   seventh?: { rashi: string; lord: string; lordHouse: number };
@@ -139,7 +140,7 @@ export type AstroReport = ShaadiReport | MilanReport | WapasReport | BusinessRep
 export const createNaukriPreview = (payload: SelfDetails & { status: NaukriStatus; target: NaukriTarget }, quiz?: QuizExtra) =>
   request<NaukriReport>("/api/astro/naukri/preview", {
     method: "POST",
-    body: JSON.stringify({ device_id: getDeviceId(), ...payload, ...(quiz ? { flow: "quiz", ...quiz } : {}) }),
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload, ...extraBody(quiz) }),
   });
 
 export type PartnerDetails = { name: string; dob: string | null; tob: string | null; place: string | null };
@@ -147,14 +148,14 @@ export type PartnerDetails = { name: string; dob: string | null; tob: string | n
 export const createWapasPreview = (payload: { self: SelfDetails; partner: PartnerDetails; status: WapasStatus }, quiz?: QuizExtra) =>
   request<WapasReport>("/api/astro/wapas/preview", {
     method: "POST",
-    body: JSON.stringify({ device_id: getDeviceId(), ...payload, ...(quiz ? { flow: "quiz", ...quiz } : {}) }),
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload, ...extraBody(quiz) }),
   });
 
 export type BusinessBudget = 1 | 2 | 3 | 4 | 5 | 6;
 export const createBusinessPreview = (payload: SelfDetails & { situation: BusinessSituation; budget: BusinessBudget }, quiz?: QuizExtra) =>
   request<BusinessReport>("/api/astro/business/preview", {
     method: "POST",
-    body: JSON.stringify({ device_id: getDeviceId(), ...payload, budget_scale: 2, ...(quiz ? { flow: "quiz", ...quiz } : {}) }),
+    body: JSON.stringify({ device_id: getDeviceId(), ...payload, budget_scale: 2, ...extraBody(quiz) }),
   });
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -167,34 +168,38 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export const createShaadiPreview = (self: SelfDetails, palmImage?: string | null, quiz?: ShaadiQuizAnswers, entry?: "picker") =>
+export const createShaadiPreview = (self: SelfDetails, palmImage?: string | null, quiz?: ShaadiQuizAnswers, entry?: "picker" | "steps") =>
   request<ShaadiReport>("/api/astro/shaadi/preview", {
     method: "POST",
     body: JSON.stringify({
       device_id: getDeviceId(),
       ...self,
       ...(palmImage ? { palm_image: palmImage } : {}),
-      ...(quiz ? { flow: "quiz", quiz, ...(entry ? { entry } : {}) } : {}),
+      ...(quiz ? { flow: "quiz", quiz } : {}),
+      ...(entry ? { entry } : {}),
     }),
   });
 
 /**
  * Which /shaadi flow this phone gets (SHAADI_QUIZ arms, sticky per device).
- * ?flow=quiz|picker|classic forces one, for checking each page.
+ * ?flow=quiz|picker|steps|classic forces one, for checking each page.
  */
 export function shaadiFlow(): ShaadiArm {
   try {
     const forced = new URLSearchParams(window.location.search).get("flow");
-    if (forced === "quiz" || forced === "picker" || forced === "classic") return forced;
+    if (forced === "quiz" || forced === "picker" || forced === "steps" || forced === "classic") return forced;
   } catch {
     /* fall through to the device's arm */
   }
   return shaadiArm(getDeviceId());
 }
 
-/** The flow a report was made in, for events and checkouts: classic, quiz, or picker. */
-export const reportFlow = (r: AstroReport): ShaadiArm =>
-  "flow" in r && r.flow === "quiz" ? ("entry" in r && r.entry === "picker" ? "picker" : "quiz") : "classic";
+/** The flow a report was made in, for events and checkouts: classic, quiz, picker or steps. */
+export const reportFlow = (r: AstroReport): ShaadiArm => {
+  const entry = "entry" in r ? r.entry : null;
+  if ("flow" in r && r.flow === "quiz") return entry === "picker" ? "picker" : "quiz";
+  return entry === "steps" ? "steps" : "classic";
+};
 
 export const createMilanPreview = (payload: {
   self: SelfDetails;

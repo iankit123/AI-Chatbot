@@ -60,7 +60,7 @@ function view(row: AstroReportRow) {
   // Quiz-flow reports (any type) show their own strike price (₹999) and carry the buyer's answers;
   // the free preview also gets the birth chart to draw.
   const f = row.facts as { flow?: "quiz"; quiz?: unknown; entry?: string; kundli?: unknown } | null;
-  if (f?.flow !== "quiz") return { ...v, price: priceOfReport(row.report_type, row.price_rupees) };
+  if (f?.flow !== "quiz") return { ...v, ...(f?.entry ? { entry: f.entry } : {}), price: priceOfReport(row.report_type, row.price_rupees) };
   return {
     ...v,
     flow: "quiz" as const,
@@ -76,19 +76,23 @@ const quizBody = {
   /** The quiz flow (SHAADI_QUIZ test) sends its six answers; they price the report at ₹99. */
   flow: z.literal("quiz").optional(),
   quiz: z.unknown().optional(),
-  /** Set when the buyer came through the problem picker. */
-  entry: z.literal("picker").optional(),
+  /** "picker": came through the problem picker into a quiz flow. "steps": the picker, then the classic questions one per screen. */
+  entry: z.enum(["picker", "steps"]).optional(),
 };
 
 /**
  * Quiz-flow fields stored in facts (null for the classic flow). Kept out of `input`, so a buyer
  * who refills the same details still finds their earlier report.
  */
-function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" }, self: BirthInput) {
+function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" | "steps" }, self: BirthInput) {
   if (body.flow !== "quiz") return null;
   if (!isQuizAnswers(product, body.quiz)) throw new QuizInputError("Kripya sabhi sawalon ke jawab chunein");
-  return { flow: "quiz" as const, quiz: pickQuizAnswers(body.quiz), ...(body.entry ? { entry: body.entry } : {}), kundli: kundliHouses(self) };
+  return { flow: "quiz" as const, quiz: pickQuizAnswers(body.quiz), ...(body.entry === "picker" ? { entry: "picker" as const } : {}), kundli: kundliHouses(self) };
 }
+
+/** Tag for reports made through the "steps" flow (classic questions one per screen, normal price). */
+const stepsTag = (body: { flow?: "quiz"; entry?: "picker" | "steps" }) =>
+  body.flow !== "quiz" && body.entry === "steps" ? { entry: "steps" as const } : {};
 
 /** GET from the Razorpay API with the server's keys; null on any failure. */
 async function razorpayGet<T>(path: string): Promise<T | null> {
@@ -319,7 +323,7 @@ export function registerAstroRoutes(app: Express) {
       const earlier = await sameDetailsReport("shaadi", body.device_id, input, req);
       // A new palm photo on a report that is not paid yet gets a fresh report, so the palm is read.
       if (earlier && (earlier.paid || !body.palm_image)) return res.json(view(earlier));
-      const facts: ShaadiFacts = quiz ? { ...buildShaadiFacts(input), ...(quiz as Partial<ShaadiFacts>) } : buildShaadiFacts(input);
+      const facts: ShaadiFacts = { ...buildShaadiFacts(input), ...(quiz as Partial<ShaadiFacts> | null), ...stepsTag(body) };
       // The palm photo is read once and discarded; only the text reading is stored.
       const palm = body.palm_image ? await readPalm(body.palm_image) : null;
       const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("shaadi", body.device_id);
@@ -385,7 +389,7 @@ export function registerAstroRoutes(app: Express) {
         .parse(req.body);
       const input: WapasInput = { self: { ...body.self, tob: body.self.tob ?? null }, partner: partnerInput(body.partner), status: body.status };
       const quiz = quizFacts("wapas", body, input.self);
-      const facts = { ...buildWapasFacts(input), ...quiz };
+      const facts = { ...buildWapasFacts(input), ...quiz, ...stepsTag(body) };
       const earlier = await sameDetailsReport("wapas", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
       const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("wapas", body.device_id);
@@ -418,7 +422,7 @@ export function registerAstroRoutes(app: Express) {
         ...(body.budget_scale ? { budget_scale: body.budget_scale } : {}),
       };
       const quiz = quizFacts("business", body, input);
-      const facts = { ...buildBusinessFacts(input), ...quiz };
+      const facts = { ...buildBusinessFacts(input), ...quiz, ...stepsTag(body) };
       const earlier = await sameDetailsReport("business", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
       const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("business", body.device_id);
@@ -447,7 +451,7 @@ export function registerAstroRoutes(app: Express) {
         status: body.status, target: body.target,
       };
       const quiz = quizFacts("naukri", body, input);
-      const facts = { ...buildNaukriFacts(input), ...quiz };
+      const facts = { ...buildNaukriFacts(input), ...quiz, ...stepsTag(body) };
       const earlier = await sameDetailsReport("naukri", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
       const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("naukri", body.device_id);

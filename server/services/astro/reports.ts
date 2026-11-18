@@ -72,6 +72,8 @@ export type ShaadiFacts = {
   marriage: MarriageFacts;
   /** Set on reports made in the /shaadi quiz flow (SHAADI_QUIZ test). */
   flow?: "quiz";
+  /** How the buyer arrived: the problem picker (quiz flow) or the "steps" flow (classic questions one per screen). */
+  entry?: "picker" | "steps";
   quiz?: ShaadiQuizAnswers;
   kundli?: KundliHouses;
 };
