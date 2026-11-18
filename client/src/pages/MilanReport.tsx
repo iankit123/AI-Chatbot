@@ -12,7 +12,7 @@ import {
   type Gender, type Koot, type MilanReport,
 } from "@/lib/astroApi";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { BirthDetailsCard, AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import { takeMilanPartner } from "@/lib/questionTopic";
 
 export default function MilanReportPage() {
@@ -397,6 +397,7 @@ function ReportView({ id }: { id: string }) {
     <>
       {header}
       <div className="mt-7 space-y-4">
+        <BirthDetailsCard report={report} />
         <PaperCard eyebrow={QUESTIONS.find((q) => q.value === report.question)!.label} title={s.verdict.line}>
           {n?.summary && <p className="text-[14px] leading-relaxed text-[#3a1420]">{n.summary}</p>}
         </PaperCard>

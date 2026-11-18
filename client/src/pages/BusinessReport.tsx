@@ -7,7 +7,7 @@ import {
 } from "@/components/astro/ui";
 import { SelfFields, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { BirthDetailsCard, AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import { BusinessQuizPaywall } from "@/components/astro/quizPaywalls";
 import { EditorialShell } from "@/components/astro/editorial";
 import {
@@ -334,6 +334,7 @@ function ReportBody({ report, error, paying, unlocking, pay, reload }: ReturnTyp
     <>
       {header}
       <div className="mt-7 space-y-4">
+        <BirthDetailsCard report={report} />
         {yogCard(n?.summary ?? report.level.line)}
 
         {(n?.why || s.reasons.length > 0) && (

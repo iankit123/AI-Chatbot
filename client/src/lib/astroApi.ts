@@ -11,6 +11,10 @@ export type QuizFlowFields = {
   entry?: "picker" | "steps" | null;
   kundli?: { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
 };
+/** Paid reports only: the birth details the report was made from, and when it was made. */
+export type BirthPerson = { name: string; gender: Gender | null; dob: string | null; tob: string | null; place: string | null };
+export type PaidMeta = { birth?: { self: BirthPerson | null; partner: BirthPerson | null }; madeOn?: string };
+
 /** What the quiz flow sends with a preview request; the "steps" flow sends only its entry tag. */
 export type QuizExtra = { quiz: QuizAnswers; entry?: "picker" } | { entry: "steps" };
 const extraBody = (x?: QuizExtra) => (!x ? {} : "quiz" in x ? { flow: "quiz", ...x } : x);

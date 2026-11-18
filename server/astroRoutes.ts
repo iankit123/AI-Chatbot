@@ -57,18 +57,30 @@ function view(row: AstroReportRow) {
       case "naukri": return naukriView(r);
     }
   })();
+  // A paid report opens with the birth details it was made from, like a formal kundli report.
+  const paidMeta = row.paid ? { birth: birthDetails(row.input), madeOn: row.created_at } : {};
   // Quiz-flow reports (any type) show their own strike price (₹999) and carry the buyer's answers;
   // the free preview also gets the birth chart to draw.
   const f = row.facts as { flow?: "quiz"; quiz?: unknown; entry?: string; kundli?: unknown } | null;
-  if (f?.flow !== "quiz") return { ...v, ...(f?.entry ? { entry: f.entry } : {}), price: priceOfReport(row.report_type, row.price_rupees) };
+  if (f?.flow !== "quiz") return { ...v, ...paidMeta, ...(f?.entry ? { entry: f.entry } : {}), price: priceOfReport(row.report_type, row.price_rupees) };
   return {
     ...v,
+    ...paidMeta,
     flow: "quiz" as const,
     quiz: f.quiz,
     entry: f.entry ?? null,
     ...(row.paid ? {} : { kundli: f.kundli }),
     price: { rupees: row.price_rupees ?? SHAADI_QUIZ.rupees, strike: SHAADI_QUIZ.strike },
   };
+}
+
+type BirthPerson = { name: string; gender: "male" | "female" | null; dob: string | null; tob: string | null; place: string | null };
+
+/** The person (and, for Wapas and Milan, the partner) a report was made for, as they typed it. */
+function birthDetails(input: Record<string, any>): { self: BirthPerson | null; partner: BirthPerson | null } {
+  const person = (p: Record<string, any> | null | undefined): BirthPerson | null =>
+    p?.name ? { name: String(p.name), gender: p.gender ?? null, dob: p.dob ?? null, tob: p.tob ?? null, place: p.place ?? null } : null;
+  return input?.self ? { self: person(input.self), partner: person(input.partner) } : { self: person(input), partner: null };
 }
 
 class QuizInputError extends Error {}

@@ -15,7 +15,7 @@ import {
   type Gender, type ShaadiReport,
 } from "@/lib/astroApi";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { BirthDetailsCard, AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 
 /**
  * /shaadi has three flows (SHAADI_QUIZ test in shared/astroProducts.ts): the classic page below, the
@@ -343,7 +343,7 @@ function ReportBody({ report, error, paying, unlocking, pay, reload }: ReturnTyp
   const who = report.gender === "male" ? "patni" : "pati";
 
   const header = (
-    <section className="rise pt-2 text-center">
+    <section className={`rise text-center ${report.flow === "quiz" ? "pt-16" : "pt-2"}`}>
       <p className="chip mx-auto">{report.paid ? "Sampoorn vivah report" : "Aapki kundli taiyaar hai"}</p>
       <h1 className="gold-text mt-4 text-[1.9rem] leading-tight">{first} ji, {report.headline.charAt(0).toLowerCase() + report.headline.slice(1)}</h1>
       <div className="mt-5 flex flex-wrap justify-center gap-2 text-[12px]">
@@ -437,6 +437,7 @@ function ReportBody({ report, error, paying, unlocking, pay, reload }: ReturnTyp
     <>
       {header}
       <div className="mt-7 space-y-4">
+        <BirthDetailsCard report={report} />
         {n?.summary && (
           <PaperCard eyebrow="Nishkarsh">
             <p className="font-display text-[1.12rem] leading-relaxed text-[#3a1420]">{n.summary}</p>

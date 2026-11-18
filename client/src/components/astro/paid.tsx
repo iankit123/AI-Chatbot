@@ -2,9 +2,64 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Lock, Send } from "lucide-react";
 import { PaperCard } from "@/components/astro/ui";
-import { fetchReport, lastReportId, loadSelf, logAstro, saveBuyerPhone, type AstroReport } from "@/lib/astroApi";
+import { fetchReport, lastReportId, loadSelf, logAstro, saveBuyerPhone, type AstroReport, type BirthPerson, type PaidMeta } from "@/lib/astroApi";
 import { rememberMilanPartner, suggestForQuestion, type QuestionSuggestion } from "@/lib/questionTopic";
 import { isRealPhone, phoneDigits } from "@shared/astroProducts";
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const fmtDate = (iso: string | null) => {
+  if (!iso) return null;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : null;
+};
+const fmtTime = (t: string | null) => {
+  if (!t) return null;
+  const [h, min] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${String(min).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+};
+
+/** As typed, tidied for a formal report: "amit kumar" → "Amit Kumar", "Sanand,Gujarat" → "Sanand, Gujarat". */
+const tidy = (v: string) =>
+  v.trim().replace(/\s*,\s*/g, ", ").replace(/\s+/g, " ").replace(/(^|[\s,(])([a-z])/g, (_, pre: string, c: string) => pre + c.toUpperCase());
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[#8f6522]">{label}</dt>
+      <dd className="mt-0.5 text-[14px] font-medium leading-snug text-[#3a1420]">{value}</dd>
+    </div>
+  );
+}
+
+/** Top of a paid report: whose report it is, from which birth details, and when it was made. */
+export function BirthDetailsCard({ report }: { report: AstroReport }) {
+  const { birth, madeOn } = report as AstroReport & PaidMeta;
+  const people = [birth?.self, birth?.partner].filter(Boolean) as BirthPerson[];
+  if (!people.length) return null;
+  return (
+    <PaperCard>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8f6522]">Janm vivaran</p>
+        <p className="text-[11px] tracking-wide text-[#7a5560]">Report no. {report.id.slice(0, 8).toUpperCase()}</p>
+      </div>
+      {people.map((p, i) => (
+        <div key={i} className={i ? "mt-4 border-t border-[#e6d6b6] pt-4" : "mt-3"}>
+          {people.length > 1 && <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7a5560]">{i === 0 ? "Aap" : "Saathi"}</p>}
+          <p className="font-display text-[1.35rem] leading-tight text-[#3a1420]">{tidy(p.name)}</p>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+            <Detail label="Janm tithi" value={fmtDate(p.dob) ?? (i ? "Pata nahi (naam se dekha gaya)" : "Pata nahi")} />
+            <Detail label="Janm samay" value={fmtTime(p.tob) ?? (p.dob ? "Pata nahi (Chandra kundli)" : "Pata nahi")} />
+            <Detail label="Janm sthan" value={p.place ? tidy(p.place) : "Pata nahi"} />
+            {p.gender && <Detail label="Ling" value={p.gender === "male" ? "Purush" : "Mahila"} />}
+          </dl>
+        </div>
+      ))}
+      <p className="mt-4 border-t border-[#e6d6b6] pt-3 text-[11.5px] leading-relaxed text-[#7a5560]">
+        {madeOn ? `Report ki tareekh: ${fmtDate(madeOn)} · ` : ""}Lahiri ayanamsa · Vimshottari dasha
+      </p>
+    </PaperCard>
+  );
+}
 
 /**
  * On the start page: if this phone's last report is paid, offer a way back to it. Renders

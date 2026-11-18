@@ -10,7 +10,7 @@ import {
 } from "@/components/astro/editorial";
 import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
-import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { BirthDetailsCard, AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import { WapasQuizPaywall } from "@/components/astro/quizPaywalls";
 import {
   cacheReport, createWapasPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
@@ -333,6 +333,7 @@ function ReportView({ id }: { id: string }) {
     <>
       {header}
       <div className="mt-6 space-y-4">
+        <BirthDetailsCard report={report} />
         <PaperCard eyebrow={`Kya ${b} wapas aayenge?`} title={s.level.label}>
           <LevelMeter level={s.meter} labels={["Kam", "Madhyam", "Prabal"]} />
           <p className="ink mt-4 text-[14px] leading-relaxed">{n?.summary ?? s.level.line}</p>
