@@ -69,9 +69,11 @@ export function priceForNewReport(type: AstroReportType, deviceId: string): numb
  * a placeholder phone (the owner's number) and the phone field hidden, so checkout starts at the
  * payment methods. Those buyers are asked for their real number after paying. Razorpay rejects
  * 9876543210 as a prefill, so the placeholder must be a real-looking number.
+ * Ended 2026-11-18 ~12:30 IST at 0%: after ~100 checkouts the skip arm paid no better (30% vs 33%).
+ * The placeholder stays listed so isRealPhone keeps rejecting it on rows from the test.
  */
 export const CONTACT_PLACEHOLDER = "7829234220";
-export const CONTACT_TEST_PERCENT = 50;
+export const CONTACT_TEST_PERCENT = 0;
 const CONTACT_TEST_SALT = "skip-contact-1";
 
 export function skipsContactScreen(deviceId: string): boolean {
