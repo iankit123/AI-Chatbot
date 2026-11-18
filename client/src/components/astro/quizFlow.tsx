@@ -328,6 +328,30 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
   const first = phase.kind === "pick" || (entry === "quiz" && phase.kind === "quiz" && phase.i === 0);
   if (!first) return <div className="pt-16">{card}</div>;
 
+  const footer = (
+    <>
+      {last && (
+        <p className="mt-4 text-center">
+          <Link href={`/shaadi/r/${last}`} className="text-[13px] text-[var(--ed-accent)] underline underline-offset-4">पिछली रिपोर्ट दोबारा खोलें</Link>
+        </p>
+      )}
+      <div className="mt-6"><PaidReportBanner type="shaadi" /></div>
+      <AstroFooter />
+    </>
+  );
+
+  // The picker covers every problem, so no wedding photo: the first question sits at the top.
+  if (entry === "picker") {
+    return (
+      <>
+        <div className="pt-16">{card}</div>
+        <p className="mt-5 max-w-[340px] text-[14.5px] leading-relaxed text-[var(--ed-muted)]">बताइए किस बात से परेशान हैं। 7 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब।</p>
+        <TrustLine items={["1 मिनट", "पूरी तरह गोपनीय", "लाहिड़ी अयनांश से गणना"]} />
+        {footer}
+      </>
+    );
+  }
+
   return (
     <>
       <section className="relative">
@@ -336,27 +360,19 @@ export function QuizLanding({ entry }: { entry: "quiz" | "picker" }) {
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[rgba(12,5,8,0.85)] via-[rgba(12,5,8,0.1)] via-50% to-[var(--ed-bg)]" />
           <ZodiacWheel size={210} className="pointer-events-none absolute -right-16 top-24 opacity-20" />
           <div className="rise absolute inset-x-0 top-0 px-4 pt-[3.9rem]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--ed-accent)]">{entry === "picker" ? "Jyotish · Janm kundli se" : "Vivah Jyotish · Janm kundli se"}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--ed-accent)]">Vivah Jyotish · Janm kundli se</p>
             <h1 className="font-hindi mt-2 text-[2.3rem] leading-[1.18] text-[var(--ed-text)] [text-shadow:0_2px_22px_rgba(0,0,0,0.65)]">
-              {entry === "picker" ? (<>हर परेशानी का जवाब<br />आपकी कुंडली में</>) : (<>आपकी शादी कब होगी<br />और किससे?</>)}
+              आपकी शादी कब होगी<br />और किससे?
             </h1>
           </div>
         </div>
         <p className="mt-1 max-w-[340px] text-[15px] leading-relaxed text-[var(--ed-muted)]">
-          {entry === "picker"
-            ? "बताइए किस बात से परेशान हैं। 7 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब।"
-            : "6 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब: शादी का साल, जीवनसाथी के नाम का अक्षर और देर की वजह।"}
+          6 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब: शादी का साल, जीवनसाथी के नाम का अक्षर और देर की वजह।
         </p>
         <TrustLine items={["1 मिनट", "पूरी तरह गोपनीय", "लाहिड़ी अयनांश से गणना"]} />
       </section>
       <div className="pt-5">{card}</div>
-      {last && (
-        <p className="mt-4 text-center">
-          <Link href={`/shaadi/r/${last}`} className="text-[13px] text-[var(--ed-accent)] underline underline-offset-4">पिछली रिपोर्ट दोबारा खोलें</Link>
-        </p>
-      )}
-      <div className="mt-6"><PaidReportBanner type="shaadi" /></div>
-      <AstroFooter />
+      {footer}
     </>
   );
 }
