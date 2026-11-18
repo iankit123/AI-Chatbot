@@ -9,6 +9,7 @@ import {
   type MilanFacts,
 } from "./reports";
 import { ASTRO_PRICES } from "@shared/astroProducts";
+import { quizWorryLine, type QuizAnswers } from "@shared/quizFlows";
 
 const firstName = (n: string) => {
   const f = n.trim().split(/\s+/)[0];
@@ -125,7 +126,7 @@ export async function wapasNarrative(input: WapasInput, f: WapasFacts) {
   };
   const ai = await generateJson(
     `Tum ek samvedansheel Vedic jyotishi ho. Koi vyakti apne bichhde saathi ke baare me pooch raha hai aur dukhi hai. ${TONE} Kabhi yeh mat kaho ki woh pakka wapas aayenge ya kabhi nahi aayenge. Vashikaran, tantra ya kisi ko control karne ki baat bilkul mat karo. Vyakti ko sammaan aur himmat do.`,
-    `${a} (${input.self.gender === "male" ? "purush" : "mahila"}) pooch rahe hain ki ${p} wapas aayenge ya nahi. Sthiti: ${STATUS_COPY[input.status]}.
+    `${a} (${input.self.gender === "male" ? "purush" : "mahila"}) pooch rahe hain ki ${p} wapas aayenge ya nahi. Sthiti: ${STATUS_COPY[input.status]}.${quizWorryLine("wapas", (f as { quiz?: QuizAnswers }).quiz)}
 Tathya:
 ${JSON.stringify({ sanket: s.level.label, gun: `${s.gun.total}/36`, unke_mann_me: s.feel, doori_ki_wajah: s.causes, kya_karein: s.act, anukool_samay: s.timing, aadhar: s.basisNote }, null, 1)}
 
@@ -360,7 +361,7 @@ export async function businessNarrative(input: BusinessInput, f: BizFacts) {
   };
   const ai = await generateJson(
     `Tum ek anubhavi Vedic jyotishi ho jo chhote sheher ke logon ko vyapar ki salah dete ho. ${TONE} Kamai ki koi rakam ya guarantee mat do. Salah vyavaharik aur zameeni rakho.`,
-    `${a} (${input.gender === "male" ? "purush" : "mahila"}), abhi: ${input.situation}, poonji: ${s.budget}.
+    `${a} (${input.gender === "male" ? "purush" : "mahila"}), abhi: ${input.situation}, poonji: ${s.budget}.${quizWorryLine("business", (f as { quiz?: QuizAnswers }).quiz)}
 Tathya:
 ${JSON.stringify({ yog: s.level.label, karan: s.reasons, anukool_kshetra: s.fields, sujhaav: s.ideas.map((i) => i.text), sajhedari: s.partnership.title, shubh_samay: s.timing, savdhani: s.cautions, salah: s.tip }, null, 1)}
 

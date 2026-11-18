@@ -11,6 +11,7 @@ import {
 import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { WapasQuizPaywall } from "@/components/astro/quizPaywalls";
 import {
   cacheReport, createWapasPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
   type WapasReport, type WapasStatus,
@@ -247,6 +248,8 @@ function Landing() {
 function ReportView({ id }: { id: string }) {
   const { report, error, paying, unlocking, pay, reload } = useAstroReport<WapasReport>(id, "wapas");
   useReadTracking(report);
+  // Made in the quiz flow (SHAADI_QUIZ test): its own paywall at ₹99. Paid reports look the same as ever.
+  if (report?.flow === "quiz" && !report.paid && !unlocking) return <WapasQuizPaywall report={report} error={error} paying={paying} onPay={pay} />;
 
   if (unlocking) return <Analysing title="Aapka poora jawab khul raha hai" steps={["Payment ki pushti", "Wapsi ke sanket", "Unke mann ki sthiti", "Sahi samay"]} />;
   if (!report) {

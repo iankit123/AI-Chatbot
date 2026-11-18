@@ -7,7 +7,8 @@ import {
 } from "@/components/astro/ui";
 import { EditorialShell } from "@/components/astro/editorial";
 import { PartnerSilhouette } from "@/components/astro/partnerSilhouette";
-import { ShaadiQuizLanding, ShaadiQuizPaywall } from "@/components/astro/shaadiQuiz";
+import { QuizLanding } from "@/components/astro/quizFlow";
+import { ShaadiQuizPaywall } from "@/components/astro/quizPaywalls";
 import {
   cacheReport, compressImage, createShaadiPreview, lastReportId, loadSelf, logAstro,
   portraitUrl, rememberReport, requestPortrait, saveSelf, shaadiFlow, shareOnWhatsApp, trackAstro, wait,
@@ -17,9 +18,9 @@ import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 
 /**
- * /shaadi has two flows (SHAADI_QUIZ test in shared/astroProducts.ts): the classic page below, and
- * for a share of devices the quiz flow in components/astro/shaadiQuiz.tsx. A report keeps the look of
- * the flow it was made in.
+ * /shaadi has three flows (SHAADI_QUIZ test in shared/astroProducts.ts): the classic page below, the
+ * Shaadi quiz flow, and the problem picker that branches into any report's quiz flow
+ * (components/astro/quizFlow.tsx). A report keeps the look of the flow it was made in.
  */
 export default function ShaadiReportPage() {
   const [, params] = useRoute("/shaadi/r/:id");
@@ -28,7 +29,7 @@ export default function ShaadiReportPage() {
     document.title = "Shaadi kab hogi aur kisse? | puchlo.in";
   }, []);
   if (params?.id) return <ReportView key={params.id} id={params.id} guess={flow} />;
-  return <Frame quiz={flow === "quiz"}>{flow === "quiz" ? <ShaadiQuizLanding /> : <Landing />}</Frame>;
+  return <Frame quiz={flow !== "classic"}>{flow === "classic" ? <Landing /> : <QuizLanding entry={flow} />}</Frame>;
 }
 
 function Frame({ quiz, children }: { quiz: boolean; children: ReactNode }) {
@@ -308,11 +309,11 @@ function Portrait({ report }: { report: ShaadiReport }) {
   );
 }
 
-function ReportView({ id, guess }: { id: string; guess: "quiz" | "classic" }) {
+function ReportView({ id, guess }: { id: string; guess: "quiz" | "picker" | "classic" }) {
   const r = useAstroReport<ShaadiReport>(id, "shaadi");
   useReadTracking(r.report);
   // Before the report loads, assume this phone's own flow; then use the flow the report was made in.
-  const quiz = r.report ? r.report.flow === "quiz" : guess === "quiz";
+  const quiz = r.report ? r.report.flow === "quiz" : guess !== "classic";
   return <Frame quiz={quiz}><ReportBody {...r} /></Frame>;
 }
 

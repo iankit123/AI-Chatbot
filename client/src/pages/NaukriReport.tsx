@@ -10,6 +10,7 @@ import {
 import { SelfFields, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { NaukriQuizPaywall } from "@/components/astro/quizPaywalls";
 import {
   cacheReport, createNaukriPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
   type NaukriReport, type NaukriStatus, type NaukriTarget,
@@ -276,6 +277,8 @@ const STATUS_ROW: Record<NaukriStatus, { title: string; hint: string }> = {
 function ReportView({ id }: { id: string }) {
   const { report, error, paying, unlocking, pay, reload } = useAstroReport<NaukriReport>(id, "naukri");
   useReadTracking(report);
+  // Made in the quiz flow (SHAADI_QUIZ test): its own paywall at ₹99. Paid reports look the same as ever.
+  if (report?.flow === "quiz" && !report.paid && !unlocking) return <NaukriQuizPaywall report={report} error={error} paying={paying} onPay={pay} />;
 
   if (unlocking) return <Analysing title="Aapka poora jawab khul raha hai" steps={["Payment ki pushti", "Naukri ka saal aur mahine", "Aapke liye sahi kshetra", "Rukavat aur upay"]} />;
   if (!report) {

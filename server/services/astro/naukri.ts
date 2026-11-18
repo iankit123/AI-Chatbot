@@ -3,6 +3,7 @@ import { analyseSarkari, bhaav, computeChart, PLANET_HINGLISH, RASHI, type Birth
 import { generateJson } from "./ai";
 import { chartSummary, monthYear, TONE } from "./reports";
 import { ASTRO_PRICES } from "@shared/astroProducts";
+import { quizWorryLine, type QuizAnswers } from "@shared/quizFlows";
 
 const firstName = (n: string) => {
   const f = n.trim().split(/\s+/)[0];
@@ -206,7 +207,7 @@ export async function naukriNarrative(input: NaukriInput, f: NaukriFacts) {
   };
   const ai = await generateJson(
     `Tum ek anubhavi Vedic jyotishi ho jo chhote sheher ke yuvaon ko sarkari naukri ke baare me salah dete ho. ${TONE} Kabhi mat kaho ki naukri pakki lagegi ya kabhi nahi lagegi. Mehnat ko hamesha zaroori batao. Kisi 'setting', rishwat ya paid puja ki baat mat karo. Vyakti ko himmat do.`,
-    `${a} (${input.gender === "male" ? "purush" : "mahila"}) pooch rahe hain ki sarkari naukri kab lagegi. Sthiti: ${STATUS_COPY[input.status]}. Taiyari: ${TARGET_COPY[input.target]}.
+    `${a} (${input.gender === "male" ? "purush" : "mahila"}) pooch rahe hain ki sarkari naukri kab lagegi. Sthiti: ${STATUS_COPY[input.status]}. Taiyari: ${TARGET_COPY[input.target]}.${quizWorryLine("naukri", (f as { quiz?: QuizAnswers }).quiz)}
 Tathya:
 ${JSON.stringify({ yog: s.level.label, kundli_ke_yog: s.yogas.map((y) => y.name), pehla_anukool_samay: s.timing.first, sabse_prabal_samay: s.timing.best ?? s.timing.first, abhi_ki_dasha: s.timing.dasha, abhi_ka_samay: s.timing.now, anukool_kshetra: s.fields.map((x) => x.field), chuni_taiyari: s.target.note, pratiyogita: s.competition.label, rukavat: s.obstacles }, null, 1)}
 

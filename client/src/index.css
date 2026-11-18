@@ -455,6 +455,20 @@
   --ink: #2c1219;
   --ink-soft: #7a5a60;
 }
+/* Business quiz-flow paywall: night green with a gold accent, like the classic /business page. */
+.astro.ed.ed-business {
+  --ed-bg: #08130f;
+  --ed-surface: #10211a;
+  --ed-line: rgba(220, 240, 225, 0.1);
+  --ed-accent: #e8b85a;
+  --ed-accent-ink: #231703;
+  --ed-text: #f2f4ee;
+  --ed-muted: #a9bdb2;
+  --ink: #102a21;
+  --ink-soft: #55695f;
+}
+.astro.ed.ed-business .btn-gold { box-shadow: 0 14px 32px -16px rgba(232, 184, 90, 0.7); }
+.astro.ed.ed-business .paybar { background: rgba(8, 19, 15, 0.97); }
 .astro.ed.ed-shaadi .btn-gold { box-shadow: 0 14px 32px -16px rgba(241, 180, 92, 0.75); }
 .astro.ed.ed-shaadi .paybar { background: rgba(20, 9, 13, 0.97); }
 .astro.ed.ed-shaadi .letter-tile { background: linear-gradient(160deg, #6b1d33 0%, #2c0d17 100%); }

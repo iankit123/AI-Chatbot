@@ -1,7 +1,8 @@
 import type { Express, Request } from "express";
 import { metaPurchaseEventId } from "@shared/metaEvents";
 import { isRealPhone, phoneDigits, priceForNewReport, priceOfReport, SHAADI_QUIZ } from "@shared/astroProducts";
-import { isShaadiQuizAnswers } from "@shared/shaadiQuiz";
+import { isQuizAnswers, pickQuizAnswers, type QuizProduct } from "@shared/quizFlows";
+import type { BirthInput } from "./services/astro/engine";
 import { completePaymentSuccess, PAYMENT_GATEWAY_RAZORPAY, upsertProfileRow } from "./services/supabaseBilling";
 import { metaContextFromRequest, sendMetaConversionEvent } from "./services/metaConversions";
 import { z } from "zod";
@@ -56,12 +57,37 @@ function view(row: AstroReportRow) {
       case "naukri": return naukriView(r);
     }
   })();
-  // Quiz-flow Shaadi reports show their own strike price (₹999), not the usual one for ₹99.
-  const quizFlow = row.report_type === "shaadi" && (row.facts as Partial<ShaadiFacts> | null)?.flow === "quiz";
-  const price = quizFlow
-    ? { rupees: row.price_rupees ?? SHAADI_QUIZ.rupees, strike: SHAADI_QUIZ.strike }
-    : priceOfReport(row.report_type, row.price_rupees);
-  return { ...v, price };
+  // Quiz-flow reports (any type) show their own strike price (₹999) and carry the buyer's answers;
+  // the free preview also gets the birth chart to draw.
+  const f = row.facts as { flow?: "quiz"; quiz?: unknown; entry?: string; kundli?: unknown } | null;
+  if (f?.flow !== "quiz") return { ...v, price: priceOfReport(row.report_type, row.price_rupees) };
+  return {
+    ...v,
+    flow: "quiz" as const,
+    quiz: f.quiz,
+    entry: f.entry ?? null,
+    ...(row.paid ? {} : { kundli: f.kundli }),
+    price: { rupees: row.price_rupees ?? SHAADI_QUIZ.rupees, strike: SHAADI_QUIZ.strike },
+  };
+}
+
+class QuizInputError extends Error {}
+const quizBody = {
+  /** The quiz flow (SHAADI_QUIZ test) sends its six answers; they price the report at ₹99. */
+  flow: z.literal("quiz").optional(),
+  quiz: z.unknown().optional(),
+  /** Set when the buyer came through the problem picker. */
+  entry: z.literal("picker").optional(),
+};
+
+/**
+ * Quiz-flow fields stored in facts (null for the classic flow). Kept out of `input`, so a buyer
+ * who refills the same details still finds their earlier report.
+ */
+function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" }, self: BirthInput) {
+  if (body.flow !== "quiz") return null;
+  if (!isQuizAnswers(product, body.quiz)) throw new QuizInputError("Kripya sabhi sawalon ke jawab chunein");
+  return { flow: "quiz" as const, quiz: pickQuizAnswers(body.quiz), ...(body.entry ? { entry: body.entry } : {}), kundli: kundliHouses(self) };
 }
 
 /** GET from the Razorpay API with the server's keys; null on any failure. */
@@ -283,31 +309,25 @@ export function registerAstroRoutes(app: Express) {
         .extend({
           device_id: z.string().min(1).max(120),
           palm_image: z.string().startsWith("data:image/").max(1_400_000).optional(),
-          /** The quiz flow (SHAADI_QUIZ test) sends its six answers; they price the report at ₹99. */
-          flow: z.literal("quiz").optional(),
-          quiz: z.unknown().optional(),
+          ...quizBody,
         })
         .parse(req.body);
-      if (body.flow === "quiz" && !isShaadiQuizAnswers(body.quiz)) {
-        return res.status(400).json({ message: "Kripya sabhi sawalon ke jawab chunein" });
-      }
       const input: ShaadiInput = {
         name: body.name, gender: body.gender, dob: body.dob, tob: body.tob ?? null, place: body.place,
       };
+      const quiz = quizFacts("shaadi", body, input);
       const earlier = await sameDetailsReport("shaadi", body.device_id, input, req);
       // A new palm photo on a report that is not paid yet gets a fresh report, so the palm is read.
       if (earlier && (earlier.paid || !body.palm_image)) return res.json(view(earlier));
-      // Quiz answers live in facts, not input, so a buyer who refills the same details still finds their report.
-      const facts: ShaadiFacts = body.flow === "quiz" && isShaadiQuizAnswers(body.quiz)
-        ? { ...buildShaadiFacts(input), flow: "quiz", quiz: body.quiz, kundli: kundliHouses(input) }
-        : buildShaadiFacts(input);
+      const facts: ShaadiFacts = quiz ? { ...buildShaadiFacts(input), ...(quiz as Partial<ShaadiFacts>) } : buildShaadiFacts(input);
       // The palm photo is read once and discarded; only the text reading is stored.
       const palm = body.palm_image ? await readPalm(body.palm_image) : null;
-      const price = facts.flow === "quiz" ? SHAADI_QUIZ.rupees : priceForNewReport("shaadi", body.device_id);
+      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("shaadi", body.device_id);
       const row = await insertReport({ report_type: "shaadi", device_id: body.device_id, input, facts, palm, price_rupees: price });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
+      if (error instanceof QuizInputError) return res.status(400).json({ message: error.message });
       console.error("[astro] shaadi preview failed:", error);
       res.status(500).json({ message: "Report nahi ban payi. Kripya dobara koshish karein." });
     }
@@ -345,6 +365,7 @@ export function registerAstroRoutes(app: Express) {
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
+      if (error instanceof QuizInputError) return res.status(400).json({ message: error.message });
       if (error instanceof MilanInputError) return res.status(400).json({ message: error.message });
       console.error("[astro] milan preview failed:", error);
       res.status(500).json({ message: "Milan nahi ban paya. Kripya dobara koshish karein." });
@@ -359,16 +380,20 @@ export function registerAstroRoutes(app: Express) {
           self: selfSchema,
           partner: partnerSchema,
           status: z.enum(["breakup", "no_contact", "fight", "separated"]).default("no_contact"),
+          ...quizBody,
         })
         .parse(req.body);
       const input: WapasInput = { self: { ...body.self, tob: body.self.tob ?? null }, partner: partnerInput(body.partner), status: body.status };
-      const facts = buildWapasFacts(input);
+      const quiz = quizFacts("wapas", body, input.self);
+      const facts = { ...buildWapasFacts(input), ...quiz };
       const earlier = await sameDetailsReport("wapas", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
-      const row = await insertReport({ report_type: "wapas", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("wapas", body.device_id) });
+      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("wapas", body.device_id);
+      const row = await insertReport({ report_type: "wapas", device_id: body.device_id, input, facts, palm: null, price_rupees: price });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
+      if (error instanceof QuizInputError) return res.status(400).json({ message: error.message });
       if (error instanceof MilanInputError) return res.status(400).json({ message: error.message });
       console.error("[astro] wapas preview failed:", error);
       res.status(500).json({ message: "Report nahi ban payi. Kripya dobara koshish karein." });
@@ -384,6 +409,7 @@ export function registerAstroRoutes(app: Express) {
           budget: z.number().int().min(1).max(6),
           /** 2 = six budget steps. Pages built before this change send no scale and four steps. */
           budget_scale: z.literal(2).optional(),
+          ...quizBody,
         })
         .parse(req.body);
       const input: BusinessInput = {
@@ -391,13 +417,16 @@ export function registerAstroRoutes(app: Express) {
         situation: body.situation, budget: body.budget,
         ...(body.budget_scale ? { budget_scale: body.budget_scale } : {}),
       };
-      const facts = buildBusinessFacts(input);
+      const quiz = quizFacts("business", body, input);
+      const facts = { ...buildBusinessFacts(input), ...quiz };
       const earlier = await sameDetailsReport("business", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
-      const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("business", body.device_id) });
+      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("business", body.device_id);
+      const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null, price_rupees: price });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
+      if (error instanceof QuizInputError) return res.status(400).json({ message: error.message });
       console.error("[astro] business preview failed:", error);
       res.status(500).json({ message: "Report nahi ban payi. Kripya dobara koshish karein." });
     }
@@ -410,19 +439,23 @@ export function registerAstroRoutes(app: Express) {
           device_id: z.string().min(1).max(120),
           status: z.enum(["taiyari", "result", "private", "attempts"]),
           target: z.enum(["railway", "ssc_bank", "police_army", "teacher", "upsc_pcs", "open"]),
+          ...quizBody,
         })
         .parse(req.body);
       const input: NaukriInput = {
         name: body.name, gender: body.gender, dob: body.dob, tob: body.tob ?? null, place: body.place,
         status: body.status, target: body.target,
       };
-      const facts = buildNaukriFacts(input);
+      const quiz = quizFacts("naukri", body, input);
+      const facts = { ...buildNaukriFacts(input), ...quiz };
       const earlier = await sameDetailsReport("naukri", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
-      const row = await insertReport({ report_type: "naukri", device_id: body.device_id, input, facts, palm: null, price_rupees: priceForNewReport("naukri", body.device_id) });
+      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("naukri", body.device_id);
+      const row = await insertReport({ report_type: "naukri", device_id: body.device_id, input, facts, palm: null, price_rupees: price });
       res.json(view(row));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Kripya sabhi jaankari sahi bharein", errors: error.errors });
+      if (error instanceof QuizInputError) return res.status(400).json({ message: error.message });
       console.error("[astro] naukri preview failed:", error);
       res.status(500).json({ message: "Report nahi ban payi. Kripya dobara koshish karein." });
     }

@@ -87,16 +87,26 @@ export function skipsContactScreen(deviceId: string): boolean {
  * flow modelled on numsecret.com: six one-tap questions about their shaadi worry, birth details one
  * per screen, then a paywall that quotes their answers, draws their kundli and shows three locked
  * answer cards at ₹99 (strike ₹999). The rest keep the classic page at ASTRO_PRICES.shaadi.
- * Sticky per device. `?flow=quiz` or `?flow=classic` on /shaadi forces one flow (for checking).
- * Reports made in the quiz flow carry facts.flow = "quiz"; events and checkouts carry `flow`.
+ * Sticky per device. `?flow=quiz|picker|classic` on /shaadi forces one flow (for checking).
+ * Live for 50% from 2026-11-18 ~14:35 IST. From ~16:00 the Shaadi ad is split in thirds:
+ *   quiz    (hash 0–32)  — the Shaadi quiz flow above;
+ *   picker  (hash 33–65) — first asks which part of life hurts (shaadi, breakup, paisa, sarkari
+ *                          naukri), then that report's own quiz flow (shared/quizFlows.ts), ₹99;
+ *   classic (hash 66–99) — the classic page at the normal price.
+ * Quiz-flow reports of any type carry facts.flow = "quiz" (and facts.entry = "picker" from the
+ * picker) and cost SHAADI_QUIZ.rupees; events and checkouts carry `flow`.
  */
-export const SHAADI_QUIZ = { percent: 50, rupees: 99, strike: 999 } as const;
+export const SHAADI_QUIZ = { quizPercent: 33, pickerPercent: 33, rupees: 99, strike: 999 } as const;
 const SHAADI_QUIZ_SALT = "shaadi-quiz-1";
+export type ShaadiArm = "quiz" | "picker" | "classic";
 
-export function inShaadiQuizFlow(deviceId: string): boolean {
+export function shaadiArm(deviceId: string): ShaadiArm {
   let h = 2166136261;
   for (const ch of SHAADI_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
-  return h % 100 < SHAADI_QUIZ.percent;
+  const b = h % 100;
+  if (b < SHAADI_QUIZ.quizPercent) return "quiz";
+  if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent) return "picker";
+  return "classic";
 }
 
 /** Last 10 digits of a typed or stored phone (drops +91, a leading 0, spaces). */

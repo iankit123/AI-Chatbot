@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { navigate } from "wouter/use-browser-location";
 import {
-  cacheReport, cachedReport, contactTestArm, fetchReport, logAstro, payForReport, rememberReport, trackAstro, wait,
+  cacheReport, cachedReport, contactTestArm, fetchReport, logAstro, payForReport, rememberReport, reportFlow, trackAstro, wait,
   type AstroReport,
 } from "@/lib/astroApi";
 
@@ -42,7 +42,7 @@ export function useAstroReport<T extends AstroReport>(id: string, type: T["type"
     trackAstro(report.paid ? "astro_report_viewed" : "astro_preview_viewed", type, {
       price: report.price.rupees,
       contact_test: contactTestArm(),
-      ...(report.type === "shaadi" ? { flow: report.flow ?? "classic" } : {}),
+      flow: reportFlow(report),
     });
   }, [report, type]);
 

@@ -8,6 +8,8 @@ import {
 import { SelfFields, useSelfForm } from "@/components/astro/forms";
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
+import { BusinessQuizPaywall } from "@/components/astro/quizPaywalls";
+import { EditorialShell } from "@/components/astro/editorial";
 import {
   cacheReport, createBusinessPreview, lastReportId, logAstro, rememberReport, saveSelf, shareOnWhatsApp, trackAstro, wait,
   type BusinessBudget, type BusinessReport, type BusinessSituation,
@@ -18,9 +20,10 @@ export default function BusinessReportPage() {
   useEffect(() => {
     document.title = "Kaun sa business karun? | puchlo.in";
   }, []);
+  if (params?.id) return <ReportView key={params.id} id={params.id} />;
   return (
     <AstroShell tagline="Vyapar Jyotish" theme="business">
-      {params?.id ? <ReportView key={params.id} id={params.id} /> : <Landing />}
+      <Landing />
     </AstroShell>
   );
 }
@@ -218,8 +221,24 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 function ReportView({ id }: { id: string }) {
-  const { report, error, paying, unlocking, pay, reload } = useAstroReport<BusinessReport>(id, "business");
-  useReadTracking(report);
+  const r = useAstroReport<BusinessReport>(id, "business");
+  useReadTracking(r.report);
+  // Made in the quiz flow (SHAADI_QUIZ test): its own paywall at ₹99, in the photo-led look.
+  if (r.report?.flow === "quiz" && !r.report.paid && !r.unlocking) {
+    return (
+      <EditorialShell theme="business">
+        <BusinessQuizPaywall report={r.report} error={r.error} paying={r.paying} onPay={r.pay} />
+      </EditorialShell>
+    );
+  }
+  return (
+    <AstroShell tagline="Vyapar Jyotish" theme="business">
+      <ReportBody {...r} />
+    </AstroShell>
+  );
+}
+
+function ReportBody({ report, error, paying, unlocking, pay, reload }: ReturnType<typeof useAstroReport<BusinessReport>>) {
 
   if (unlocking) return <Analysing title="Aapki poori report khul rahi hai" steps={["Payment ki pushti", "Business ke sujhaav", "Shuruaat ka samay", "Naam aur shubh disha"]} />;
   if (!report) {
