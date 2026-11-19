@@ -91,26 +91,29 @@ const quizBody = {
   /** The quiz flow (SHAADI_QUIZ test) sends its six answers; they price the report at ₹99. */
   flow: z.literal("quiz").optional(),
   quiz: z.unknown().optional(),
-  /** "picker" / "picker29": came through the problem picker into a quiz flow (₹99 / ₹29). "steps": the picker, then the classic questions one per screen. */
-  entry: z.enum(["picker", "picker29", "steps"]).optional(),
+  /**
+   * "picker" / "picker29": came through the problem picker into a quiz flow (₹99 / ₹29). "quiz29": a
+   * single-report quiz flow at ₹29 (the Wapas test). "steps": the picker, then the classic questions.
+   */
+  entry: z.enum(["picker", "picker29", "quiz29", "steps"]).optional(),
 };
 
 /**
  * Quiz-flow fields stored in facts (null for the classic flow). Kept out of `input`, so a buyer
  * who refills the same details still finds their earlier report.
  */
-function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" | "picker29" | "steps" }, self: BirthInput) {
+function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" | "picker29" | "quiz29" | "steps" }, self: BirthInput) {
   if (body.flow !== "quiz") return null;
   if (!isQuizAnswers(product, body.quiz)) throw new QuizInputError("Kripya sabhi sawalon ke jawab chunein");
-  const entry = body.entry === "picker" || body.entry === "picker29" ? { entry: body.entry } : {};
+  const entry = body.entry && body.entry !== "steps" ? { entry: body.entry } : {};
   return { flow: "quiz" as const, quiz: pickQuizAnswers(body.quiz), ...entry, kundli: kundliHouses(self) };
 }
 
-/** Price of a quiz-flow report: ₹99, or ₹29 in the picker29 arm. */
-const quizPrice = (body: { entry?: string }) => (body.entry === "picker29" ? SHAADI_QUIZ.lowRupees : SHAADI_QUIZ.rupees);
+/** Price of a quiz-flow report: ₹99, or ₹29 in the picker29 and quiz29 arms. */
+const quizPrice = (body: { entry?: string }) => (body.entry === "picker29" || body.entry === "quiz29" ? SHAADI_QUIZ.lowRupees : SHAADI_QUIZ.rupees);
 
 /** Tag for reports made through the "steps" flow (classic questions one per screen, normal price). */
-const stepsTag = (body: { flow?: "quiz"; entry?: "picker" | "picker29" | "steps" }) =>
+const stepsTag = (body: { flow?: "quiz"; entry?: "picker" | "picker29" | "quiz29" | "steps" }) =>
   body.flow !== "quiz" && body.entry === "steps" ? { entry: "steps" as const } : {};
 
 /** GET from the Razorpay API with the server's keys; null on any failure. */

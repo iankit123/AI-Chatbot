@@ -12,19 +12,22 @@ import { PartnerFields, SelfFields, usePartnerForm, useSelfForm } from "@/compon
 import { useAstroReport, useReadTracking } from "@/components/astro/useReport";
 import { BirthDetailsCard, AskMoreCard, BuyerPhoneGate, PaidReportBanner } from "@/components/astro/paid";
 import { WapasQuizPaywall } from "@/components/astro/quizPaywalls";
+import { QuizLanding } from "@/components/astro/quizFlow";
 import {
-  cacheReport, createWapasPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait,
+  cacheReport, createWapasPreview, lastReportId, logAstro, rememberReport, saveSelf, trackAstro, wait, wapasFlow,
   type WapasReport, type WapasStatus,
 } from "@/lib/astroApi";
 
 export default function WapasReportPage() {
   const [, params] = useRoute("/wapas/r/:id");
+  // Wapas quiz test (WAPAS_QUIZ): a third each get the quiz flow at ₹99, at ₹29, or the classic page.
+  const flow = useRef(wapasFlow()).current;
   useEffect(() => {
     document.title = "Kya aapka Ex wapas aayega? | puchlo.in";
   }, []);
   return (
     <EditorialShell theme="wapas">
-      {params?.id ? <ReportView key={params.id} id={params.id} /> : <Landing />}
+      {params?.id ? <ReportView key={params.id} id={params.id} /> : flow === "classic" ? <Landing /> : <QuizLanding entry={flow} product="wapas" />}
     </EditorialShell>
   );
 }

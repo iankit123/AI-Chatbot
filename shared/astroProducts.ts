@@ -115,6 +115,28 @@ export function shaadiArm(deviceId: string): ShaadiArm {
   return "classic";
 }
 
+/**
+ * Wapas quiz test (from 2026-11-19 ~16:30 IST), like the Shaadi one: devices opening /wapas are split
+ *   quiz    (hash 0–32)  — Wapas photo, the six breakup questions (shared/quizFlows.ts), your and the
+ *                          partner's details one per screen, the Wapas quiz paywall, ₹99 (strike ₹999);
+ *   quiz29  (hash 33–65) — exactly the same flow at ₹29 (strike ₹149);
+ *   classic (hash 66–99) — the classic /wapas page at ₹29.
+ * Sticky per device, own salt (independent of the Shaadi arms). ?flow=quiz|quiz29|classic forces one.
+ * Quiz reports carry facts.flow = "quiz" (facts.entry = "quiz29" at ₹29). Read per landing visitor.
+ */
+export const WAPAS_QUIZ = { quizPercent: 33, quiz29Percent: 33 } as const;
+const WAPAS_QUIZ_SALT = "wapas-quiz-1";
+export type WapasArm = "quiz" | "quiz29" | "classic";
+
+export function wapasArm(deviceId: string): WapasArm {
+  let h = 2166136261;
+  for (const ch of WAPAS_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const b = h % 100;
+  if (b < WAPAS_QUIZ.quizPercent) return "quiz";
+  if (b < WAPAS_QUIZ.quizPercent + WAPAS_QUIZ.quiz29Percent) return "quiz29";
+  return "classic";
+}
+
 /** Last 10 digits of a typed or stored phone (drops +91, a leading 0, spaces). */
 export function phoneDigits(value: string | null | undefined): string {
   return (value ?? "").replace(/\D/g, "").slice(-10);

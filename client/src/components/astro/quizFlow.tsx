@@ -29,7 +29,25 @@ import type { ShaadiQuizAnswers } from "@shared/shaadiQuiz";
 /** In the steps flow: which quiz questions to ask, by index. They are the classic form's own inputs. */
 const STEPS_INPUTS: Record<QuizProduct, number[]> = { shaadi: [], wapas: [0], business: [1, 4], naukri: [0, 1] };
 
-const HERO = "/astro/milan-hero.webp";
+/** First screen of a single-report quiz flow: photo, headline and the line under it. */
+const HERO_FOR: Partial<Record<QuizProduct, { src: string; alt: string; position: string; kicker: string; title: [string, string]; sub: string }>> = {
+  shaadi: {
+    src: "/astro/milan-hero.webp",
+    alt: "Shaadi ke mandap me mehendi lage haathon ko thaame dulha-dulhan",
+    position: "50% 33%",
+    kicker: "Vivah Jyotish · Janm kundli se",
+    title: ["आपकी शादी कब होगी", "और किससे?"],
+    sub: "6 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब: शादी का साल, जीवनसाथी के नाम का अक्षर और देर की वजह।",
+  },
+  wapas: {
+    src: "/astro/wapas-hero-couple.webp",
+    alt: "Shaam ki roshni me terrace par muskurate hue ek yuva jode ki tasveer",
+    position: "50% 30%",
+    kicker: "Prem Jyotish · Kundli milan",
+    title: ["क्या आपका Ex", "वापस आएगा?"],
+    sub: "6 छोटे सवाल, फिर आपकी और उनकी कुंडली से जवाब: वो वापस आएँगे या नहीं, उनके मन में क्या है और बात कब बनेगी।",
+  },
+};
 
 const MONTHS_HI = ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"];
 const QUICK_CITIES = ["Delhi", "Lucknow", "Jaipur", "Patna", "Mumbai", "Kanpur"];
@@ -62,16 +80,17 @@ const SELF_STEPS: DetailStep[] = ["name", "gender", "year", "month", "day", "tim
 
 type Phase = { kind: "pick" } | { kind: "quiz"; i: number } | { kind: "hear" } | { kind: "detail"; i: number } | { kind: "making" };
 
-type Entry = "quiz" | "picker" | "picker29" | "steps";
+/** quiz / quiz29: one report's quiz flow (₹99 / ₹29). picker / picker29: the problem picker first. steps: picker + classic questions. */
+type Entry = "quiz" | "quiz29" | "picker" | "picker29" | "steps";
 
 /** Creates the report for the chosen product from the answers and birth details. */
 function createReport(product: QuizProduct, self: SelfDetails, a: QuizAnswers, partner: { name: string; dob: string | null }, entry: Entry, palm: string | null): Promise<AstroReport> {
-  const extra = entry === "steps" ? { entry: "steps" as const } : { quiz: a, ...(entry === "picker" || entry === "picker29" ? { entry } : {}) };
+  const extra = entry === "steps" ? { entry: "steps" as const } : { quiz: a, ...(entry !== "quiz" ? { entry } : {}) };
   switch (product) {
     case "shaadi":
       return entry === "steps"
         ? createShaadiPreview(self, palm, undefined, "steps")
-        : createShaadiPreview(self, null, a as ShaadiQuizAnswers, entry === "picker" || entry === "picker29" ? entry : undefined);
+        : createShaadiPreview(self, null, a as ShaadiQuizAnswers, entry !== "quiz" ? entry : undefined);
     case "wapas":
       return createWapasPreview({ self, partner: { name: partner.name, dob: partner.dob, tob: null, place: null }, status: a.worry as WapasStatus }, extra);
     case "business":
@@ -83,14 +102,18 @@ function createReport(product: QuizProduct, self: SelfDetails, a: QuizAnswers, p
 
 // ---------------------------------------------------------------- landing: picker → quiz → details
 
-export function QuizLanding({ entry }: { entry: Entry }) {
+export function QuizLanding({ entry, product: only = "shaadi" }: { entry: Entry; product?: QuizProduct }) {
   const [, navigate] = useLocation();
   const saved = useRef(loadSelf()).current;
-  const last = useRef(lastReportId("shaadi")).current;
+  /** One report's quiz (no picker); `only` is that report. */
+  const fixed = entry === "quiz" || entry === "quiz29";
+  /** The page this flow runs on, for events and the "previous report" links. */
+  const page: QuizProduct = fixed ? only : "shaadi";
+  const last = useRef(lastReportId(page)).current;
   const flowName = entry;
   const stepsMode = entry === "steps";
-  const [product, setProduct] = useState<QuizProduct>("shaadi");
-  const [phase, setPhase] = useState<Phase>(entry === "quiz" ? { kind: "quiz", i: 0 } : { kind: "pick" });
+  const [product, setProduct] = useState<QuizProduct>(page);
+  const [phase, setPhase] = useState<Phase>(fixed ? { kind: "quiz", i: 0 } : { kind: "pick" });
   const [answers, setAnswers] = useState<QuizAnswers>({});
   const [name, setName] = useState(saved.name ?? "");
   const [gender, setGender] = useState<Gender | "">(saved.gender ?? "");
@@ -108,7 +131,7 @@ export function QuizLanding({ entry }: { entry: Entry }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    trackAstro("astro_landing", "shaadi", { flow: flowName });
+    trackAstro("astro_landing", page, { flow: flowName });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -123,22 +146,22 @@ export function QuizLanding({ entry }: { entry: Entry }) {
 
   const phaseKey = "i" in phase ? `${phase.kind}${phase.i}` : phase.kind;
   useEffect(() => {
-    if (phaseKey !== (entry === "quiz" ? "quiz0" : "pick")) window.scrollTo({ top: 0 });
-  }, [phaseKey, entry]);
+    if (phaseKey !== (fixed ? "quiz0" : "pick")) window.scrollTo({ top: 0 });
+  }, [phaseKey, fixed]);
 
   /** Moves to another screen, dropping any error shown on this one. */
   const go = (p: Phase) => {
     setError(null);
     setPhase(p);
   };
-  const offset = entry === "quiz" ? 0 : 1;
+  const offset = fixed ? 0 : 1;
   const step = (n: number, stepName: string, value?: string) =>
-    logAstro("astro_quiz_step", "shaadi", { flow: flowName, product, step: stepName, n, ...(value ? { value } : {}) });
+    logAstro("astro_quiz_step", page, { flow: flowName, product, step: stepName, n, ...(value ? { value } : {}) });
 
   const pickProblem = (p: QuizProduct) => {
     setProduct(p);
     setAnswers({});
-    logAstro("astro_quiz_step", "shaadi", { flow: flowName, product: p, step: "problem", n: 1, value: p });
+    logAstro("astro_quiz_step", page, { flow: flowName, product: p, step: "problem", n: 1, value: p });
     // The steps flow has no questions for Shaadi before the birth details.
     const none = stepsMode && STEPS_INPUTS[p].length === 0;
     window.setTimeout(() => go(none ? { kind: "detail", i: 0 } : { kind: "quiz", i: 0 }), 220);
@@ -374,7 +397,7 @@ export function QuizLanding({ entry }: { entry: Entry }) {
     const q = quizStep(product, questions[i], answers);
     card = (
       <StepCard
-        onBack={i > 0 || entry !== "quiz" ? back : undefined}
+        onBack={i > 0 || !fixed ? back : undefined}
         label={stepsMode ? "आपकी कुंडली के लिए" : q.kicker}
         progress={<span className="ink-soft text-[12.5px]">{progressText(offset + i + 1)}</span>}
         bar={stepsMode ? undefined : (offset + i + 1) / total}
@@ -385,23 +408,24 @@ export function QuizLanding({ entry }: { entry: Entry }) {
     );
   }
 
-  const first = phase.kind === "pick" || (entry === "quiz" && phase.kind === "quiz" && phase.i === 0);
+  const first = phase.kind === "pick" || (fixed && phase.kind === "quiz" && phase.i === 0);
   if (!first) return <div className="pt-16">{card}</div>;
 
   const footer = (
     <>
       {last && (
         <p className="mt-4 text-center">
-          <Link href={`/shaadi/r/${last}`} className="text-[13px] text-[var(--ed-accent)] underline underline-offset-4">पिछली रिपोर्ट दोबारा खोलें</Link>
+          <Link href={`/${page}/r/${last}`} className="text-[13px] text-[var(--ed-accent)] underline underline-offset-4">पिछली रिपोर्ट दोबारा खोलें</Link>
         </p>
       )}
-      <div className="mt-6"><PaidReportBanner type="shaadi" /></div>
+      <div className="mt-6"><PaidReportBanner type={page} /></div>
       <AstroFooter />
     </>
   );
 
   // The picker covers every problem, so no wedding photo: the first question sits at the top.
-  if (entry !== "quiz") {
+  const hero = HERO_FOR[page];
+  if (!fixed || !hero) {
     return (
       <>
         <div className="pt-16">{card}</div>
@@ -418,19 +442,17 @@ export function QuizLanding({ entry }: { entry: Entry }) {
     <>
       <section className="relative">
         <div className="relative -mx-4 overflow-hidden">
-          <img src={HERO} alt="Shaadi ke mandap me mehendi lage haathon ko thaame dulha-dulhan" width={768} height={1152} decoding="async" {...({ fetchpriority: "high" } as Record<string, string>)} className="block aspect-[4/3.6] w-full object-cover" style={{ objectPosition: "50% 33%" }} />
+          <img src={hero.src} alt={hero.alt} width={768} height={1152} decoding="async" {...({ fetchpriority: "high" } as Record<string, string>)} className="block aspect-[4/3.6] w-full object-cover" style={{ objectPosition: hero.position }} />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[rgba(12,5,8,0.85)] via-[rgba(12,5,8,0.1)] via-50% to-[var(--ed-bg)]" />
           <ZodiacWheel size={210} className="pointer-events-none absolute -right-16 top-24 opacity-20" />
           <div className="rise absolute inset-x-0 top-0 px-4 pt-[3.9rem]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--ed-accent)]">Vivah Jyotish · Janm kundli se</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--ed-accent)]">{hero.kicker}</p>
             <h1 className="font-hindi mt-2 text-[2.3rem] leading-[1.18] text-[var(--ed-text)] [text-shadow:0_2px_22px_rgba(0,0,0,0.65)]">
-              आपकी शादी कब होगी<br />और किससे?
+              {hero.title[0]}<br />{hero.title[1]}
             </h1>
           </div>
         </div>
-        <p className="mt-1 max-w-[340px] text-[15px] leading-relaxed text-[var(--ed-muted)]">
-          6 छोटे सवाल, फिर आपकी जन्म कुंडली से जवाब: शादी का साल, जीवनसाथी के नाम का अक्षर और देर की वजह।
-        </p>
+        <p className="mt-1 max-w-[340px] text-[15px] leading-relaxed text-[var(--ed-muted)]">{hero.sub}</p>
         <TrustLine items={["1 मिनट", "पूरी तरह गोपनीय", "लाहिड़ी अयनांश से गणना"]} />
       </section>
       <div className="pt-5">{card}</div>

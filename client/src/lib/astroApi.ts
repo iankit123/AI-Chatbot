@@ -1,6 +1,6 @@
 import type { AppEventName } from "@shared/appEvents";
 import type { AstroReportType } from "@shared/astroProducts";
-import { ASTRO_PRODUCT_TYPE, CONTACT_PLACEHOLDER, shaadiArm, skipsContactScreen, type ShaadiArm } from "@shared/astroProducts";
+import { ASTRO_PRODUCT_TYPE, CONTACT_PLACEHOLDER, shaadiArm, skipsContactScreen, wapasArm, type ShaadiArm, type WapasArm } from "@shared/astroProducts";
 import type { ShaadiQuizAnswers } from "@shared/shaadiQuiz";
 import type { QuizAnswers } from "@shared/quizFlows";
 
@@ -8,7 +8,7 @@ import type { QuizAnswers } from "@shared/quizFlows";
 export type QuizFlowFields = {
   flow?: "quiz";
   quiz?: QuizAnswers;
-  entry?: "picker" | "picker29" | "steps" | null;
+  entry?: "picker" | "picker29" | "quiz29" | "steps" | null;
   kundli?: { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
 };
 /** Paid reports only: the birth details the report was made from, and when it was made. */
@@ -16,7 +16,7 @@ export type BirthPerson = { name: string; gender: Gender | null; dob: string | n
 export type PaidMeta = { birth?: { self: BirthPerson | null; partner: BirthPerson | null }; madeOn?: string };
 
 /** What the quiz flow sends with a preview request; the "steps" flow sends only its entry tag. */
-export type QuizExtra = { quiz: QuizAnswers; entry?: "picker" | "picker29" } | { entry: "steps" };
+export type QuizExtra = { quiz: QuizAnswers; entry?: "picker" | "picker29" | "quiz29" } | { entry: "steps" };
 const extraBody = (x?: QuizExtra) => (!x ? {} : "quiz" in x ? { flow: "quiz", ...x } : x);
 import { getDeviceId } from "@/lib/supabase";
 import { logAppEventToServer } from "@/lib/logAppEvent";
@@ -51,7 +51,7 @@ export type ShaadiReport = {
   /** Made in the quiz flow (SHAADI_QUIZ test), with the answers the buyer tapped. */
   flow?: "quiz";
   quiz?: ShaadiQuizAnswers;
-  entry?: "picker" | "picker29" | "steps" | null;
+  entry?: "picker" | "picker29" | "quiz29" | "steps" | null;
   /** Quiz-flow free preview only: the birth chart and the 7th house, drawn on the paywall. */
   kundli?: { baseIsLagna: boolean; houses: { sign: number; planets: string[] }[] };
   seventh?: { rashi: string; lord: string; lordHouse: number };
@@ -172,7 +172,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export const createShaadiPreview = (self: SelfDetails, palmImage?: string | null, quiz?: ShaadiQuizAnswers, entry?: "picker" | "picker29" | "steps") =>
+export const createShaadiPreview = (self: SelfDetails, palmImage?: string | null, quiz?: ShaadiQuizAnswers, entry?: "picker" | "picker29" | "quiz29" | "steps") =>
   request<ShaadiReport>("/api/astro/shaadi/preview", {
     method: "POST",
     body: JSON.stringify({
@@ -198,10 +198,24 @@ export function shaadiFlow(): ShaadiArm {
   return shaadiArm(getDeviceId());
 }
 
-/** The flow a report was made in, for events and checkouts: classic, quiz, picker, picker29 or steps. */
-export const reportFlow = (r: AstroReport): ShaadiArm => {
+/**
+ * Which /wapas flow this phone gets (WAPAS_QUIZ arms, sticky per device).
+ * ?flow=quiz|quiz29|classic forces one, for checking each page.
+ */
+export function wapasFlow(): WapasArm {
+  try {
+    const forced = new URLSearchParams(window.location.search).get("flow");
+    if (forced === "quiz" || forced === "quiz29" || forced === "classic") return forced;
+  } catch {
+    /* fall through to the device's arm */
+  }
+  return wapasArm(getDeviceId());
+}
+
+/** The flow a report was made in, for events and checkouts: classic, quiz, quiz29, picker, picker29 or steps. */
+export const reportFlow = (r: AstroReport): ShaadiArm | WapasArm => {
   const entry = "entry" in r ? r.entry : null;
-  if ("flow" in r && r.flow === "quiz") return entry === "picker" || entry === "picker29" ? entry : "quiz";
+  if ("flow" in r && r.flow === "quiz") return entry === "picker" || entry === "picker29" || entry === "quiz29" ? entry : "quiz";
   return entry === "steps" ? "steps" : "classic";
 };
 
