@@ -97,21 +97,33 @@ export function skipsContactScreen(deviceId: string): boolean {
  *                           naukri), then that report's own quiz flow (shared/quizFlows.ts), ₹99;
  *   picker29 (hash 50–74) — exactly the picker flow and paywall, at ₹29 (strike ₹149);
  *   classic  (hash 75–99) — the classic page at the normal price.
+ * From ~01:30 IST 20 Nov it is 50/50, and the picker's price depends on the time in India:
+ *   picker  (hash 25–74) — the picker flow at ₹29 (picker29) by day, ₹99 (picker) from 22:00 to 06:00 IST;
+ *   classic (hash 0–24, 75–99) — the classic page at the normal price, day and night.
+ * The old picker ₹99 and picker29 devices stay in the picker; the old Shaadi quiz devices move to
+ * classic (?flow=quiz still shows that flow). The time is read once, when the page opens.
  * Quiz-flow reports of any type carry facts.flow = "quiz" (facts.entry = "picker" or "picker29"
  * from the picker). Old steps reports carry facts.entry = "steps". Events and checkouts carry
  * `flow`. Compare arms on revenue per landing visitor only: what comes before each paywall differs.
  */
-export const SHAADI_QUIZ = { quizPercent: 25, pickerPercent: 25, picker29Percent: 25, rupees: 99, strike: 999, lowRupees: 29 } as const;
+export const SHAADI_QUIZ = { pickerFrom: 25, pickerTo: 75, rupees: 99, strike: 999, lowRupees: 29 } as const;
 const SHAADI_QUIZ_SALT = "shaadi-quiz-1";
 export type ShaadiArm = "quiz" | "picker" | "picker29" | "steps" | "classic";
 
-export function shaadiArm(deviceId: string): ShaadiArm {
+/** The night-price window of the picker/quiz arms: 22:00 to 05:59 India time. */
+export const NIGHT_PRICE = { fromHour: 22, toHour: 6 } as const;
+
+/** True during NIGHT_PRICE hours in India, whatever time zone the phone is set to. */
+export function isIndiaNight(now: number = Date.now()): boolean {
+  const hour = new Date(now + 5.5 * 3_600_000).getUTCHours();
+  return hour >= NIGHT_PRICE.fromHour || hour < NIGHT_PRICE.toHour;
+}
+
+export function shaadiArm(deviceId: string, now: number = Date.now()): ShaadiArm {
   let h = 2166136261;
   for (const ch of SHAADI_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   const b = h % 100;
-  if (b < SHAADI_QUIZ.quizPercent) return "quiz";
-  if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent) return "picker";
-  if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent + SHAADI_QUIZ.picker29Percent) return "picker29";
+  if (b >= SHAADI_QUIZ.pickerFrom && b < SHAADI_QUIZ.pickerTo) return isIndiaNight(now) ? "picker" : "picker29";
   return "classic";
 }
 
@@ -121,19 +133,21 @@ export function shaadiArm(deviceId: string): ShaadiArm {
  *                          partner's details one per screen, the Wapas quiz paywall, ₹99 (strike ₹999);
  *   quiz29  (hash 33–65) — exactly the same flow at ₹29 (strike ₹149);
  *   classic (hash 66–99) — the classic /wapas page at ₹29.
+ * From ~01:30 IST 20 Nov it is 50/50, with the quiz priced by the time in India (like the Shaadi picker):
+ *   quiz    (hash 0–49)  — the quiz flow at ₹29 (quiz29) by day, ₹99 (quiz) from 22:00 to 06:00 IST;
+ *   classic (hash 50–99) — the classic /wapas page at ₹29, day and night.
  * Sticky per device, own salt (independent of the Shaadi arms). ?flow=quiz|quiz29|classic forces one.
  * Quiz reports carry facts.flow = "quiz" (facts.entry = "quiz29" at ₹29). Read per landing visitor.
  */
-export const WAPAS_QUIZ = { quizPercent: 33, quiz29Percent: 33 } as const;
+export const WAPAS_QUIZ = { quizPercent: 50 } as const;
 const WAPAS_QUIZ_SALT = "wapas-quiz-1";
 export type WapasArm = "quiz" | "quiz29" | "classic";
 
-export function wapasArm(deviceId: string): WapasArm {
+export function wapasArm(deviceId: string, now: number = Date.now()): WapasArm {
   let h = 2166136261;
   for (const ch of WAPAS_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   const b = h % 100;
-  if (b < WAPAS_QUIZ.quizPercent) return "quiz";
-  if (b < WAPAS_QUIZ.quizPercent + WAPAS_QUIZ.quiz29Percent) return "quiz29";
+  if (b < WAPAS_QUIZ.quizPercent) return isIndiaNight(now) ? "quiz" : "quiz29";
   return "classic";
 }
 
