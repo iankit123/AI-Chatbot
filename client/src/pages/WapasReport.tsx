@@ -114,7 +114,7 @@ function Landing() {
   const hero = HERO_VARIANTS[heroKey];
 
   useEffect(() => {
-    trackAstro("astro_landing", "wapas", { h: heroKey });
+    trackAstro("astro_landing", "wapas", { flow: "classic", h: heroKey });
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -125,7 +125,7 @@ function Landing() {
     setBusy(true);
     window.scrollTo({ top: 0 });
     const me = self.value();
-    trackAstro("astro_form_submitted", "wapas", { status, partner_dob: partner.knows === "yes", h: heroKey });
+    trackAstro("astro_form_submitted", "wapas", { flow: "classic", status, partner_dob: partner.knows === "yes", h: heroKey });
     try {
       const [report] = await Promise.all([createWapasPreview({ self: me, partner: partner.value(), status }), wait(5200)]);
       saveSelf(me);
