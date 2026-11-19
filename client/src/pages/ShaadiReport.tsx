@@ -309,11 +309,11 @@ function Portrait({ report }: { report: ShaadiReport }) {
   );
 }
 
-function ReportView({ id, guess }: { id: string; guess: "quiz" | "picker" | "steps" | "classic" }) {
+function ReportView({ id, guess }: { id: string; guess: "quiz" | "picker" | "picker29" | "steps" | "classic" }) {
   const r = useAstroReport<ShaadiReport>(id, "shaadi");
   useReadTracking(r.report);
   // Before the report loads, assume this phone's own flow; then use the flow the report was made in.
-  const quiz = r.report ? r.report.flow === "quiz" : guess === "quiz" || guess === "picker";
+  const quiz = r.report ? r.report.flow === "quiz" : guess === "quiz" || guess === "picker" || guess === "picker29";
   return <Frame quiz={quiz}><ReportBody {...r} /></Frame>;
 }
 

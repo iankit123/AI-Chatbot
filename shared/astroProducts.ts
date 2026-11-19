@@ -89,20 +89,21 @@ export function skipsContactScreen(deviceId: string): boolean {
  * answer cards at ₹99 (strike ₹999). The rest keep the classic page at ASTRO_PRICES.shaadi.
  * Sticky per device. `?flow=quiz|picker|classic` on /shaadi forces one flow (for checking).
  * Live for 50% from 2026-11-18 ~14:35 IST; thirds (quiz / picker / classic) from ~14:52 IST.
- * From ~16:30 IST the Shaadi ad is split in quarters:
- *   quiz    (hash 0–24)  — the Shaadi quiz flow above;
- *   picker  (hash 25–49) — first asks which part of life hurts (shaadi, breakup, paisa, sarkari
- *                          naukri), then that report's own quiz flow (shared/quizFlows.ts), ₹99;
- *   steps   (hash 50–74) — the same first question, then only the classic form's questions for
- *                          that report, one per screen, and the classic report page at its price;
- *   classic (hash 75–99) — the classic page at the normal price.
- * Quiz-flow reports of any type carry facts.flow = "quiz" (and facts.entry = "picker" from the
- * picker) and cost SHAADI_QUIZ.rupees. Steps reports carry facts.entry = "steps" and the normal
- * price. Events and checkouts carry `flow`.
+ * From ~16:03 IST 18 Nov the Shaadi ad was split in quarters (quiz / picker / steps / classic).
+ * From ~09:30 IST 19 Nov steps (the picker, then the classic questions one per screen at ₹29) is
+ * replaced by picker29 in the same hash range:
+ *   quiz     (hash 0–24)  — the Shaadi quiz flow above, ₹99;
+ *   picker   (hash 25–49) — first asks which part of life hurts (shaadi, breakup, paisa, sarkari
+ *                           naukri), then that report's own quiz flow (shared/quizFlows.ts), ₹99;
+ *   picker29 (hash 50–74) — exactly the picker flow and paywall, at ₹29 (strike ₹149);
+ *   classic  (hash 75–99) — the classic page at the normal price.
+ * Quiz-flow reports of any type carry facts.flow = "quiz" (facts.entry = "picker" or "picker29"
+ * from the picker). Old steps reports carry facts.entry = "steps". Events and checkouts carry
+ * `flow`. Compare arms on revenue per landing visitor only: what comes before each paywall differs.
  */
-export const SHAADI_QUIZ = { quizPercent: 25, pickerPercent: 25, stepsPercent: 25, rupees: 99, strike: 999 } as const;
+export const SHAADI_QUIZ = { quizPercent: 25, pickerPercent: 25, picker29Percent: 25, rupees: 99, strike: 999, lowRupees: 29 } as const;
 const SHAADI_QUIZ_SALT = "shaadi-quiz-1";
-export type ShaadiArm = "quiz" | "picker" | "steps" | "classic";
+export type ShaadiArm = "quiz" | "picker" | "picker29" | "steps" | "classic";
 
 export function shaadiArm(deviceId: string): ShaadiArm {
   let h = 2166136261;
@@ -110,7 +111,7 @@ export function shaadiArm(deviceId: string): ShaadiArm {
   const b = h % 100;
   if (b < SHAADI_QUIZ.quizPercent) return "quiz";
   if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent) return "picker";
-  if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent + SHAADI_QUIZ.stepsPercent) return "steps";
+  if (b < SHAADI_QUIZ.quizPercent + SHAADI_QUIZ.pickerPercent + SHAADI_QUIZ.picker29Percent) return "picker29";
   return "classic";
 }
 

@@ -62,16 +62,16 @@ const SELF_STEPS: DetailStep[] = ["name", "gender", "year", "month", "day", "tim
 
 type Phase = { kind: "pick" } | { kind: "quiz"; i: number } | { kind: "hear" } | { kind: "detail"; i: number } | { kind: "making" };
 
-type Entry = "quiz" | "picker" | "steps";
+type Entry = "quiz" | "picker" | "picker29" | "steps";
 
 /** Creates the report for the chosen product from the answers and birth details. */
 function createReport(product: QuizProduct, self: SelfDetails, a: QuizAnswers, partner: { name: string; dob: string | null }, entry: Entry, palm: string | null): Promise<AstroReport> {
-  const extra = entry === "steps" ? { entry: "steps" as const } : { quiz: a, ...(entry === "picker" ? { entry: "picker" as const } : {}) };
+  const extra = entry === "steps" ? { entry: "steps" as const } : { quiz: a, ...(entry === "picker" || entry === "picker29" ? { entry } : {}) };
   switch (product) {
     case "shaadi":
       return entry === "steps"
         ? createShaadiPreview(self, palm, undefined, "steps")
-        : createShaadiPreview(self, null, a as ShaadiQuizAnswers, entry === "picker" ? "picker" : undefined);
+        : createShaadiPreview(self, null, a as ShaadiQuizAnswers, entry === "picker" || entry === "picker29" ? entry : undefined);
     case "wapas":
       return createWapasPreview({ self, partner: { name: partner.name, dob: partner.dob, tob: null, place: null }, status: a.worry as WapasStatus }, extra);
     case "business":

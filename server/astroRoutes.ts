@@ -70,7 +70,10 @@ function view(row: AstroReportRow) {
     quiz: f.quiz,
     entry: f.entry ?? null,
     ...(row.paid ? {} : { kundli: f.kundli }),
-    price: { rupees: row.price_rupees ?? SHAADI_QUIZ.rupees, strike: SHAADI_QUIZ.strike },
+    // ₹99 shows ₹999 struck out; the ₹29 picker arm shows the usual strike for ₹29.
+    price: row.price_rupees && row.price_rupees !== SHAADI_QUIZ.rupees
+      ? priceOfReport(row.report_type, row.price_rupees)
+      : { rupees: SHAADI_QUIZ.rupees, strike: SHAADI_QUIZ.strike },
   };
 }
 
@@ -88,22 +91,26 @@ const quizBody = {
   /** The quiz flow (SHAADI_QUIZ test) sends its six answers; they price the report at ₹99. */
   flow: z.literal("quiz").optional(),
   quiz: z.unknown().optional(),
-  /** "picker": came through the problem picker into a quiz flow. "steps": the picker, then the classic questions one per screen. */
-  entry: z.enum(["picker", "steps"]).optional(),
+  /** "picker" / "picker29": came through the problem picker into a quiz flow (₹99 / ₹29). "steps": the picker, then the classic questions one per screen. */
+  entry: z.enum(["picker", "picker29", "steps"]).optional(),
 };
 
 /**
  * Quiz-flow fields stored in facts (null for the classic flow). Kept out of `input`, so a buyer
  * who refills the same details still finds their earlier report.
  */
-function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" | "steps" }, self: BirthInput) {
+function quizFacts(product: QuizProduct, body: { flow?: "quiz"; quiz?: unknown; entry?: "picker" | "picker29" | "steps" }, self: BirthInput) {
   if (body.flow !== "quiz") return null;
   if (!isQuizAnswers(product, body.quiz)) throw new QuizInputError("Kripya sabhi sawalon ke jawab chunein");
-  return { flow: "quiz" as const, quiz: pickQuizAnswers(body.quiz), ...(body.entry === "picker" ? { entry: "picker" as const } : {}), kundli: kundliHouses(self) };
+  const entry = body.entry === "picker" || body.entry === "picker29" ? { entry: body.entry } : {};
+  return { flow: "quiz" as const, quiz: pickQuizAnswers(body.quiz), ...entry, kundli: kundliHouses(self) };
 }
 
+/** Price of a quiz-flow report: ₹99, or ₹29 in the picker29 arm. */
+const quizPrice = (body: { entry?: string }) => (body.entry === "picker29" ? SHAADI_QUIZ.lowRupees : SHAADI_QUIZ.rupees);
+
 /** Tag for reports made through the "steps" flow (classic questions one per screen, normal price). */
-const stepsTag = (body: { flow?: "quiz"; entry?: "picker" | "steps" }) =>
+const stepsTag = (body: { flow?: "quiz"; entry?: "picker" | "picker29" | "steps" }) =>
   body.flow !== "quiz" && body.entry === "steps" ? { entry: "steps" as const } : {};
 
 /** GET from the Razorpay API with the server's keys; null on any failure. */
@@ -338,7 +345,7 @@ export function registerAstroRoutes(app: Express) {
       const facts: ShaadiFacts = { ...buildShaadiFacts(input), ...(quiz as Partial<ShaadiFacts> | null), ...stepsTag(body) };
       // The palm photo is read once and discarded; only the text reading is stored.
       const palm = body.palm_image ? await readPalm(body.palm_image) : null;
-      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("shaadi", body.device_id);
+      const price = quiz ? quizPrice(body) : priceForNewReport("shaadi", body.device_id);
       const row = await insertReport({ report_type: "shaadi", device_id: body.device_id, input, facts, palm, price_rupees: price });
       res.json(view(row));
     } catch (error) {
@@ -404,7 +411,7 @@ export function registerAstroRoutes(app: Express) {
       const facts = { ...buildWapasFacts(input), ...quiz, ...stepsTag(body) };
       const earlier = await sameDetailsReport("wapas", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
-      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("wapas", body.device_id);
+      const price = quiz ? quizPrice(body) : priceForNewReport("wapas", body.device_id);
       const row = await insertReport({ report_type: "wapas", device_id: body.device_id, input, facts, palm: null, price_rupees: price });
       res.json(view(row));
     } catch (error) {
@@ -437,7 +444,7 @@ export function registerAstroRoutes(app: Express) {
       const facts = { ...buildBusinessFacts(input), ...quiz, ...stepsTag(body) };
       const earlier = await sameDetailsReport("business", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
-      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("business", body.device_id);
+      const price = quiz ? quizPrice(body) : priceForNewReport("business", body.device_id);
       const row = await insertReport({ report_type: "business", device_id: body.device_id, input, facts, palm: null, price_rupees: price });
       res.json(view(row));
     } catch (error) {
@@ -466,7 +473,7 @@ export function registerAstroRoutes(app: Express) {
       const facts = { ...buildNaukriFacts(input), ...quiz, ...stepsTag(body) };
       const earlier = await sameDetailsReport("naukri", body.device_id, input, req);
       if (earlier) return res.json(view(earlier));
-      const price = quiz ? SHAADI_QUIZ.rupees : priceForNewReport("naukri", body.device_id);
+      const price = quiz ? quizPrice(body) : priceForNewReport("naukri", body.device_id);
       const row = await insertReport({ report_type: "naukri", device_id: body.device_id, input, facts, palm: null, price_rupees: price });
       res.json(view(row));
     } catch (error) {
