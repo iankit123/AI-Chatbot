@@ -102,11 +102,14 @@ export function skipsContactScreen(deviceId: string): boolean {
  *   classic (hash 0–24, 75–99) — the classic page at the normal price, day and night.
  * The old picker ₹99 and picker29 devices stay in the picker; the old Shaadi quiz devices move to
  * classic (?flow=quiz still shows that flow). The time is read once, when the page opens.
+ * Ended ~15:15 IST 20 Nov (SHAADI_QUIZ.live = false): everyone gets the classic page. By day the picker
+ * at ₹29 tied classic (32 buyers each, ₹3.81 vs ₹3.99 per visitor over 1.5 days), and ₹99 lost by day.
+ * The flows stay reachable with ?flow= and old quiz reports keep their own look and price.
  * Quiz-flow reports of any type carry facts.flow = "quiz" (facts.entry = "picker" or "picker29"
  * from the picker). Old steps reports carry facts.entry = "steps". Events and checkouts carry
  * `flow`. Compare arms on revenue per landing visitor only: what comes before each paywall differs.
  */
-export const SHAADI_QUIZ = { pickerFrom: 25, pickerTo: 75, rupees: 99, strike: 999, lowRupees: 29 } as const;
+export const SHAADI_QUIZ = { live: false, pickerFrom: 25, pickerTo: 75, rupees: 99, strike: 999, lowRupees: 29 } as const;
 const SHAADI_QUIZ_SALT = "shaadi-quiz-1";
 export type ShaadiArm = "quiz" | "picker" | "picker29" | "steps" | "classic";
 
@@ -123,7 +126,7 @@ export function shaadiArm(deviceId: string, now: number = Date.now()): ShaadiArm
   let h = 2166136261;
   for (const ch of SHAADI_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   const b = h % 100;
-  if (b >= SHAADI_QUIZ.pickerFrom && b < SHAADI_QUIZ.pickerTo) return isIndiaNight(now) ? "picker" : "picker29";
+  if (SHAADI_QUIZ.live && b >= SHAADI_QUIZ.pickerFrom && b < SHAADI_QUIZ.pickerTo) return isIndiaNight(now) ? "picker" : "picker29";
   return "classic";
 }
 
@@ -136,10 +139,11 @@ export function shaadiArm(deviceId: string, now: number = Date.now()): ShaadiArm
  * From ~01:30 IST 20 Nov it is 50/50, with the quiz priced by the time in India (like the Shaadi picker):
  *   quiz    (hash 0–49)  — the quiz flow at ₹29 (quiz29) by day, ₹99 (quiz) from 22:00 to 06:00 IST;
  *   classic (hash 50–99) — the classic /wapas page at ₹29, day and night.
+ * Ended ~15:15 IST 20 Nov with the Shaadi test (WAPAS_QUIZ.live = false): everyone gets the classic page.
  * Sticky per device, own salt (independent of the Shaadi arms). ?flow=quiz|quiz29|classic forces one.
  * Quiz reports carry facts.flow = "quiz" (facts.entry = "quiz29" at ₹29). Read per landing visitor.
  */
-export const WAPAS_QUIZ = { quizPercent: 50 } as const;
+export const WAPAS_QUIZ = { live: false, quizPercent: 50 } as const;
 const WAPAS_QUIZ_SALT = "wapas-quiz-1";
 export type WapasArm = "quiz" | "quiz29" | "classic";
 
@@ -147,7 +151,7 @@ export function wapasArm(deviceId: string, now: number = Date.now()): WapasArm {
   let h = 2166136261;
   for (const ch of WAPAS_QUIZ_SALT + deviceId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   const b = h % 100;
-  if (b < WAPAS_QUIZ.quizPercent) return isIndiaNight(now) ? "quiz" : "quiz29";
+  if (WAPAS_QUIZ.live && b < WAPAS_QUIZ.quizPercent) return isIndiaNight(now) ? "quiz" : "quiz29";
   return "classic";
 }
 

@@ -20,7 +20,7 @@ import {
 
 export default function WapasReportPage() {
   const [, params] = useRoute("/wapas/r/:id");
-  // Wapas quiz test (WAPAS_QUIZ): half get the quiz flow (₹29 by day, ₹99 at night in India), half the classic page.
+  // Wapas quiz test (WAPAS_QUIZ) has ended: everyone gets the classic page; ?flow=quiz|quiz29 still shows the quiz.
   const flow = useRef(wapasFlow()).current;
   useEffect(() => {
     document.title = "Kya aapka Ex wapas aayega? | puchlo.in";
